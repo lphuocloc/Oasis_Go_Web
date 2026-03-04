@@ -17,7 +17,14 @@ export const Login = () => {
     if (res.success) {
       localStorage.setItem('access_token', res.data.accessToken)
       toast.success(res.message)
-      navigate('/admin')
+      console.log(res.data)
+      if(res.data.user.role === 'admin') {
+        navigate('/admin')
+      } else if(res.data.user.role === 'manager') {
+        navigate('/manager')
+      } else {
+        toast.error('You are not authorized to access this page')
+      }
     } else {
       toast.error(res.error.message)
     }

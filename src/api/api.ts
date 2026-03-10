@@ -8,10 +8,21 @@ export const api = axios.create({
 })
 
 api.interceptors.request.use((cfg) => {
-    const token = localStorage.getItem('access_token')
-    if (token) {
-      cfg.headers = cfg.headers ?? {}
-      cfg.headers.Authorization = `Bearer ${token}`
-    }
-    return cfg
-  })
+  const token = localStorage.getItem('token')
+  if (token) {
+    cfg.headers = cfg.headers ?? {}
+    cfg.headers.Authorization = `Bearer ${token}`
+    console.log('Request with token:', cfg.url)
+  } else {
+    console.log('Request without token:', cfg.url)
+  }
+  return cfg
+})
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.error('API Error:', error?.response?.status, error?.response?.data)
+    return Promise.reject(error)
+  }
+)

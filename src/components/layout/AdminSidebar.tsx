@@ -1,7 +1,7 @@
 import React from 'react'
 import type { NavItem } from './Sidebar'
 import Sidebar from './Sidebar'
-import { LayoutGrid, MapPin, Home, Calendar, DollarSign, Users, Star, AlertCircle, BarChart3, Settings } from 'lucide-react'
+import { LayoutGrid, MapPin, Home, Calendar, DollarSign, Users, Star, AlertCircle, BarChart3, Settings, Boxes } from 'lucide-react'
 
 const AdminSidebar: React.FC<{ userName?: string; userRole?: string }> = ({ 
   userName = 'Admin User', 
@@ -17,6 +17,11 @@ const AdminSidebar: React.FC<{ userName?: string; userRole?: string }> = ({
       label: 'Locations',
       path: '/admin/locations',
       icon: <MapPin className="w-6 h-6" />
+    },
+    {
+      label: 'Pod Clusters',
+      path: '/admin/pod-clusters',
+      icon: <Boxes className="w-6 h-6" />
     },
     {
       label: 'Pods',

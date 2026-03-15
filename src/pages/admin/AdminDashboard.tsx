@@ -1,10 +1,822 @@
-import React from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
+import {
+  adminDashboardApi,
+  type AdminDashboardResponse,
+  type DashboardFilters,
+  type DashboardPod
+} from '../../api/lib/admin/dashboardApi'
+import { adminStatsApi, type AdminStatsResponse } from '../../api/lib/admin/statsApi'
+import {
+  TrendingUp, AlertCircle, Calendar, Package,
+  RefreshCw, ChevronDown, DollarSign, Users,
+  Star, Tag, MapPin, ShieldCheck, ShieldOff, Clock
+} from 'lucide-react'
+import { toast } from 'react-toastify'
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+/** Statuses BE considers "open" for incidents — mirrors BE OPEN_INCIDENT_STATUSES */
+const OPEN_INCIDENT_STATUSES = ['PENDING', 'INVESTIGATING']
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type RangeOption = 'today' | 'week' | 'month'
+
+const RANGE_OPTIONS: { label: string; value: RangeOption }[] = [
+  { label: 'Today', value: 'today' },
+  { label: 'This Week', value: 'week' },
+  { label: 'This Month', value: 'month' }
+]
+
+const getDateRange = (range: RangeOption): { from: Date; to: Date; groupBy: DashboardFilters['groupBy'] } => {
+  const now = new Date()
+  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+  if (range === 'today') {
+    return { from: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0), to: endOfDay, groupBy: 'day' }
+  } else if (range === 'week') {
+    const d = now.getDay()
+    const monday = new Date(now)
+    monday.setDate(now.getDate() - (d === 0 ? 6 : d - 1))
+    monday.setHours(0, 0, 0, 0)
+    return { from: monday, to: endOfDay, groupBy: 'week' }
+  } else {
+    return { from: new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0), to: endOfDay, groupBy: 'month' }
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const STATUS_COLORS: Record<string, string> = {
+  BOOKED: 'bg-blue-100 text-blue-800',
+  IN_USE: 'bg-green-100 text-green-800',
+  COMPLETED: 'bg-gray-100 text-gray-800',
+  CANCELLED: 'bg-red-100 text-red-800',
+  OPEN: 'bg-orange-100 text-orange-800',
+  PENDING: 'bg-orange-100 text-orange-800',
+  IN_PROGRESS: 'bg-yellow-100 text-yellow-800',
+  RESOLVED: 'bg-green-100 text-green-800',
+  CLOSED: 'bg-gray-100 text-gray-800',
+  AVAILABLE: 'bg-emerald-100 text-emerald-800',
+  OCCUPIED: 'bg-blue-100 text-blue-800',
+  MAINTENANCE: 'bg-yellow-100 text-yellow-800',
+  INACTIVE: 'bg-gray-100 text-gray-800',
+  AUTHORIZED: 'bg-green-100 text-green-800',
+  INITIATED: 'bg-blue-100 text-blue-800',
+  FAILED: 'bg-red-100 text-red-800',
+  CHARGE: 'bg-blue-100 text-blue-800',
+  REFUND: 'bg-orange-100 text-orange-800',
+  DISCOUNT: 'bg-purple-100 text-purple-800',
+  PENALTY: 'bg-red-100 text-red-800',
+}
+
+const ROLE_COLORS: Record<string, string> = {
+  CUSTOMER: 'bg-sky-100 text-sky-800',
+  CLEANER: 'bg-teal-100 text-teal-800',
+  MANAGER: 'bg-violet-100 text-violet-800',
+  ADMIN: 'bg-rose-100 text-rose-800',
+}
+
+const formatCurrency = (amount: number) =>
+  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount)
+
+const StatusBadge: React.FC<{ status: string; colorMap?: Record<string, string> }> = ({ status, colorMap = STATUS_COLORS }) => (
+  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${colorMap[status] ?? 'bg-gray-100 text-gray-700'}`}>
+    {status}
+  </span>
+)
+
+const StarRating: React.FC<{ rating: number; max?: number }> = ({ rating, max = 5 }) => (
+  <div className="flex items-center gap-0.5">
+    {Array.from({ length: max }).map((_, i) => (
+      <Star
+        key={i}
+        className={`w-3.5 h-3.5 ${i < Math.round(rating) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`}
+      />
+    ))}
+    <span className="ml-1 text-xs text-gray-500">{rating.toFixed(1)}</span>
+  </div>
+)
+
+const SummaryCard: React.FC<{
+  title: string
+  value: React.ReactNode
+  icon: React.ReactNode
+  iconBg: string
+  extra?: React.ReactNode
+  badge?: React.ReactNode
+}> = ({ title, value, icon, iconBg, extra, badge }) => (
+  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col gap-3">
+    <div className="flex items-center justify-between">
+      <p className="text-sm font-medium text-gray-500">{title}</p>
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${iconBg}`}>{icon}</div>
+    </div>
+    <div className="flex items-end gap-2">
+      <p className="text-3xl font-bold text-gray-900">{value}</p>
+      {badge}
+    </div>
+    {extra && <div className="text-sm space-y-1">{extra}</div>}
+  </div>
+)
+
+const SkeletonCard = () => (
+  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 animate-pulse">
+    <div className="h-4 bg-gray-200 rounded w-1/2 mb-4" />
+    <div className="h-8 bg-gray-200 rounded w-1/3" />
+  </div>
+)
+
+const SectionTitle: React.FC<{ children: React.ReactNode; icon?: React.ReactNode }> = ({ children, icon }) => (
+  <div className="flex items-center gap-2 mb-4">
+    {icon && <span className="text-gray-400">{icon}</span>}
+    <h2 className="text-base font-semibold text-gray-800">{children}</h2>
+  </div>
+)
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export const AdminDashboard = () => {
+  const [dashData, setDashData] = useState<AdminDashboardResponse['data'] | null>(null)
+  const [statsData, setStatsData] = useState<AdminStatsResponse['data'] | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [statsError, setStatsError] = useState(false)
+  const [range, setRange] = useState<RangeOption>('today')
+  const [showRangePicker, setShowRangePicker] = useState(false)
+
+  const fetchAll = async (selectedRange: RangeOption) => {
+    setIsLoading(true)
+    const { from, to, groupBy } = getDateRange(selectedRange)
+
+    const [dashResult, statsResult] = await Promise.allSettled([
+      adminDashboardApi.getDashboard({ from, to, groupBy }),
+      adminStatsApi.getStats({ from, to })
+    ])
+
+    if (dashResult.status === 'fulfilled') {
+      setDashData(dashResult.value.data)
+    } else {
+      toast.error('Failed to load operations data')
+    }
+
+    if (statsResult.status === 'fulfilled') {
+      setStatsData(statsResult.value.data)
+      setStatsError(false)
+    } else {
+      setStatsError(true)
+    }
+
+    setIsLoading(false)
+  }
+
+  useEffect(() => {
+    fetchAll(range)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range])
+
+  const rangeLabel = RANGE_OPTIONS.find(o => o.value === range)?.label ?? 'Today'
+
+  // ── Derived values — computed FE-side from raw BE lists ───────────────────
+  // BE /dashboard returns raw lists; byStatus, charts & latest entries are derived here.
+
+  const podsByStatus = useMemo(
+    () => dashData?.pods.list.reduce<Record<string, number>>((acc, p) => {
+      const k = p.status || 'UNKNOWN'; acc[k] = (acc[k] || 0) + 1; return acc
+    }, {}) ?? {},
+    [dashData]
+  )
+
+  const bookingsByStatus = useMemo(
+    () => dashData?.bookings.list.reduce<Record<string, number>>((acc, b) => {
+      const k = b.status || 'UNKNOWN'; acc[k] = (acc[k] || 0) + 1; return acc
+    }, {}) ?? {},
+    [dashData]
+  )
+
+  const incidentsByStatus = useMemo(
+    () => dashData?.incidents.list.reduce<Record<string, number>>((acc, i) => {
+      const k = i.status || 'UNKNOWN'; acc[k] = (acc[k] || 0) + 1; return acc
+    }, {}) ?? {},
+    [dashData]
+  )
+
+  const openIncidentsNow = useMemo(
+    () => dashData?.incidents.list.filter(i => OPEN_INCIDENT_STATUSES.includes(i.status)).length ?? 0,
+    [dashData]
+  )
+
+  /** id → pod — used to resolve podCode in booking/incident rows */
+  const podMap = useMemo(
+    () => new Map<string, DashboardPod>(dashData?.pods.list.map(p => [p.id, p]) ?? []),
+    [dashData]
+  )
+
+  const bookingsStatusPie = useMemo(
+    () => Object.entries(bookingsByStatus).map(([status, count]) => ({ status, count })),
+    [bookingsByStatus]
+  )
+
+  const incidentsStatusPie = useMemo(
+    () => Object.entries(incidentsByStatus).map(([status, count]) => ({ status, count })),
+    [incidentsByStatus]
+  )
+
+  const latestBookings = useMemo(() => {
+    if (!dashData) return []
+    return [...dashData.bookings.list]
+      .sort((a, b) => new Date(b.start_time ?? 0).getTime() - new Date(a.start_time ?? 0).getTime())
+      .slice(0, 5)
+      .map(b => ({
+        id: b.id,
+        podCode: podMap.get(b.pod_id ?? '')?.code ?? b.pod_id ?? '—',
+        userName: (b.user as { name?: string } | undefined)?.name ?? '—',
+        startTime: b.start_time ?? '',
+        status: b.status
+      }))
+  }, [dashData, podMap])
+
+  const latestIncidents = useMemo(() => {
+    if (!dashData) return []
+    return [...dashData.incidents.list]
+      .sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())
+      .slice(0, 5)
+      .map(i => ({
+        id: i.id,
+        podCode: podMap.get(i.pod_id ?? '')?.code ?? i.pod_id ?? '—',
+        severity: i.severity ?? '—',
+        status: i.status,
+        created_at: i.created_at ?? ''
+      }))
+  }, [dashData, podMap])
+
   return (
-    <div className="p-8">
-      <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-      <p className="text-gray-600 mt-2">Real-time overview of the Oasis Go system.</p>
+    <div className="p-8 bg-gray-50 min-h-screen">
+
+      {/* ── Page Header ──────────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-500 mt-1">System-wide overview of Oasis Go operations.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <button
+              onClick={() => setShowRangePicker(v => !v)}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
+            >
+              {rangeLabel}
+              <ChevronDown className="w-4 h-4 text-gray-400" />
+            </button>
+            {showRangePicker && (
+              <div className="absolute right-0 mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-10 overflow-hidden">
+                {RANGE_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => { setRange(opt.value); setShowRangePicker(false) }}
+                    className={`w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors ${range === opt.value ? 'text-blue-600 font-semibold bg-blue-50' : 'text-gray-700'}`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => fetchAll(range)}
+            disabled={isLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 shadow-sm transition-colors"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {/* ── Loading Skeleton ─────────────────────────────────────────────── */}
+      {isLoading && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map(i => <SkeletonCard key={i} />)}
+          </div>
+        </div>
+      )}
+
+      {!isLoading && (
+        <>
+          {/* ── Section 1: Operations KPIs ───────────────────────────────── */}
+          <div className="mb-3">
+            <SectionTitle icon={<Package className="w-4 h-4" />}>Operations Overview</SectionTitle>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <SummaryCard
+              title="Total Pods"
+              value={dashData?.summary.podsTotal ?? '—'}
+              icon={<Package className="w-5 h-5 text-blue-600" />}
+              iconBg="bg-blue-50"
+              extra={dashData && Object.entries(podsByStatus).map(([status, count]) => (
+                <div key={status} className="flex justify-between items-center">
+                  <StatusBadge status={status} />
+                  <span className="font-semibold text-gray-700">{count}</span>
+                </div>
+              ))}
+            />
+
+            <SummaryCard
+              title={`Bookings (${rangeLabel})`}
+              value={dashData?.summary.bookingsInRange ?? '—'}
+              icon={<Calendar className="w-5 h-5 text-green-600" />}
+              iconBg="bg-green-50"
+              extra={dashData && Object.entries(bookingsByStatus).map(([status, count]) => (
+                <div key={status} className="flex justify-between items-center">
+                  <StatusBadge status={status} />
+                  <span className="font-semibold text-gray-700">{count}</span>
+                </div>
+              ))}
+            />
+
+            <SummaryCard
+              title="Incidents (All)"
+              value={dashData?.summary.incidentsTotal ?? '—'}
+              icon={<AlertCircle className="w-5 h-5 text-red-600" />}
+              iconBg="bg-red-50"
+              extra={dashData && (
+                <>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />
+                    <span className="text-orange-600 font-semibold">{openIncidentsNow} Open Now</span>
+                  </div>
+                  {Object.entries(incidentsByStatus).map(([status, count]) => (
+                    <div key={status} className="flex justify-between items-center">
+                      <StatusBadge status={status} />
+                      <span className="font-semibold text-gray-700">{count}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+            />
+
+            <SummaryCard
+              title="Pod Availability"
+              value={(() => {
+                const available = podsByStatus['AVAILABLE'] ?? 0
+                const total = dashData?.summary.podsTotal || 1
+                return `${Math.round((available / total) * 100)}%`
+              })()}
+              icon={<TrendingUp className="w-5 h-5 text-purple-600" />}
+              iconBg="bg-purple-50"
+              extra={(() => {
+                const available = podsByStatus['AVAILABLE'] ?? 0
+                const total = dashData?.summary.podsTotal || 1
+                const pct = Math.round((available / total) * 100)
+                return (
+                  <>
+                    <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                      <div className="bg-purple-500 h-2 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                    </div>
+                    <p className="text-gray-500 mt-1">{available} of {total} pods available</p>
+                  </>
+                )
+              })()}
+            />
+          </div>
+
+          {/* ── Section 2: Admin KPIs (Revenue, Users, Rating, Reviews) ──── */}
+          <div className="mb-3">
+            <SectionTitle icon={<DollarSign className="w-4 h-4" />}>Business Overview</SectionTitle>
+          </div>
+          {statsError && (
+            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-sm">
+              Business stats are temporarily unavailable — operations data above is still live.
+            </div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {/* Revenue */}
+            <SummaryCard
+              title={`Revenue (${rangeLabel})`}
+              value={statsData ? formatCurrency(statsData.revenue.periodRevenue) : '—'}
+              icon={<DollarSign className="w-5 h-5 text-emerald-600" />}
+              iconBg="bg-emerald-50"
+              extra={statsData && (
+                <>
+                  <div className="flex justify-between text-gray-500">
+                    <span>Successful</span>
+                    <span className="font-semibold text-gray-700">{statsData.revenue.successfulPayments} txns</span>
+                  </div>
+                  {statsData.revenue.refundedAmount > 0 && (
+                    <div className="flex justify-between text-gray-500">
+                      <span>Refunded</span>
+                      <span className="font-semibold text-orange-600">-{formatCurrency(statsData.revenue.refundedAmount)}</span>
+                    </div>
+                  )}
+                </>
+              )}
+            />
+
+            {/* Users */}
+            <SummaryCard
+              title="Total Users"
+              value={statsData?.users.total ?? '—'}
+              icon={<Users className="w-5 h-5 text-sky-600" />}
+              iconBg="bg-sky-50"
+              badge={statsData?.users.newInPeriod ? (
+                <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                  +{statsData.users.newInPeriod} new
+                </span>
+              ) : undefined}
+              extra={statsData && (
+                <div className="flex justify-between text-gray-500">
+                  <span>Active</span>
+                  <span className="font-semibold text-gray-700">{statsData.users.active}</span>
+                </div>
+              )}
+            />
+
+            {/* Avg Rating */}
+            <SummaryCard
+              title="Average Rating"
+              value={statsData ? statsData.reviews.averageRating.toFixed(1) : '—'}
+              icon={<Star className="w-5 h-5 text-yellow-500" />}
+              iconBg="bg-yellow-50"
+              extra={statsData && (
+                <>
+                  <div className="mt-1">
+                    <StarRating rating={statsData.reviews.averageRating} />
+                  </div>
+                  <div className="flex justify-between text-gray-500 mt-1">
+                    <span>Total reviews</span>
+                    <span className="font-semibold text-gray-700">{statsData.reviews.total}</span>
+                  </div>
+                </>
+              )}
+            />
+
+            {/* Pending Reviews */}
+            <SummaryCard
+              title="Pending Moderation"
+              value={statsData?.reviews.pendingModeration ?? '—'}
+              icon={<ShieldOff className="w-5 h-5 text-rose-600" />}
+              iconBg="bg-rose-50"
+              extra={statsData && (
+                <>
+                  <div className="flex justify-between text-gray-500">
+                    <span>Vouchers active</span>
+                    <span className="font-semibold text-gray-700">{statsData.vouchers.totalActive}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-500">
+                    <span>Used ({rangeLabel})</span>
+                    <span className="font-semibold text-gray-700">{statsData.vouchers.usedInPeriod}</span>
+                  </div>
+                </>
+              )}
+            />
+          </div>
+
+          {/* ── Section 3: Four Charts ────────────────────────────────────── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            {/* Booking Status Distribution */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h2 className="text-base font-semibold text-gray-900 mb-5">Bookings Status Distribution</h2>
+              {!dashData || bookingsStatusPie.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-8">No booking data available</p>
+              ) : (
+                <div className="space-y-3">
+                  {bookingsStatusPie.map((item) => {
+                    const pct = Math.round((item.count / (dashData.summary.bookingsInRange || 1)) * 100)
+                    return (
+                      <div key={item.status} className="flex items-center gap-3">
+                        <div className="w-28 shrink-0"><StatusBadge status={item.status} /></div>
+                        <div className="flex-1 bg-gray-100 rounded-full h-2">
+                          <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700 w-10 text-right">{item.count}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Incidents Status Distribution */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h2 className="text-base font-semibold text-gray-900 mb-5">Incidents Status Distribution</h2>
+              {!dashData || incidentsStatusPie.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-8">No incident data available</p>
+              ) : (
+                <div className="space-y-3">
+                  {incidentsStatusPie.map((item) => {
+                    const pct = Math.round((item.count / (dashData.summary.incidentsTotal || 1)) * 100)
+                    return (
+                      <div key={item.status} className="flex items-center gap-3">
+                        <div className="w-28 shrink-0"><StatusBadge status={item.status} /></div>
+                        <div className="flex-1 bg-gray-100 rounded-full h-2">
+                          <div className="bg-red-500 h-2 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700 w-10 text-right">{item.count}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Revenue by Payment Method */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h2 className="text-base font-semibold text-gray-900 mb-5">Revenue by Payment Method</h2>
+              {!statsData || statsData.revenue.byMethod.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-8">No payment data available</p>
+              ) : (
+                <div className="space-y-3">
+                  {statsData.revenue.byMethod.map((item) => {
+                    const maxAmount = Math.max(...statsData.revenue.byMethod.map(m => m.amount), 1)
+                    const pct = Math.round((item.amount / maxAmount) * 100)
+                    return (
+                      <div key={item.method} className="flex items-center gap-3">
+                        <span className="w-20 shrink-0 text-sm text-gray-600 font-medium">{item.method}</span>
+                        <div className="flex-1 bg-gray-100 rounded-full h-2">
+                          <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-xs text-gray-500 w-6 text-right">{item.count}</span>
+                        <span className="text-sm font-semibold text-gray-700 w-24 text-right">{formatCurrency(item.amount)}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Users by Role */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h2 className="text-base font-semibold text-gray-900 mb-5">Users by Role</h2>
+              {!statsData || statsData.users.byRole.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-8">No user data available</p>
+              ) : (
+                <div className="space-y-3">
+                  {statsData.users.byRole.map((item) => {
+                    const pct = Math.round((item.count / (statsData.users.total || 1)) * 100)
+                    return (
+                      <div key={item.role} className="flex items-center gap-3">
+                        <div className="w-24 shrink-0">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${ROLE_COLORS[item.role] ?? 'bg-gray-100 text-gray-700'}`}>
+                            {item.role}
+                          </span>
+                        </div>
+                        <div className="flex-1 bg-gray-100 rounded-full h-2">
+                          <div className="bg-sky-500 h-2 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700 w-10 text-right">{item.count}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── Section 4: Latest Bookings & Incidents ────────────────────── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="text-base font-semibold text-gray-900">Latest Bookings</h2>
+                <Calendar className="w-4 h-4 text-gray-400" />
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pod</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {latestBookings.length ? (
+                      latestBookings.map(b => (
+                        <tr key={b.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-3 font-medium text-gray-900">{b.podCode}</td>
+                          <td className="px-6 py-3 text-gray-600">{b.userName}</td>
+                          <td className="px-6 py-3"><StatusBadge status={b.status} /></td>
+                          <td className="px-6 py-3 text-gray-500">
+                            {b.startTime ? new Date(b.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan={4} className="px-6 py-10 text-center text-gray-400">No bookings in this period</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="text-base font-semibold text-gray-900">Latest Incidents</h2>
+                <AlertCircle className="w-4 h-4 text-gray-400" />
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pod</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Severity</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {latestIncidents.length ? (
+                      latestIncidents.map(i => (
+                        <tr key={i.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-3 font-medium text-gray-900">{i.podCode}</td>
+                          <td className="px-6 py-3">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${
+                              i.severity === 'HIGH' || i.severity === 'CRITICAL' ? 'bg-red-100 text-red-800'
+                                : i.severity === 'MEDIUM' ? 'bg-orange-100 text-orange-800'
+                                : 'bg-gray-100 text-gray-700'
+                            }`}>{i.severity}</span>
+                          </td>
+                          <td className="px-6 py-3"><StatusBadge status={i.status} /></td>
+                          <td className="px-6 py-3 text-gray-500">
+                            {i.created_at ? new Date(i.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '—'}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan={4} className="px-6 py-10 text-center text-gray-400">No incidents in this period</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Section 5: Location Performance ──────────────────────────── */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-8">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-900">Location Performance</h2>
+              <MapPin className="w-4 h-4 text-gray-400" />
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Pods</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Active Pods</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Bookings</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {statsData?.locations.length ? (
+                    statsData.locations.map(loc => (
+                      <tr key={loc.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-3 font-medium text-gray-900">{loc.name}</td>
+                        <td className="px-6 py-3">
+                          <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs capitalize">{loc.type}</span>
+                        </td>
+                        <td className="px-6 py-3 text-right text-gray-700">{loc.totalPods}</td>
+                        <td className="px-6 py-3 text-right">
+                          <span className="text-emerald-600 font-semibold">{loc.activePods}</span>
+                        </td>
+                        <td className="px-6 py-3 text-right text-gray-700">{loc.totalBookings}</td>
+                        <td className="px-6 py-3 text-right font-semibold text-gray-900">{formatCurrency(loc.totalRevenue)}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr><td colSpan={6} className="px-6 py-10 text-center text-gray-400">No location data available</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* ── Section 6: Recent Transactions & Pending Reviews ────────── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            {/* Recent Transactions */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="text-base font-semibold text-gray-900">Recent Transactions</h2>
+                <Clock className="w-4 h-4 text-gray-400" />
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {statsData?.revenue.recentTransactions.length ? (
+                      statsData.revenue.recentTransactions.map(tx => (
+                        <tr key={tx.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-3"><StatusBadge status={tx.type} /></td>
+                          <td className={`px-6 py-3 text-right font-semibold ${tx.type === 'REFUND' ? 'text-orange-600' : 'text-gray-900'}`}>
+                            {tx.type === 'REFUND' ? '-' : ''}{formatCurrency(tx.amount)}
+                          </td>
+                          <td className="px-6 py-3"><StatusBadge status={tx.status} /></td>
+                          <td className="px-6 py-3 text-gray-500">
+                            {new Date(tx.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan={4} className="px-6 py-10 text-center text-gray-400">No transactions in this period</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Reviews Moderation */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="text-base font-semibold text-gray-900">Pending Review Moderation</h2>
+                <div className="flex items-center gap-2">
+                  {statsData && statsData.reviews.pendingModeration > 0 && (
+                    <span className="px-2 py-0.5 bg-rose-100 text-rose-700 rounded-full text-xs font-semibold">
+                      {statsData.reviews.pendingModeration} pending
+                    </span>
+                  )}
+                  <ShieldCheck className="w-4 h-4 text-gray-400" />
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pod</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Comment</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {statsData?.reviews.latest.length ? (
+                      statsData.reviews.latest.map(review => (
+                        <tr key={review.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-3 font-medium text-gray-900 whitespace-nowrap">{review.userName}</td>
+                          <td className="px-6 py-3 text-gray-600">{review.podCode}</td>
+                          <td className="px-6 py-3 whitespace-nowrap">
+                            <StarRating rating={review.rating} />
+                          </td>
+                          <td className="px-6 py-3 text-gray-500 max-w-xs truncate">{review.comment ?? '—'}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan={4} className="px-6 py-10 text-center text-gray-400">No reviews pending moderation</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Section 7: Top Vouchers ───────────────────────────────────── */}
+          {statsData && statsData.vouchers.topVouchers.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="text-base font-semibold text-gray-900">Top Vouchers Used</h2>
+                <Tag className="w-4 h-4 text-gray-400" />
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Uses</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Discount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {statsData.vouchers.topVouchers.map(v => (
+                      <tr key={v.code} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-3 font-mono font-bold text-gray-900 text-xs">{v.code}</td>
+                        <td className="px-6 py-3 text-gray-600">{v.description}</td>
+                        <td className="px-6 py-3">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${v.discountType === 'PERCENT' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
+                            {v.discountType}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3 text-right font-semibold text-gray-700">{v.usageCount}</td>
+                        <td className="px-6 py-3 text-right font-semibold text-orange-600">{formatCurrency(v.totalDiscount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
+
+
+

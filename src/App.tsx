@@ -1,5 +1,5 @@
 import './App.css'
-import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
 import { AdminProfile } from './pages/admin/Profile'
 import { ManagerDashboard } from './pages/manager/ManagerDashboard'
@@ -21,6 +21,10 @@ export const router = createBrowserRouter([
     path: "/",
     element: <PublicRoute />,
     children: [
+      {
+        index: true,
+        element: <Navigate to="/login" replace />
+      },
       {
         path: "login",
         element: <Login />

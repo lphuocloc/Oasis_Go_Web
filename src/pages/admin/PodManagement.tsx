@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, Edit2, Grid3X3, Plus, RefreshCw, Search, Trash2, Wrench } from 'lucide-react'
+import { CheckCircle2, Edit2, Plus, RefreshCw, Search, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
 import { podClusterApi, type PodClusterItem } from '../../api/lib/admin/podClusterApi'
+import { PodModulesPanel } from '../../components/admin/PodModulesPanel'
 import {
   POD_STATUSES,
   podApi,
@@ -90,6 +91,7 @@ export const AdminPodManagement = () => {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | PodStatus>('all')
   const [clusterFilter, setClusterFilter] = useState('all')
+  const [selectedPodId, setSelectedPodId] = useState<string | null>(null)
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [createMode, setCreateMode] = useState<CreateMode>('single')
@@ -158,6 +160,11 @@ export const AdminPodManagement = () => {
       return acc
     }, {}),
     [pods]
+  )
+
+  const selectedPod = useMemo(
+    () => pods.find((pod) => pod.id === selectedPodId) ?? null,
+    [pods, selectedPodId]
   )
 
   const openCreateModal = () => {
@@ -474,7 +481,7 @@ export const AdminPodManagement = () => {
                 </tr>
               ) : (
                 filteredPods.map((pod) => (
-                  <tr key={pod.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={pod.id} className={`hover:bg-gray-50 transition-colors ${selectedPodId === pod.id ? 'bg-blue-50/40' : ''}`}>
                     <td className="px-6 py-4 align-top">
                       <div className="font-semibold text-gray-900">{pod.code} - {pod.name}</div>
                       <div className="text-xs text-gray-500 mt-1">{pod.id}</div>
@@ -511,6 +518,13 @@ export const AdminPodManagement = () => {
                           </button>
                         )}
                         <button
+                          onClick={() => setSelectedPodId(pod.id)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors"
+                        >
+                          <SlidersHorizontal className="w-4 h-4" />
+                          Modules
+                        </button>
+                        <button
                           onClick={() => openEditModal(pod)}
                           className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
                         >
@@ -533,6 +547,8 @@ export const AdminPodManagement = () => {
           </table>
         </div>
       </div>
+
+      <PodModulesPanel pod={selectedPod} onClose={() => setSelectedPodId(null)} />
 
       <Modal
         isOpen={isCreateModalOpen}

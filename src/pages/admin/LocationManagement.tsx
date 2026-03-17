@@ -17,7 +17,7 @@ import {
   type LocationItem,
   type LocationPayload,
   type LocationType
-} from '../../api/lib/admin/locationApi'
+} from '../../api/lib/locationApi'
 
 type StatusFilter = 'all' | 'true' | 'false'
 type TypeFilter = LocationType | 'all'

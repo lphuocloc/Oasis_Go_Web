@@ -4,8 +4,8 @@ import {
   type AdminDashboardResponse,
   type DashboardFilters,
   type DashboardPod
-} from '../../api/lib/admin/dashboardApi'
-import { adminStatsApi, type AdminStatsResponse } from '../../api/lib/admin/statsApi'
+} from '../../api/lib/dashboardApi'
+import { adminStatsApi, type AdminStatsResponse } from '../../api/lib/statsApi'
 import {
   TrendingUp, AlertCircle, Calendar, Package,
   RefreshCw, ChevronDown, DollarSign, Users,

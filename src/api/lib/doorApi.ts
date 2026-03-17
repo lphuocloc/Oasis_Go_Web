@@ -1,4 +1,4 @@
-import { api } from '../../api'
+import { api } from '../api'
 
 export type LockStatus = 'LOCKED' | 'UNLOCKED'
 export type DoorSensorStatus = 'CLOSED' | 'OPEN'

@@ -1,4 +1,4 @@
-import { api } from '../../api'
+import { api } from '../api'
 
 // ── Query filters ─────────────────────────────────────────────────────────────
 
@@ -8,6 +8,56 @@ export interface DashboardFilters {
   groupBy?: 'day' | 'week' | 'month'
   locationId?: string
   clusterId?: string
+}
+
+export interface DashboardResponse {
+  success: boolean
+  data: {
+    filters: {
+      from: string
+      to: string
+      groupBy: string
+      tz: string
+      locationId: string | null
+      clusterId: string | null
+    }
+    summary: {
+      pods: {
+        total: number
+        byStatus: Record<string, number>
+      }
+      bookings: {
+        totalInRange: number
+        byStatus: Record<string, number>
+      }
+      incidents: {
+        totalInRange: number
+        openNow: number
+        byStatus: Record<string, number>
+      }
+    }
+    charts: {
+      bookingsStatusPie: Array<{ status: string; count: number }>
+      incidentsStatusPie: Array<{ status: string; count: number }>
+    }
+    lists: {
+      latestBookings: Array<{
+        id: string
+        podCode: string
+        userName: string
+        startTime: string
+        endTime: string
+        status: string
+      }>
+      latestIncidents: Array<{
+        id: string
+        podCode: string
+        severity: string
+        status: string
+        created_at: string
+      }>
+    }
+  }
 }
 
 // ── Raw entity shapes returned by the BE ─────────────────────────────────────
@@ -66,19 +116,40 @@ export interface AdminDashboardResponse {
   data: {
     summary: {
       podsTotal: number
+      clustersTotal?: number
       bookingsInRange: number
       incidentsTotal: number
+      openIncidents?: number
+      revenueInRange?: number
+    }
+    ratings?: {
+      bookingStatus?: Array<{ status: string; count: number; rate: number }>
+      podStatusRealtime?: Array<{ status: string; count: number; rate: number }>
+    }
+    charts?: {
+      bookingStatus?: Array<{ status: string; count: number; rate: number }>
+      podStatusRealtime?: Array<{ status: string; count: number; rate: number }>
+      revenueTrend?: {
+        groupBy: string
+        points: Array<{ label: string; amount: number }>
+      }
     }
     pods: {
       list: DashboardPod[]
+      statusSummary?: Array<{ status: string; count: number; rate: number }>
     }
     bookings: {
       from: string
       to: string
       list: DashboardBooking[]
+      statusSummary?: Array<{ status: string; count: number; rate: number }>
+      revenue?: {
+        total: number
+      }
     }
     incidents: {
       list: DashboardIncident[]
+      byStatus?: Array<{ status: string; count: number; rate: number }>
     }
   }
 }
@@ -103,5 +174,12 @@ export const adminDashboardApi = {
   getDashboard: (filters?: DashboardFilters) => {
     const params = buildParams(filters)
     return api.get<AdminDashboardResponse>('/dashboard', { params }).then((r) => r.data)
+  }
+}
+
+export const dashboardApi = {
+  getDashboard: (filters?: DashboardFilters) => {
+    const params = buildParams(filters)
+    return api.get<DashboardResponse>('/dashboard', { params }).then((r) => r.data)
   }
 }

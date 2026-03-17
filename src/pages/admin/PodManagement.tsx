@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Edit2, Plus, RefreshCw, Search, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
-import { podClusterApi, type PodClusterItem } from '../../api/lib/admin/podClusterApi'
+import { podClusterApi, type PodClusterItem } from '../../api/lib/podClusterApi'
 import { PodModulesPanel } from '../../components/admin/PodModulesPanel'
 import {
   POD_STATUSES,
@@ -11,7 +11,7 @@ import {
   type PodItem,
   type PodStatus,
   type UpdatePodPayload
-} from '../../api/lib/admin/podApi'
+} from '../../api/lib/podApi'
 
 type CreateMode = 'single' | 'grid'
 

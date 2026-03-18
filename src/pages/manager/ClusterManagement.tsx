@@ -1,7 +1,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
-import { Boxes, MapPin, RefreshCw, Search } from 'lucide-react'
+import { Boxes, Eye, MapPin, RefreshCw, Search } from 'lucide-react'
 import { toast } from 'react-toastify'
+import Modal from '../../components/common/Modal'
 import { podClusterApi, type PodClusterItem } from '../../api/lib/podClusterApi'
 
 const formatMoneyModifier = (value?: number | null) => {
@@ -14,6 +15,10 @@ export const ClusterManagement = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [locationFilter, setLocationFilter] = useState('all')
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
+  const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null)
+  const [selectedCluster, setSelectedCluster] = useState<PodClusterItem | null>(null)
 
   const fetchClusters = async () => {
     try {
@@ -66,6 +71,30 @@ export const ClusterManagement = () => {
     () => new Set(clusters.map((cluster) => cluster.location_id)).size,
     [clusters]
   )
+
+  const closeDetailModal = () => {
+    setIsDetailOpen(false)
+    setSelectedCluster(null)
+    setIsDetailLoading(false)
+    setDetailLoadingId(null)
+  }
+
+  const openDetailModal = async (clusterId: string) => {
+    setIsDetailOpen(true)
+    setIsDetailLoading(true)
+    setDetailLoadingId(clusterId)
+
+    try {
+      const response = await podClusterApi.getById(clusterId)
+      setSelectedCluster(response.data)
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to load pod cluster detail')
+      closeDetailModal()
+    } finally {
+      setIsDetailLoading(false)
+      setDetailLoadingId(null)
+    }
+  }
 
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
@@ -151,23 +180,23 @@ export const ClusterManagement = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price Modifier</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Updated</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-gray-400">Loading pod clusters...</td>
+                  <td colSpan={5} className="px-6 py-12 text-center text-gray-400">Loading pod clusters...</td>
                 </tr>
               ) : filteredClusters.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-gray-400">No pod clusters found in your scope</td>
+                  <td colSpan={5} className="px-6 py-12 text-center text-gray-400">No pod clusters found in your scope</td>
                 </tr>
               ) : (
                 filteredClusters.map((cluster) => (
                   <tr key={cluster.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 align-top">
                       <div className="font-semibold text-gray-900">{cluster.name}</div>
-                      <div className="text-xs text-gray-500 mt-1">{cluster.id}</div>
                       {cluster.description && (
                         <p className="text-xs text-gray-500 mt-2 max-w-md">{cluster.description}</p>
                       )}
@@ -175,6 +204,17 @@ export const ClusterManagement = () => {
                     <td className="px-6 py-4 align-top text-gray-600">{cluster.location?.name ?? cluster.location_id}</td>
                     <td className="px-6 py-4 align-top text-gray-700 font-medium">{formatMoneyModifier(cluster.base_price_modifier)}</td>
                     <td className="px-6 py-4 align-top text-gray-600">{cluster.updatedAt ? new Date(cluster.updatedAt).toLocaleDateString() : '-'}</td>
+                    <td className="px-6 py-4 align-top text-right">
+                      <button
+                        type="button"
+                        onClick={() => openDetailModal(cluster.id)}
+                        disabled={detailLoadingId === cluster.id}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-100 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors disabled:opacity-60"
+                      >
+                        <Eye className="w-4 h-4" />
+                        {detailLoadingId === cluster.id ? 'Loading...' : 'Details'}
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -182,6 +222,88 @@ export const ClusterManagement = () => {
           </table>
         </div>
       </div>
+
+      <Modal
+        isOpen={isDetailOpen}
+        onClose={closeDetailModal}
+        title="Pod Cluster Details"
+        size="xl"
+      >
+        {isDetailLoading ? (
+          <div className="py-8 text-center text-gray-500">Loading cluster details...</div>
+        ) : !selectedCluster ? (
+          <div className="py-8 text-center text-gray-500">No detail found for this pod cluster.</div>
+        ) : (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-gray-500">Cluster ID</p>
+                <p className="font-medium text-gray-900 break-all">{selectedCluster.id}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-gray-500">Location</p>
+                <p className="font-medium text-gray-900">{selectedCluster.location?.name ?? selectedCluster.location_id}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-gray-500">Cluster Name</p>
+                <p className="font-medium text-gray-900">{selectedCluster.name}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-gray-500">Price Modifier</p>
+                <p className="font-medium text-gray-900">{formatMoneyModifier(selectedCluster.base_price_modifier)}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-gray-500">Slot Duration</p>
+                <p className="font-medium text-gray-900">
+                  {selectedCluster.slot_duration_minutes != null
+                    ? `${selectedCluster.slot_duration_minutes} minutes`
+                    : '-'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-gray-500">Updated At</p>
+                <p className="font-medium text-gray-900">
+                  {selectedCluster.updatedAt ? new Date(selectedCluster.updatedAt).toLocaleString() : '-'}
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Description</p>
+              <p className="text-sm text-gray-700 bg-gray-50 border border-gray-100 rounded-lg p-3">
+                {selectedCluster.description || 'No description'}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs uppercase tracking-wide text-gray-500 mb-3">Images</p>
+              {!selectedCluster.images || selectedCluster.images.length === 0 ? (
+                <div className="text-sm text-gray-500 bg-gray-50 border border-dashed border-gray-200 rounded-lg p-4">
+                  No images for this cluster.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {selectedCluster.images.map((image) => (
+                    <a
+                      key={image.id}
+                      href={image.image_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block border border-gray-200 rounded-lg overflow-hidden bg-gray-50 hover:shadow-sm transition-shadow"
+                    >
+                      <img
+                        src={image.image_url}
+                        alt={`Cluster image ${image.id}`}
+                        className="w-full h-28 object-cover"
+                      />
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

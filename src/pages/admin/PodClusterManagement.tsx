@@ -11,13 +11,13 @@ import {
 } from 'lucide-react'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
-import { locationApi, type LocationItem } from '../../api/lib/admin/locationApi'
+import { locationApi, type LocationItem } from '../../api/lib/locationApi'
 import {
   podClusterApi,
   type PodClusterImage,
   type PodClusterItem,
   type PodClusterPayload
-} from '../../api/lib/admin/podClusterApi'
+} from '../../api/lib/podClusterApi'
 
 interface PodClusterFormState {
   location_id: string

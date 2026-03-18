@@ -1,8 +1,13 @@
-import { api } from '../../api'
+import { api } from '../api'
 
 export interface PodClusterItem {
   id: string
   location_id: string
+  location?: {
+    id: string
+    name?: string
+    type?: string
+  }
   name: string
   description?: string | null
   base_price_modifier?: number | null

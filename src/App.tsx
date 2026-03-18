@@ -4,6 +4,7 @@ import { AdminDashboard } from './pages/admin/AdminDashboard'
 import { LocationManagement } from './pages/admin/LocationManagement'
 import { PodClusterManagement } from './pages/admin/PodClusterManagement'
 import { AdminPodManagement } from './pages/admin/PodManagement'
+import { InventoryWarehouseManagement } from './pages/admin/InventoryWarehouseManagement'
 import { AdminProfile } from './pages/admin/Profile'
 import { ManagerDashboard } from './pages/manager/ManagerDashboard'
 import { ManagerProfile } from './pages/manager/Profile'
@@ -57,6 +58,10 @@ export const router = createBrowserRouter([
           {
             path: 'pods',
             element: <AdminPodManagement />
+          },
+          {
+            path: 'inventory-warehouse',
+            element: <InventoryWarehouseManagement />
           },
           {
             path: "profile",

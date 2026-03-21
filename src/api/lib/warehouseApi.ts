@@ -1,4 +1,4 @@
-import { api } from '../../api'
+import { api } from '../api'
 
 export interface WarehouseItem {
   id: string
@@ -42,14 +42,14 @@ export const warehouseApi = {
   getAll: (filters?: WarehouseFilters) => {
     const params = new URLSearchParams()
     if (filters?.name) params.append('name', filters.name)
-    return api.get<WarehouseListResponse>('/warehouses', { params }).then((r) => r.data)
+    return api.get<WarehouseListResponse>('/warehouses', { params }).then((r: any) => r.data)
   },
 
-  getById: (id: string) => api.get<WarehouseSingleResponse>(`/warehouses/${id}`).then((r) => r.data),
+  getById: (id: string) => api.get<WarehouseSingleResponse>(`/warehouses/${id}`).then((r: any) => r.data),
 
-  create: (payload: CreateWarehousePayload) => api.post<WarehouseMutationResponse>('/warehouses', payload).then((r) => r.data),
+  create: (payload: CreateWarehousePayload) => api.post<WarehouseMutationResponse>('/warehouses', payload).then((r: any) => r.data),
 
-  update: (id: string, payload: UpdateWarehousePayload) => api.put<WarehouseMutationResponse>(`/warehouses/${id}`, payload).then((r) => r.data),
+  update: (id: string, payload: UpdateWarehousePayload) => api.put<WarehouseMutationResponse>(`/warehouses/${id}`, payload).then((r: any) => r.data),
 
-  delete: (id: string) => api.delete<WarehouseMutationResponse>(`/warehouses/${id}`).then((r) => r.data)
+  delete: (id: string) => api.delete<WarehouseMutationResponse>(`/warehouses/${id}`).then((r: any) => r.data)
 }

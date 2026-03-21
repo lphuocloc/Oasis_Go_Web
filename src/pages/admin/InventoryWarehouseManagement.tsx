@@ -1,39 +1,52 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Boxes, Link2, Package, Plus, RefreshCw } from 'lucide-react'
+import { Link2, Package, Plus, RefreshCw } from 'lucide-react'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
-import { locationApi, type LocationItem } from '../../api/lib/admin/locationApi'
-import { itemApi, type InventoryItem } from '../../api/lib/admin/itemApi'
+import { useAuth } from '../../contexts/AuthContext'
+import { locationApi, type LocationItem } from '../../api/lib/locationApi'
+import { itemApi, type CreateItemPayload, type InventoryItem, type ItemType, type UpdateItemPayload } from '../../api/lib/itemApi'
 import {
   warehouseApi,
   type WarehouseItem
-} from '../../api/lib/admin/warehouseApi'
+} from '../../api/lib/warehouseApi'
 import {
   locationWarehouseApi,
   type EffectiveLocationWarehouseItem,
   type EffectiveLocationWarehouseTraceItem,
   type LocationWarehouseItem
-} from '../../api/lib/admin/locationWarehouseApi'
+} from '../../api/lib/locationWarehouseApi'
 import {
   inventoryStockApi,
   type InventoryStockItem
-} from '../../api/lib/admin/inventoryStockApi'
+} from '../../api/lib/inventoryStockApi'
 import {
   inventoryCheckoutLogApi,
   INVENTORY_ACTION_TYPES,
   type InventoryActionType,
   type InventoryCheckoutLogItem
-} from '../../api/lib/admin/inventoryCheckoutLogApi'
+} from '../../api/lib/inventoryCheckoutLogApi'
 
-type InventoryTab = 'warehouseSetup' | 'stocks' | 'checkoutLogs'
+type InventoryTab = 'warehouseSetup' | 'items' | 'stocks' | 'checkoutLogs'
 
 const TABS: Array<{ key: InventoryTab; label: string }> = [
   { key: 'warehouseSetup', label: 'Warehouse & Location Mapping' },
+  { key: 'items', label: 'Items' },
   { key: 'stocks', label: 'Inventory Stocks' },
   { key: 'checkoutLogs', label: 'Checkout Logs' }
 ]
 
 const getItemName = (item: InventoryItem) => item.name || item.item_name || item.code || item.sku || item.id
+
+const getItemType = (item: InventoryItem): ItemType | null => {
+  const candidate = item.item_type || item.type
+  if (candidate === 'CONSUMABLE' || candidate === 'REUSABLE') return candidate
+  return null
+}
+
+const shortId = (value?: string | null) => {
+  if (!value) return '—'
+  return value.length > 12 ? `${value.slice(0, 6)}...${value.slice(-4)}` : value
+}
 
 const SectionCard: React.FC<{
   title: string
@@ -60,6 +73,7 @@ const StatCard: React.FC<{
 )
 
 export const InventoryWarehouseManagement: React.FC = () => {
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState<InventoryTab>('warehouseSetup')
   const [isLoading, setIsLoading] = useState(false)
 
@@ -96,6 +110,19 @@ export const InventoryWarehouseManagement: React.FC = () => {
   const [newStockWarehouseId, setNewStockWarehouseId] = useState('')
   const [newStockItemId, setNewStockItemId] = useState('')
   const [newStockQuantity, setNewStockQuantity] = useState('0')
+  const [itemSearch, setItemSearch] = useState('')
+  const [newItemName, setNewItemName] = useState('')
+  const [newItemType, setNewItemType] = useState<ItemType>('CONSUMABLE')
+  const [newItemUnitCost, setNewItemUnitCost] = useState('0')
+  const [isCreatingItem, setIsCreatingItem] = useState(false)
+  const [editingItem, setEditingItem] = useState<InventoryItem | null>(null)
+  const [editItemName, setEditItemName] = useState('')
+  const [editItemType, setEditItemType] = useState<ItemType>('CONSUMABLE')
+  const [editItemUnitCost, setEditItemUnitCost] = useState('0')
+  const [isSavingItemEdit, setIsSavingItemEdit] = useState(false)
+  const [editingStock, setEditingStock] = useState<InventoryStockItem | null>(null)
+  const [editStockQuantity, setEditStockQuantity] = useState('0')
+  const [isSavingStockEdit, setIsSavingStockEdit] = useState(false)
 
   const [logStockFilter, setLogStockFilter] = useState('all')
   const [logStaffFilter, setLogStaffFilter] = useState('')
@@ -103,31 +130,77 @@ export const InventoryWarehouseManagement: React.FC = () => {
   const [logFromFilter, setLogFromFilter] = useState('')
   const [logToFilter, setLogToFilter] = useState('')
 
-  const [newLogStockId, setNewLogStockId] = useState('')
-  const [newLogStaffId, setNewLogStaffId] = useState('')
-  const [newLogQuantity, setNewLogQuantity] = useState('1')
-  const [newLogActionType, setNewLogActionType] = useState<InventoryActionType>('CHECKOUT')
-  const [newLogReason, setNewLogReason] = useState('')
-  const [newLogCleaningTaskId, setNewLogCleaningTaskId] = useState('')
-  const [newLogMaintenanceTaskId, setNewLogMaintenanceTaskId] = useState('')
+  const [editingCheckoutLog, setEditingCheckoutLog] = useState<InventoryCheckoutLogItem | null>(null)
+  const [editLogStaffId, setEditLogStaffId] = useState('')
+  const [editLogQuantity, setEditLogQuantity] = useState('1')
+  const [editLogActionType, setEditLogActionType] = useState<InventoryActionType>('CHECKOUT')
+  const [editLogReason, setEditLogReason] = useState('')
+  const [isSavingCheckoutLogEdit, setIsSavingCheckoutLogEdit] = useState(false)
 
   const locationMap = useMemo(() => new Map(locations.map((x) => [x.id, x])), [locations])
   const warehouseMap = useMemo(() => new Map(warehouses.map((x) => [x.id, x])), [warehouses])
   const itemMap = useMemo(() => new Map(items.map((x) => [x.id, x])), [items])
   const stockMap = useMemo(() => new Map(stocks.map((x) => [x.id, x])), [stocks])
 
-  const setDefaultCreateValues = (nextWarehouses?: WarehouseItem[], nextLocations?: LocationItem[], nextItems?: InventoryItem[], nextStocks?: InventoryStockItem[]) => {
+  const formatStockLabel = (stockId: string) => {
+    const stock = stockMap.get(stockId)
+    if (!stock) return `Unknown stock (${shortId(stockId)})`
+
+    const warehouseName = warehouseMap.get(stock.warehouse_id)?.name || shortId(stock.warehouse_id)
+    const itemName = getItemName(itemMap.get(stock.item_id) || { id: stock.item_id })
+    return `${warehouseName} - ${itemName} (Qty: ${stock.quantity_available})`
+  }
+
+  const formatStaffLabel = (staffId?: string | null) => {
+    if (!staffId) return '—'
+
+    if (user && user.id === staffId) {
+      return user.name || user.email || staffId
+    }
+
+    const id = shortId(staffId)
+    return id === staffId ? `Staff ${staffId}` : `Staff ${id} (${staffId})`
+  }
+
+  const formatTaskLabel = (taskId?: string | null, taskType?: 'Cleaning' | 'Maintenance') => {
+    if (!taskId) return '—'
+    const id = shortId(taskId)
+    const prefix = taskType || 'Task'
+    return id === taskId ? `${prefix} ${taskId}` : `${prefix} ${id} (${taskId})`
+  }
+
+  const knownStaffIds = useMemo(
+    () => Array.from(new Set(checkoutLogs.map((log) => log.staff_id).filter(Boolean))).sort(),
+    [checkoutLogs]
+  )
+
+  const getItemUnitCost = (item: InventoryItem): number | null => {
+    const candidate = item.unit_cost ?? item.unitCost
+    if (candidate == null) return null
+    const num = Number(candidate)
+    return Number.isFinite(num) ? num : null
+  }
+
+  const filteredItems = useMemo(() => {
+    const q = itemSearch.trim().toLowerCase()
+    if (!q) return items
+
+    return items.filter((item) => {
+      const name = getItemName(item)
+      return [name, item.code, item.sku, item.id].filter(Boolean).join(' ').toLowerCase().includes(q)
+    })
+  }, [items, itemSearch])
+
+  const setDefaultCreateValues = (nextWarehouses?: WarehouseItem[], nextLocations?: LocationItem[], nextItems?: InventoryItem[]) => {
     const ws = nextWarehouses ?? warehouses
     const ls = nextLocations ?? locations
     const it = nextItems ?? items
-    const st = nextStocks ?? stocks
 
     if (!newMappingLocationId && ls[0]?.id) setNewMappingLocationId(ls[0].id)
     if (!newMappingWarehouseId && ws[0]?.id) setNewMappingWarehouseId(ws[0].id)
     if (!effectiveLocationId && ls[0]?.id) setEffectiveLocationId(ls[0].id)
     if (!newStockWarehouseId && ws[0]?.id) setNewStockWarehouseId(ws[0].id)
     if (!newStockItemId && it[0]?.id) setNewStockItemId(it[0].id)
-    if (!newLogStockId && st[0]?.id) setNewLogStockId(st[0].id)
   }
 
   const loadDependencies = async () => {
@@ -143,7 +216,7 @@ export const InventoryWarehouseManagement: React.FC = () => {
       setItems(itemRes.data || [])
       setWarehouses(warehouseRes.data)
       setStocks(stockRes.data)
-      setDefaultCreateValues(warehouseRes.data, locationRes.data, itemRes.data || [], stockRes.data)
+      setDefaultCreateValues(warehouseRes.data, locationRes.data, itemRes.data || [])
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Failed to load dependencies')
     }
@@ -185,9 +258,22 @@ export const InventoryWarehouseManagement: React.FC = () => {
         item_id: stockItemFilter === 'all' ? undefined : stockItemFilter
       })
       setStocks(response.data)
-      setDefaultCreateValues(undefined, undefined, undefined, response.data)
+      setDefaultCreateValues(undefined, undefined, undefined)
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Failed to load inventory stocks')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const fetchItems = async () => {
+    try {
+      setIsLoading(true)
+      const response = await itemApi.getAll()
+      setItems(response.data || [])
+      setDefaultCreateValues(undefined, undefined, response.data || [])
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to load items')
     } finally {
       setIsLoading(false)
     }
@@ -213,6 +299,7 @@ export const InventoryWarehouseManagement: React.FC = () => {
 
   const refreshActiveTab = async () => {
     if (activeTab === 'warehouseSetup') return Promise.all([fetchWarehouses(), fetchLocationWarehouses()])
+    if (activeTab === 'items') return fetchItems()
     if (activeTab === 'stocks') return fetchStocks()
     return fetchCheckoutLogs()
   }
@@ -236,6 +323,11 @@ export const InventoryWarehouseManagement: React.FC = () => {
     if (activeTab === 'warehouseSetup') fetchLocationWarehouses()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mappingLocationFilter, mappingWarehouseFilter])
+
+  useEffect(() => {
+    if (activeTab === 'items') fetchItems()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
 
   useEffect(() => {
     if (activeTab === 'stocks') fetchStocks()
@@ -426,21 +518,149 @@ export const InventoryWarehouseManagement: React.FC = () => {
     }
   }
 
-  const handleEditStock = async (stock: InventoryStockItem) => {
-    const quantityRaw = window.prompt('quantity_available', String(stock.quantity_available))
-    if (quantityRaw == null) return
-    const quantity = Number(quantityRaw)
+  const handleCreateItem = async () => {
+    const trimmedName = newItemName.trim()
+    if (!trimmedName) {
+      toast.error('Item name is required')
+      return
+    }
+
+    const unitCost = Number(newItemUnitCost)
+    if (!Number.isFinite(unitCost) || unitCost < 0) {
+      toast.error('Unit cost must be a number >= 0')
+      return
+    }
+
+    const payload: CreateItemPayload = {
+      name: trimmedName,
+      item_type: newItemType,
+      unit_cost: unitCost
+    }
+
+    try {
+      setIsCreatingItem(true)
+      const response = await itemApi.create(payload)
+      const createdItem = response.data
+
+      await loadDependencies()
+      if (createdItem?.id) {
+        setNewStockItemId(createdItem.id)
+      }
+
+      setNewItemName('')
+      setNewItemType('CONSUMABLE')
+      setNewItemUnitCost('0')
+      toast.success('Item created successfully')
+    } catch (error: any) {
+      const status = error?.response?.status
+      const message = error?.response?.data?.message
+      if (status === 404) {
+        toast.error('Item API route is missing on backend (POST /items or POST /item).')
+      } else if (status === 409) {
+        toast.error(message || 'Item already exists')
+      } else if (status === 400) {
+        toast.error(message || 'Invalid item data')
+      } else {
+        toast.error(message || 'Failed to create item')
+      }
+    } finally {
+      setIsCreatingItem(false)
+    }
+  }
+
+  const openEditItemModal = (item: InventoryItem) => {
+    setEditingItem(item)
+    setEditItemName(getItemName(item))
+    setEditItemType(getItemType(item) || 'CONSUMABLE')
+    const unitCost = getItemUnitCost(item)
+    setEditItemUnitCost(unitCost == null ? '0' : String(unitCost))
+  }
+
+  const closeEditItemModal = () => {
+    if (isSavingItemEdit) return
+    setEditingItem(null)
+    setEditItemName('')
+    setEditItemType('CONSUMABLE')
+    setEditItemUnitCost('0')
+  }
+
+  const handleEditItem = async () => {
+    if (!editingItem) return
+
+    const trimmedName = editItemName.trim()
+    if (!trimmedName) {
+      toast.error('Item name is required')
+      return
+    }
+
+    const unitCost = Number(editItemUnitCost)
+    if (!Number.isFinite(unitCost) || unitCost < 0) {
+      toast.error('Unit cost must be a number >= 0')
+      return
+    }
+
+    const payload: UpdateItemPayload = {
+      name: trimmedName,
+      item_type: editItemType,
+      unit_cost: unitCost
+    }
+
+    try {
+      setIsSavingItemEdit(true)
+      await itemApi.update(editingItem.id, payload)
+      toast.success('Item updated successfully')
+      closeEditItemModal()
+      await Promise.all([fetchItems(), loadDependencies()])
+    } catch (error: any) {
+      const message = error?.response?.data?.message
+      toast.error(message || 'Failed to update item')
+    } finally {
+      setIsSavingItemEdit(false)
+    }
+  }
+
+  const handleDeleteItem = async (item: InventoryItem) => {
+    if (!window.confirm(`Delete item "${getItemName(item)}"?`)) return
+
+    try {
+      await itemApi.delete(item.id)
+      toast.success('Item deleted successfully')
+      await Promise.all([fetchItems(), loadDependencies()])
+    } catch (error: any) {
+      const message = error?.response?.data?.message
+      toast.error(message || 'Failed to delete item')
+    }
+  }
+
+  const openEditStockModal = (stock: InventoryStockItem) => {
+    setEditingStock(stock)
+    setEditStockQuantity(String(stock.quantity_available))
+  }
+
+  const closeEditStockModal = () => {
+    if (isSavingStockEdit) return
+    setEditingStock(null)
+    setEditStockQuantity('0')
+  }
+
+  const handleEditStock = async () => {
+    if (!editingStock) return
+    const quantity = Number(editStockQuantity)
     if (!Number.isFinite(quantity) || quantity < 0) {
       toast.error('quantity_available cannot be negative')
       return
     }
 
     try {
-      await inventoryStockApi.update(stock.id, { quantity_available: Math.floor(quantity) })
+      setIsSavingStockEdit(true)
+      await inventoryStockApi.update(editingStock.id, { quantity_available: Math.floor(quantity) })
       toast.success('Inventory stock updated successfully')
+      closeEditStockModal()
       await Promise.all([fetchStocks(), loadDependencies()])
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Failed to update inventory stock')
+    } finally {
+      setIsSavingStockEdit(false)
     }
   }
 
@@ -455,80 +675,44 @@ export const InventoryWarehouseManagement: React.FC = () => {
     }
   }
 
-  const handleCreateCheckoutLog = async () => {
-    if (!newLogStockId || !newLogStaffId.trim()) {
-      toast.error('inventory_stock_id and staff_id are required')
-      return
-    }
-
-    const quantity = Number(newLogQuantity)
-    if (!Number.isFinite(quantity) || quantity <= 0) {
-      toast.error('quantity must be a positive number')
-      return
-    }
-
-    try {
-      await inventoryCheckoutLogApi.create({
-        inventory_stock_id: newLogStockId,
-        staff_id: newLogStaffId.trim(),
-        quantity: Math.floor(quantity),
-        action_type: newLogActionType,
-        reason: newLogReason.trim() || null,
-        cleaning_task_id: newLogCleaningTaskId.trim() || null,
-        maintenance_task_id: newLogMaintenanceTaskId.trim() || null
-      })
-      toast.success('Inventory checkout log created successfully')
-      setNewLogQuantity('1')
-      setNewLogReason('')
-      setNewLogCleaningTaskId('')
-      setNewLogMaintenanceTaskId('')
-      await Promise.all([fetchCheckoutLogs(), fetchStocks(), loadDependencies()])
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to create checkout log')
-    }
+  const closeEditCheckoutLogModal = () => {
+    if (isSavingCheckoutLogEdit) return
+    setEditingCheckoutLog(null)
+    setEditLogStaffId('')
+    setEditLogQuantity('1')
+    setEditLogActionType('CHECKOUT')
+    setEditLogReason('')
   }
 
-  const handleEditCheckoutLog = async (log: InventoryCheckoutLogItem) => {
-    const quantityRaw = window.prompt('quantity', String(log.quantity))
-    if (quantityRaw == null) return
-    const quantity = Number(quantityRaw)
+  const handleEditCheckoutLog = async () => {
+    if (!editingCheckoutLog) return
+
+    const quantity = Number(editLogQuantity)
     if (!Number.isFinite(quantity) || quantity <= 0) {
       toast.error('quantity must be a positive number')
       return
     }
-    const actionTypeRaw = window.prompt('action_type (CHECKOUT | RETURN | WASTE)', log.action_type)
-    if (!actionTypeRaw) return
-    const actionType = actionTypeRaw.trim().toUpperCase() as InventoryActionType
-    if (!INVENTORY_ACTION_TYPES.includes(actionType)) {
-      toast.error('Invalid action_type')
+
+    if (!editLogStaffId.trim()) {
+      toast.error('staff_id is required')
       return
     }
-    const staffId = window.prompt('staff_id', log.staff_id)
-    if (!staffId) return
-    const reason = window.prompt('reason', log.reason || '')
 
     try {
-      await inventoryCheckoutLogApi.update(log.id, {
-        staff_id: staffId.trim(),
+      setIsSavingCheckoutLogEdit(true)
+      await inventoryCheckoutLogApi.update(editingCheckoutLog.id, {
+        staff_id: editLogStaffId.trim(),
         quantity: Math.floor(quantity),
-        action_type: actionType,
-        reason: (reason || '').trim() || null
+        action_type: editLogActionType,
+        reason: editLogReason.trim() || null
       })
       toast.success('Checkout log updated successfully')
+      closeEditCheckoutLogModal()
       await Promise.all([fetchCheckoutLogs(), fetchStocks(), loadDependencies()])
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Failed to update checkout log')
-    }
-  }
-
-  const handleDeleteCheckoutLog = async (log: InventoryCheckoutLogItem) => {
-    if (!window.confirm('Delete this checkout log?')) return
-    try {
-      await inventoryCheckoutLogApi.delete(log.id)
-      toast.success('Checkout log deleted successfully')
-      await Promise.all([fetchCheckoutLogs(), fetchStocks(), loadDependencies()])
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to delete checkout log')
+    } finally {
+      setIsSavingCheckoutLogEdit(false)
     }
   }
 
@@ -912,7 +1096,7 @@ export const InventoryWarehouseManagement: React.FC = () => {
                       <td className="px-4 py-3 text-gray-700">{stock.updated_at ? new Date(stock.updated_at).toLocaleString() : '—'}</td>
                       <td className="px-4 py-3 text-right">
                         <div className="inline-flex gap-2">
-                          <button onClick={() => handleEditStock(stock)} className="px-2.5 py-1.5 border border-gray-200 rounded">Edit</button>
+                          <button onClick={() => openEditStockModal(stock)} className="px-2.5 py-1.5 border border-gray-200 rounded">Edit</button>
                           <button onClick={() => handleDeleteStock(stock)} className="px-2.5 py-1.5 border border-red-200 text-red-600 rounded">Delete</button>
                         </div>
                       </td>
@@ -925,6 +1109,164 @@ export const InventoryWarehouseManagement: React.FC = () => {
           </div>
         )}
 
+        {activeTab === 'items' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <StatCard label="Total Items" value={items.length} />
+              <StatCard label="Filtered Items" value={filteredItems.length} />
+              <StatCard label="Ready for Stock" value={items.length} />
+            </div>
+
+            <SectionCard title="Create Item" description="Create inventory item records used by Inventory Stock and Checkout Logs.">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Item Name</label>
+                  <input
+                    value={newItemName}
+                    onChange={(e) => setNewItemName(e.target.value)}
+                    placeholder="e.g. Tissue Box"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Item Type</label>
+                  <select
+                    value={newItemType}
+                    onChange={(e) => setNewItemType(e.target.value as ItemType)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white"
+                  >
+                    <option value="CONSUMABLE">CONSUMABLE</option>
+                    <option value="REUSABLE">REUSABLE</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Unit Cost</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={newItemUnitCost}
+                    onChange={(e) => setNewItemUnitCost(e.target.value)}
+                    placeholder="0"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={handleCreateItem}
+                disabled={isCreatingItem}
+                className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+              >
+                <Plus className="w-4 h-4" />
+                {isCreatingItem ? 'Creating...' : 'Create Item'}
+              </button>
+            </SectionCard>
+
+            <SectionCard title="Item List" description="View and search created items used for stock operations.">
+              <div className="mb-3">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Search Items</label>
+                <input
+                  value={itemSearch}
+                  onChange={(e) => setItemSearch(e.target.value)}
+                  placeholder="Search by name, code, sku, id..."
+                  className="w-full md:max-w-md px-3 py-2 border border-gray-200 rounded-lg"
+                />
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Item</th>
+                      <th className="px-4 py-3 text-left">Item Type</th>
+                      <th className="px-4 py-3 text-left">Unit Cost</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredItems.length === 0 ? (
+                      <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">No items found</td></tr>
+                    ) : filteredItems.map((item) => (
+                      <tr key={item.id} className="border-t border-gray-100">
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-gray-800">{getItemName(item)}</div>
+                          <div className="text-xs text-gray-500">{item.id}</div>
+                        </td>
+                        <td className="px-4 py-3 text-gray-700">{getItemType(item) || '—'}</td>
+                        <td className="px-4 py-3 text-gray-700">{getItemUnitCost(item) == null ? 'N/A' : getItemUnitCost(item)}</td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="inline-flex gap-2">
+                            <button onClick={() => openEditItemModal(item)} className="px-2.5 py-1.5 border border-gray-200 rounded">Edit</button>
+                            <button onClick={() => handleDeleteItem(item)} className="px-2.5 py-1.5 border border-red-200 text-red-600 rounded">Delete</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </SectionCard>
+          </div>
+        )}
+
+        <Modal
+          isOpen={Boolean(editingItem)}
+          onClose={closeEditItemModal}
+          title="Edit Item"
+          size="sm"
+          footer={(
+            <>
+              <button
+                onClick={closeEditItemModal}
+                disabled={isSavingItemEdit}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEditItem}
+                disabled={isSavingItemEdit}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                {isSavingItemEdit ? 'Saving...' : 'Save Changes'}
+              </button>
+            </>
+          )}
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Item Name</label>
+              <input
+                value={editItemName}
+                onChange={(e) => setEditItemName(e.target.value)}
+                placeholder="Item name"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Item Type</label>
+              <select
+                value={editItemType}
+                onChange={(e) => setEditItemType(e.target.value as ItemType)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white"
+              >
+                <option value="CONSUMABLE">CONSUMABLE</option>
+                <option value="REUSABLE">REUSABLE</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Unit Cost</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={editItemUnitCost}
+                onChange={(e) => setEditItemUnitCost(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+              />
+            </div>
+          </div>
+        </Modal>
+
         {activeTab === 'checkoutLogs' && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -934,61 +1276,26 @@ export const InventoryWarehouseManagement: React.FC = () => {
               <StatCard label="Waste Logs" value={checkoutLogs.filter((log) => log.action_type === 'WASTE').length} />
             </div>
 
-            <SectionCard title="Create Checkout Log" description="Create stock movements. CHECKOUT and WASTE reduce stock. RETURN adds stock back.">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Inventory Stock</label>
-                  <select value={newLogStockId} onChange={(e) => setNewLogStockId(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white">
-                    <option value="">Select inventory_stock_id</option>
-                    {stocks.map((stock) => (
-                      <option key={stock.id} value={stock.id}>{stock.id}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Staff ID</label>
-                  <input value={newLogStaffId} onChange={(e) => setNewLogStaffId(e.target.value)} placeholder="staff_id" className="w-full px-3 py-2 border border-gray-200 rounded-lg" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Quantity</label>
-                  <input type="number" min="1" value={newLogQuantity} onChange={(e) => setNewLogQuantity(e.target.value)} placeholder="quantity" className="w-full px-3 py-2 border border-gray-200 rounded-lg" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Action Type</label>
-                  <select value={newLogActionType} onChange={(e) => setNewLogActionType(e.target.value as InventoryActionType)} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white">
-                    {INVENTORY_ACTION_TYPES.map((action) => (
-                      <option key={action} value={action}>{action}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Reason</label>
-                  <input value={newLogReason} onChange={(e) => setNewLogReason(e.target.value)} placeholder="Reason (optional)" className="w-full px-3 py-2 border border-gray-200 rounded-lg" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Cleaning Task ID</label>
-                  <input value={newLogCleaningTaskId} onChange={(e) => setNewLogCleaningTaskId(e.target.value)} placeholder="Optional" className="w-full px-3 py-2 border border-gray-200 rounded-lg" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Maintenance Task ID</label>
-                  <input value={newLogMaintenanceTaskId} onChange={(e) => setNewLogMaintenanceTaskId(e.target.value)} placeholder="Optional" className="w-full px-3 py-2 border border-gray-200 rounded-lg" />
-                </div>
-              </div>
-              <button onClick={handleCreateCheckoutLog} className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">
-                <Boxes className="w-4 h-4" />
-                Create Checkout Log
-              </button>
-            </SectionCard>
-
-            <SectionCard title="Checkout Log List" description="Audit stock movement history and adjust or delete logs when needed.">
+            <SectionCard title="Checkout Log List" description="Audit stock movement history (edit/delete actions are temporarily hidden).">
               <div className="mb-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
                 <select value={logStockFilter} onChange={(e) => setLogStockFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white">
                   <option value="all">All stocks</option>
                   {stocks.map((stock) => (
-                    <option key={stock.id} value={stock.id}>{stock.id}</option>
+                    <option key={stock.id} value={stock.id}>{formatStockLabel(stock.id)}</option>
                   ))}
                 </select>
-                <input value={logStaffFilter} onChange={(e) => setLogStaffFilter(e.target.value)} placeholder="Filter by staff_id" className="px-3 py-2 border border-gray-200 rounded-lg" />
+                <input
+                  value={logStaffFilter}
+                  onChange={(e) => setLogStaffFilter(e.target.value)}
+                  placeholder="Filter by staff"
+                  list="staff-filter-options"
+                  className="px-3 py-2 border border-gray-200 rounded-lg"
+                />
+                <datalist id="staff-filter-options">
+                  {knownStaffIds.map((staffId) => (
+                    <option key={staffId} value={staffId}>{formatStaffLabel(staffId)}</option>
+                  ))}
+                </datalist>
                 <select value={logActionFilter} onChange={(e) => setLogActionFilter(e.target.value as 'all' | InventoryActionType)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white">
                   <option value="all">All action types</option>
                   {INVENTORY_ACTION_TYPES.map((action) => (
@@ -1005,6 +1312,8 @@ export const InventoryWarehouseManagement: React.FC = () => {
                     <th className="px-4 py-3 text-left">Action</th>
                     <th className="px-4 py-3 text-left">Stock</th>
                     <th className="px-4 py-3 text-left">Staff</th>
+                    <th className="px-4 py-3 text-left">Cleaning Task</th>
+                    <th className="px-4 py-3 text-left">Maintenance Task</th>
                     <th className="px-4 py-3 text-left">Quantity</th>
                     <th className="px-4 py-3 text-left">Reason</th>
                     <th className="px-4 py-3 text-left">Created</th>
@@ -1013,7 +1322,7 @@ export const InventoryWarehouseManagement: React.FC = () => {
                 </thead>
                 <tbody>
                   {checkoutLogs.length === 0 ? (
-                    <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No checkout logs</td></tr>
+                    <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">No checkout logs</td></tr>
                   ) : checkoutLogs.map((log) => (
                     <tr key={log.id} className="border-t border-gray-100">
                       <td className="px-4 py-3">
@@ -1021,16 +1330,15 @@ export const InventoryWarehouseManagement: React.FC = () => {
                           {log.action_type}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-700">{stockMap.get(log.inventory_stock_id)?.id || log.inventory_stock_id}</td>
-                      <td className="px-4 py-3 text-gray-700">{log.staff_id}</td>
+                      <td className="px-4 py-3 text-gray-700">{formatStockLabel(log.inventory_stock_id)}</td>
+                      <td className="px-4 py-3 text-gray-700">{formatStaffLabel(log.staff_id)}</td>
+                      <td className="px-4 py-3 text-gray-700">{formatTaskLabel(log.cleaning_task_id, 'Cleaning')}</td>
+                      <td className="px-4 py-3 text-gray-700">{formatTaskLabel(log.maintenance_task_id, 'Maintenance')}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">{log.quantity}</td>
                       <td className="px-4 py-3 text-gray-700">{log.reason || '—'}</td>
                       <td className="px-4 py-3 text-gray-700">{log.created_at ? new Date(log.created_at).toLocaleString() : '—'}</td>
                       <td className="px-4 py-3 text-right">
-                        <div className="inline-flex gap-2">
-                          <button onClick={() => handleEditCheckoutLog(log)} className="px-2.5 py-1.5 border border-gray-200 rounded">Edit</button>
-                          <button onClick={() => handleDeleteCheckoutLog(log)} className="px-2.5 py-1.5 border border-red-200 text-red-600 rounded">Delete</button>
-                        </div>
+                        <span className="text-xs text-gray-400">Temporarily hidden</span>
                       </td>
                     </tr>
                   ))}
@@ -1137,6 +1445,132 @@ export const InventoryWarehouseManagement: React.FC = () => {
                   <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
                 ))}
               </select>
+            </div>
+          </div>
+        </Modal>
+
+        <Modal
+          isOpen={Boolean(editingCheckoutLog)}
+          onClose={closeEditCheckoutLogModal}
+          title="Edit Checkout Log"
+          size="md"
+          footer={(
+            <>
+              <button
+                onClick={closeEditCheckoutLogModal}
+                disabled={isSavingCheckoutLogEdit}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEditCheckoutLog}
+                disabled={isSavingCheckoutLogEdit}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                {isSavingCheckoutLogEdit ? 'Saving...' : 'Save Changes'}
+              </button>
+            </>
+          )}
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Staff</label>
+              <select
+                value={editLogStaffId}
+                onChange={(e) => setEditLogStaffId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white"
+              >
+                <option value="">Select staff</option>
+                {knownStaffIds.map((staffId) => (
+                  <option key={staffId} value={staffId}>{formatStaffLabel(staffId)}</option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Quantity</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={editLogQuantity}
+                  onChange={(e) => setEditLogQuantity(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Action Type</label>
+                <select
+                  value={editLogActionType}
+                  onChange={(e) => setEditLogActionType(e.target.value as InventoryActionType)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white"
+                >
+                  {INVENTORY_ACTION_TYPES.map((action) => (
+                    <option key={action} value={action}>{action}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Reason</label>
+              <input
+                value={editLogReason}
+                onChange={(e) => setEditLogReason(e.target.value)}
+                placeholder="Reason (optional)"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+              />
+            </div>
+          </div>
+        </Modal>
+
+        <Modal
+          isOpen={Boolean(editingStock)}
+          onClose={closeEditStockModal}
+          title="Edit Inventory Stock"
+          size="md"
+          footer={(
+            <>
+              <button
+                onClick={closeEditStockModal}
+                disabled={isSavingStockEdit}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEditStock}
+                disabled={isSavingStockEdit}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                {isSavingStockEdit ? 'Saving...' : 'Save Changes'}
+              </button>
+            </>
+          )}
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Warehouse</label>
+                <div className="px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700">
+                  {editingStock ? (warehouseMap.get(editingStock.warehouse_id)?.name || editingStock.warehouse_id) : '—'}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Item</label>
+                <div className="px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700">
+                  {editingStock ? getItemName(itemMap.get(editingStock.item_id) || { id: editingStock.item_id }) : '—'}
+                </div>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Quantity Available</label>
+              <input
+                type="number"
+                min="0"
+                value={editStockQuantity}
+                onChange={(e) => setEditStockQuantity(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+              />
             </div>
           </div>
         </Modal>

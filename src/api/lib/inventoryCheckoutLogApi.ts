@@ -1,6 +1,6 @@
-import { api } from '../../api'
+import { api } from '../api'
 
-export const INVENTORY_ACTION_TYPES = ['CHECKOUT', 'RETURN', 'WASTE'] as const
+export const INVENTORY_ACTION_TYPES = ['CHECKOUT', 'RETURN', 'WASTE', 'INITIAL', 'ADJUSTMENT', 'ITEM_DELETED'] as const
 
 export type InventoryActionType = (typeof INVENTORY_ACTION_TYPES)[number]
 

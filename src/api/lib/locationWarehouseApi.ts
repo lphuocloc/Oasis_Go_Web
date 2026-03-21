@@ -1,4 +1,4 @@
-import { api } from '../../api'
+import { api } from '../api'
 
 export interface LocationWarehouseItem {
   id: string
@@ -68,18 +68,18 @@ export const locationWarehouseApi = {
     const params = new URLSearchParams()
     if (filters?.location_id) params.append('location_id', filters.location_id)
     if (filters?.warehouse_id) params.append('warehouse_id', filters.warehouse_id)
-    return api.get<LocationWarehouseListResponse>('/location-warehouses', { params }).then((r) => r.data)
+    return api.get<LocationWarehouseListResponse>('/location-warehouses', { params }).then((r: any) => r.data)
   },
 
-  getById: (id: string) => api.get<LocationWarehouseSingleResponse>(`/location-warehouses/${id}`).then((r) => r.data),
+  getById: (id: string) => api.get<LocationWarehouseSingleResponse>(`/location-warehouses/${id}`).then((r: any) => r.data),
 
-  getEffective: (locationId: string) => api.get<EffectiveLocationWarehouseListResponse>(`/location-warehouses/effective/${locationId}`).then((r) => r.data),
+  getEffective: (locationId: string) => api.get<EffectiveLocationWarehouseListResponse>(`/location-warehouses/effective/${locationId}`).then((r: any) => r.data),
 
-  getEffectiveDebug: (locationId: string) => api.get<EffectiveLocationWarehouseDebugResponse>(`/location-warehouses/effective/${locationId}/debug`).then((r) => r.data),
+  getEffectiveDebug: (locationId: string) => api.get<EffectiveLocationWarehouseDebugResponse>(`/location-warehouses/effective/${locationId}/debug`).then((r: any) => r.data),
 
-  create: (payload: CreateLocationWarehousePayload) => api.post<LocationWarehouseMutationResponse>('/location-warehouses', payload).then((r) => r.data),
+  create: (payload: CreateLocationWarehousePayload) => api.post<LocationWarehouseMutationResponse>('/location-warehouses', payload).then((r: any) => r.data),
 
-  update: (id: string, payload: UpdateLocationWarehousePayload) => api.put<LocationWarehouseMutationResponse>(`/location-warehouses/${id}`, payload).then((r) => r.data),
+  update: (id: string, payload: UpdateLocationWarehousePayload) => api.put<LocationWarehouseMutationResponse>(`/location-warehouses/${id}`, payload).then((r: any) => r.data),
 
-  delete: (id: string) => api.delete<LocationWarehouseMutationResponse>(`/location-warehouses/${id}`).then((r) => r.data)
+  delete: (id: string) => api.delete<LocationWarehouseMutationResponse>(`/location-warehouses/${id}`).then((r: any) => r.data)
 }

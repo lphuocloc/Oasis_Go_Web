@@ -83,6 +83,8 @@ export const locationApi = {
 
   getById: (id: string) => api.get<LocationSingleResponse>(`/locations/${id}`).then((r) => r.data),
 
+  getDescendants: (id: string) => api.get<LocationsListResponse>(`/locations/${id}/descendants`).then((r) => r.data),
+
   create: (payload: LocationPayload) => api.post<LocationSingleResponse>('/locations', payload).then((r) => r.data),
 
   update: (id: string, payload: LocationPayload) => api.put<LocationSingleResponse>(`/locations/${id}`, payload).then((r) => r.data),

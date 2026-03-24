@@ -20,9 +20,9 @@ import {
   type DashboardFilters,
   type DashboardPod
 } from '../../api/lib/dashboardApi'
-import { podClusterApi } from '../../api/lib/podClusterApi'
 import { TrendingUp, AlertCircle, Calendar, Package, RefreshCw, ChevronDown } from 'lucide-react'
 import { toast } from 'react-toastify'
+import { useManagerScope } from '../../contexts/ManagerScopeContext'
 
 ChartJS.register(
   DoughnutController,
@@ -293,8 +293,8 @@ const LineChart: React.FC<{
 }
 
 export const ManagerDashboard = () => {
+  const { clusters: scopedClusters, isLoading: isScopeLoading, refreshScope } = useManagerScope()
   const [rawData, setRawData] = useState<AdminDashboardResponse['data'] | null>(null)
-  const [scopedClusterIds, setScopedClusterIds] = useState<Set<string> | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [range, setRange] = useState<RangeOption>('today')
@@ -321,24 +321,15 @@ export const ManagerDashboard = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range])
 
-  useEffect(() => {
-    const fetchScope = async () => {
-      try {
-        const response = await podClusterApi.getAll()
-        setScopedClusterIds(new Set(response.data.map((cluster) => cluster.id)))
-      } catch (scopeError: any) {
-        console.error('Failed to load manager scope clusters:', scopeError)
-        setError(scopeError?.response?.data?.message || 'Failed to load manager scope')
-      }
-    }
-
-    fetchScope()
-  }, [])
+  const scopedClusterIds = useMemo(
+    () => new Set(scopedClusters.map((cluster) => cluster.id)),
+    [scopedClusters]
+  )
 
   const rangeLabel = RANGE_OPTIONS.find((o) => o.value === range)?.label ?? 'Today'
 
   const data = useMemo(() => {
-    if (!rawData || !scopedClusterIds) return null
+    if (!rawData) return null
 
     const scopedPods = rawData.pods.list.filter(
       (pod) => !!pod.cluster_id && scopedClusterIds.has(String(pod.cluster_id))
@@ -433,6 +424,16 @@ export const ManagerDashboard = () => {
     }
   }, [rawData, scopedClusterIds])
 
+  const isPageLoading = isLoading || isScopeLoading
+
+  const handleRefresh = async () => {
+    try {
+      await Promise.all([refreshScope(), fetchDashboard(range)])
+    } catch {
+      // Errors are handled inside refreshScope/fetchDashboard.
+    }
+  }
+
   if (error) {
     return (
       <div className="p-8">
@@ -487,17 +488,17 @@ export const ManagerDashboard = () => {
             )}
           </div>
           <button
-            onClick={() => fetchDashboard(range)}
-            disabled={isLoading}
+            onClick={handleRefresh}
+            disabled={isPageLoading}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 shadow-sm transition-colors"
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${isPageLoading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
         </div>
       </div>
 
-      {isLoading && (
+      {isPageLoading && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[1, 2, 3, 4, 5, 6].map((i) => <SkeletonCard key={i} />)}
@@ -505,7 +506,7 @@ export const ManagerDashboard = () => {
         </div>
       )}
 
-      {!isLoading && (
+      {!isPageLoading && (
         <>
           <div className="mb-3">
             <SectionTitle icon={<Package className="w-4 h-4" />}>Operations Overview</SectionTitle>

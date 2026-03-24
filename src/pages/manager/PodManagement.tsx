@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { Boxes, Edit2, Eye, RefreshCw, Search } from 'lucide-react'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
-import { podClusterApi, type PodClusterItem } from '../../api/lib/podClusterApi'
 import {
   POD_STATUSES,
   podApi,
@@ -10,6 +9,7 @@ import {
   type PodStatus,
   type UpdatePodStatusPayload
 } from '../../api/lib/podApi'
+import { useManagerScope } from '../../contexts/ManagerScopeContext'
 
 const statusBadgeClass = (status: PodStatus) => {
   switch (status) {
@@ -29,8 +29,8 @@ const statusBadgeClass = (status: PodStatus) => {
 }
 
 export const PodManagement = () => {
+  const { clusters, isLoading: isScopeLoading, refreshScope } = useManagerScope()
   const [pods, setPods] = useState<PodItem[]>([])
-  const [clusters, setClusters] = useState<PodClusterItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [clusterFilter, setClusterFilter] = useState('all')
@@ -46,11 +46,6 @@ export const PodManagement = () => {
   const [statusPod, setStatusPod] = useState<PodItem | null>(null)
   const [nextStatus, setNextStatus] = useState<PodStatus>('AVAILABLE')
   const [maintenanceReason, setMaintenanceReason] = useState('')
-
-  const fetchClusters = async () => {
-    const response = await podClusterApi.getAll()
-    setClusters(response.data)
-  }
 
   const fetchPods = async () => {
     try {
@@ -68,22 +63,30 @@ export const PodManagement = () => {
   }
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        await Promise.all([fetchClusters(), fetchPods()])
-      } catch (error: any) {
-        toast.error(error?.response?.data?.message || 'Failed to initialize pod data')
-      }
-    }
-
-    load()
+    fetchPods()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clusterFilter, statusFilter])
+
+  useEffect(() => {
+    if (clusterFilter === 'all') return
+    if (clusters.some((cluster) => cluster.id === clusterFilter)) return
+    setClusterFilter('all')
+  }, [clusterFilter, clusters])
 
   const clusterMap = useMemo(
     () => new Map(clusters.map((cluster) => [cluster.id, cluster])),
     [clusters]
   )
+
+  const isTableLoading = isLoading || isScopeLoading
+
+  const handleRefresh = async () => {
+    try {
+      await Promise.all([refreshScope(), fetchPods()])
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to refresh pod data')
+    }
+  }
 
   const filteredPods = useMemo(() => {
     const normalized = search.trim().toLowerCase()
@@ -185,11 +188,11 @@ export const PodManagement = () => {
         </div>
 
         <button
-          onClick={fetchPods}
-          disabled={isLoading}
+          onClick={handleRefresh}
+          disabled={isTableLoading}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
         >
-          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-4 h-4 ${isTableLoading ? 'animate-spin' : ''}`} />
           Refresh
         </button>
       </div>
@@ -226,6 +229,7 @@ export const PodManagement = () => {
           <select
             value={clusterFilter}
             onChange={(e) => setClusterFilter(e.target.value)}
+            disabled={isScopeLoading}
             className="px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
           >
             <option value="all">All clusters</option>
@@ -266,7 +270,7 @@ export const PodManagement = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {isLoading ? (
+              {isTableLoading ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-gray-400">Loading pods...</td>
                 </tr>

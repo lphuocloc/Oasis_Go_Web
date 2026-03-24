@@ -1,18 +1,18 @@
 
 import { useEffect, useMemo, useState } from 'react'
-import { Boxes, Eye, MapPin, RefreshCw, Search } from 'lucide-react'
+import { Boxes, Eye, ImagePlus, MapPin, RefreshCw, Search } from 'lucide-react'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
 import { podClusterApi, type PodClusterItem } from '../../api/lib/podClusterApi'
+import { useManagerScope } from '../../contexts/ManagerScopeContext'
 
 const formatMoneyModifier = (value?: number | null) => {
-  if (value == null) return '-'
+  if (value == null) return '—'
   return `${value.toFixed(2)}x`
 }
 
 export const ClusterManagement = () => {
-  const [clusters, setClusters] = useState<PodClusterItem[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const { clusters: scopedClusters, locationOptions, isLoading, refreshScope } = useManagerScope()
   const [search, setSearch] = useState('')
   const [locationFilter, setLocationFilter] = useState('all')
   const [isDetailOpen, setIsDetailOpen] = useState(false)
@@ -20,34 +20,16 @@ export const ClusterManagement = () => {
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null)
   const [selectedCluster, setSelectedCluster] = useState<PodClusterItem | null>(null)
 
-  const fetchClusters = async () => {
-    try {
-      setIsLoading(true)
-      const response = await podClusterApi.getAll(locationFilter === 'all' ? undefined : locationFilter)
-      setClusters(response.data)
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to load pod clusters')
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const clusters = useMemo(() => {
+    if (locationFilter === 'all') return scopedClusters
+    return scopedClusters.filter((cluster) => cluster.location_id === locationFilter)
+  }, [locationFilter, scopedClusters])
 
   useEffect(() => {
-    fetchClusters()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locationFilter])
-
-  const locationOptions = useMemo(() => {
-    const map = new Map<string, string>()
-    clusters.forEach((cluster) => {
-      const id = cluster.location_id
-      const name = cluster.location?.name ?? id
-      if (id && !map.has(id)) {
-        map.set(id, name)
-      }
-    })
-    return Array.from(map.entries()).map(([id, name]) => ({ id, name }))
-  }, [clusters])
+    if (locationFilter === 'all') return
+    if (locationOptions.some((item) => item.id === locationFilter)) return
+    setLocationFilter('all')
+  }, [locationFilter, locationOptions])
 
   const filteredClusters = useMemo(() => {
     const normalized = search.trim().toLowerCase()
@@ -100,13 +82,13 @@ export const ClusterManagement = () => {
     <div className="p-8 bg-gray-50 min-h-screen">
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Cluster Management</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Pod Cluster Management</h1>
           <p className="text-gray-500 mt-1">View pod clusters in your assigned location scope.</p>
         </div>
 
         <div className="flex items-center gap-3">
           <button
-            onClick={fetchClusters}
+            onClick={refreshScope}
             disabled={isLoading}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
           >
@@ -134,7 +116,7 @@ export const ClusterManagement = () => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-medium text-gray-500">Total Modifier</span>
-            <MapPin className="w-5 h-5 text-emerald-500" />
+            <ImagePlus className="w-5 h-5 text-emerald-500" />
           </div>
           <div className="text-3xl font-bold text-gray-900">{totalModifiers.toFixed(2)}</div>
         </div>
@@ -156,6 +138,7 @@ export const ClusterManagement = () => {
           <select
             value={locationFilter}
             onChange={(e) => setLocationFilter(e.target.value)}
+            disabled={isLoading}
             className="px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
           >
             <option value="all">All assigned locations</option>
@@ -188,6 +171,10 @@ export const ClusterManagement = () => {
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-gray-400">Loading pod clusters...</td>
                 </tr>
+              ) : locationOptions.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-gray-400">No pod clusters found in your scope</td>
+                </tr>
               ) : filteredClusters.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-gray-400">No pod clusters found in your scope</td>
@@ -197,23 +184,26 @@ export const ClusterManagement = () => {
                   <tr key={cluster.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 align-top">
                       <div className="font-semibold text-gray-900">{cluster.name}</div>
+                      <div className="text-xs text-gray-500 mt-1">{cluster.id}</div>
                       {cluster.description && (
                         <p className="text-xs text-gray-500 mt-2 max-w-md">{cluster.description}</p>
                       )}
                     </td>
                     <td className="px-6 py-4 align-top text-gray-600">{cluster.location?.name ?? cluster.location_id}</td>
                     <td className="px-6 py-4 align-top text-gray-700 font-medium">{formatMoneyModifier(cluster.base_price_modifier)}</td>
-                    <td className="px-6 py-4 align-top text-gray-600">{cluster.updatedAt ? new Date(cluster.updatedAt).toLocaleDateString() : '-'}</td>
-                    <td className="px-6 py-4 align-top text-right">
-                      <button
-                        type="button"
-                        onClick={() => openDetailModal(cluster.id)}
-                        disabled={detailLoadingId === cluster.id}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-100 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors disabled:opacity-60"
-                      >
-                        <Eye className="w-4 h-4" />
-                        {detailLoadingId === cluster.id ? 'Loading...' : 'Details'}
-                      </button>
+                    <td className="px-6 py-4 align-top text-gray-600">{cluster.updatedAt ? new Date(cluster.updatedAt).toLocaleDateString() : '—'}</td>
+                    <td className="px-6 py-4 align-top">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openDetailModal(cluster.id)}
+                          disabled={detailLoadingId === cluster.id}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
+                        >
+                          <Eye className="w-4 h-4" />
+                          {detailLoadingId === cluster.id ? 'Loading...' : 'Details'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -257,13 +247,13 @@ export const ClusterManagement = () => {
                 <p className="font-medium text-gray-900">
                   {selectedCluster.slot_duration_minutes != null
                     ? `${selectedCluster.slot_duration_minutes} minutes`
-                    : '-'}
+                    : '—'}
                 </p>
               </div>
               <div>
                 <p className="text-xs uppercase tracking-wide text-gray-500">Updated At</p>
                 <p className="font-medium text-gray-900">
-                  {selectedCluster.updatedAt ? new Date(selectedCluster.updatedAt).toLocaleString() : '-'}
+                  {selectedCluster.updatedAt ? new Date(selectedCluster.updatedAt).toLocaleString() : '—'}
                 </p>
               </div>
             </div>

@@ -1,7 +1,7 @@
 import React from 'react'
 import type { NavItem } from './Sidebar'
 import Sidebar from './Sidebar'
-import { LayoutGrid, MapPin, Home, Calendar, DollarSign, Users, Star, AlertCircle, BarChart3, Settings, Boxes, Warehouse } from 'lucide-react'
+import { LayoutGrid, MapPin, Home, Calendar, DollarSign, Users, Star, AlertCircle, BarChart3, Settings, Boxes, Warehouse, ListChecks } from 'lucide-react'
 
 const AdminSidebar: React.FC<{ userName?: string; userRole?: string }> = ({ 
   userName = 'Admin User', 
@@ -32,6 +32,11 @@ const AdminSidebar: React.FC<{ userName?: string; userRole?: string }> = ({
       label: 'Inventory & Warehouses',
       path: '/admin/inventory-warehouse',
       icon: <Warehouse className="w-6 h-6" />
+    },
+    {
+      label: 'Cleaning Tasks',
+      path: '/admin/cleaning-tasks',
+      icon: <ListChecks className="w-6 h-6" />
     },
     {
       label: 'Bookings',

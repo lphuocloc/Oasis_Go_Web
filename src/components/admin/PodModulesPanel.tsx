@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { DoorClosed, DoorOpen, Lock, LockOpen, RefreshCw, Trash2, X } from 'lucide-react'
 import { toast } from 'react-toastify'
+import Modal from '../common/Modal'
 import { type PodItem } from '../../api/lib/podApi'
 import { podAmenityApi, type PodAmenityItem } from '../../api/lib/podAmenityApi'
 import { doorApi, type DoorItem } from '../../api/lib/doorApi'
@@ -8,7 +9,7 @@ import { podDeviceApi, type PodDeviceItem } from '../../api/lib/podDeviceApi'
 import { podQrCodeApi, type PodQrCodeItem } from '../../api/lib/podQrCodeApi'
 import { timeSlotApi, type TimeSlotItem, type TimeSlotStatus } from '../../api/lib/timeSlotApi'
 import { podItemApi, type PodItemLink } from '../../api/lib/podItemApi'
-import { itemApi, type CreateItemPayload, type InventoryItem, type ItemType } from '../../api/lib/itemApi'
+import { itemApi, type InventoryItem } from '../../api/lib/itemApi'
 
 type ModuleTab = 'amenities' | 'door' | 'devices' | 'qrcodes' | 'timeslots' | 'poditems'
 
@@ -66,10 +67,10 @@ export const PodModulesPanel: React.FC<PodModulesPanelProps> = ({ pod, onClose }
   const [availableItems, setAvailableItems] = useState<InventoryItem[]>([])
   const [isLoadingItems, setIsLoadingItems] = useState(false)
   const [itemsLoadError, setItemsLoadError] = useState<string | null>(null)
-  const [isCreatingItem, setIsCreatingItem] = useState(false)
-  const [newItemName, setNewItemName] = useState('')
-  const [newItemType, setNewItemType] = useState<ItemType>('CONSUMABLE')
-  const [newItemUnitCost, setNewItemUnitCost] = useState('0')
+  const [editingPodItem, setEditingPodItem] = useState<PodItemLink | null>(null)
+  const [editExpectedQty, setEditExpectedQty] = useState('0')
+  const [editCurrentQty, setEditCurrentQty] = useState('0')
+  const [isSavingPodItemEdit, setIsSavingPodItemEdit] = useState(false)
 
   const hasSelectedPod = !!pod
 
@@ -89,9 +90,6 @@ export const PodModulesPanel: React.FC<PodModulesPanelProps> = ({ pod, onClose }
     setItemId('')
     setExpectedQty('1')
     setCurrentQty('1')
-    setNewItemName('')
-    setNewItemType('CONSUMABLE')
-    setNewItemUnitCost('0')
   }
 
   const loadModuleData = async () => {
@@ -164,6 +162,11 @@ export const PodModulesPanel: React.FC<PodModulesPanelProps> = ({ pod, onClose }
     return Number.isFinite(num) ? num : null
   }
 
+  const getItemDisplayName = (item?: InventoryItem | null) => {
+    if (!item) return null
+    return item.name || item.item_name || item.code || item.sku || item.id
+  }
+
   const loadAvailableItems = async () => {
     try {
       setIsLoadingItems(true)
@@ -182,51 +185,39 @@ export const PodModulesPanel: React.FC<PodModulesPanelProps> = ({ pod, onClose }
     }
   }
 
-  const handleCreateItem = async () => {
-    const trimmedName = newItemName.trim()
-    if (!trimmedName) {
-      toast.error('Item name is required')
-      return
-    }
+  const openEditPodItemModal = (podItem: PodItemLink) => {
+    setEditingPodItem(podItem)
+    setEditExpectedQty(String(podItem.expected_quantity))
+    setEditCurrentQty(String(podItem.current_quantity))
+  }
 
-    const unitCost = Number(newItemUnitCost)
-    if (!Number.isFinite(unitCost) || unitCost < 0) {
-      toast.error('Unit cost must be a number >= 0')
-      return
-    }
+  const closeEditPodItemModal = () => {
+    if (isSavingPodItemEdit) return
+    setEditingPodItem(null)
+    setEditExpectedQty('0')
+    setEditCurrentQty('0')
+  }
 
-    const payload: CreateItemPayload = {
-      name: trimmedName,
-      item_type: newItemType,
-      unit_cost: unitCost
+  const handleEditPodItem = async () => {
+    if (!editingPodItem) return
+
+    const expected = parseNonNegativeInt(editExpectedQty)
+    const current = parseNonNegativeInt(editCurrentQty)
+    if (expected === null || current === null) {
+      toast.error('Quantities must be whole numbers >= 0')
+      return
     }
 
     try {
-      setIsCreatingItem(true)
-      const response = await itemApi.create(payload)
-      const createdItem = response.data
-      await loadAvailableItems()
-      if (createdItem?.id) {
-        setItemId(createdItem.id)
-      }
-      setNewItemName('')
-      setNewItemType('CONSUMABLE')
-      setNewItemUnitCost('0')
-      toast.success('Item created. You can now add it to this pod.')
+      setIsSavingPodItemEdit(true)
+      await podItemApi.update(editingPodItem.id, { expected_quantity: expected, current_quantity: current })
+      await loadModuleData()
+      closeEditPodItemModal()
+      toast.success('Pod item updated')
     } catch (error: any) {
-      const status = error?.response?.status
-      const message = error?.response?.data?.message
-      if (status === 404) {
-        toast.error('Item API route is missing on backend (POST /items or POST /item).')
-      } else if (status === 409) {
-        toast.error(message || 'Item already exists')
-      } else if (status === 400) {
-        toast.error(message || 'Invalid item data')
-      } else {
-        toast.error(message || 'Failed to create item')
-      }
+      toast.error(error?.response?.data?.message || 'Failed to update pod item')
     } finally {
-      setIsCreatingItem(false)
+      setIsSavingPodItemEdit(false)
     }
   }
 
@@ -243,7 +234,6 @@ export const PodModulesPanel: React.FC<PodModulesPanelProps> = ({ pod, onClose }
         <div className="flex-shrink-0 px-6 py-4 border-b border-gray-100 flex items-center justify-between">
           <div>
             <h2 className="text-base font-semibold text-gray-900">Pod Modules: {pod.code} - {pod.name}</h2>
-            <p className="text-xs text-gray-500 mt-1">Pod ID: {pod.id}</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -1048,57 +1038,6 @@ export const PodModulesPanel: React.FC<PodModulesPanelProps> = ({ pod, onClose }
               <p className="text-xs text-gray-500 mt-1">Assign inventory items to this pod and track expected vs current quantity.</p>
             </div>
 
-            <div className="rounded-xl border border-gray-200 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-semibold text-gray-800">Create New Item</h4>
-                <span className="text-[11px] text-gray-500">Creates a record in table `items`</span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Item Name</label>
-                  <input
-                    value={newItemName}
-                    onChange={(e) => setNewItemName(e.target.value)}
-                    placeholder="e.g. Tissue Box"
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Item Type</label>
-                  <select
-                    value={newItemType}
-                    onChange={(e) => setNewItemType(e.target.value as ItemType)}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm"
-                  >
-                    <option value="CONSUMABLE">CONSUMABLE</option>
-                    <option value="REUSABLE">REUSABLE</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Unit Cost</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={newItemUnitCost}
-                    onChange={(e) => setNewItemUnitCost(e.target.value)}
-                    placeholder="0"
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                  />
-                </div>
-              </div>
-              <div className="mt-3 flex items-center gap-2">
-                <button
-                  onClick={handleCreateItem}
-                  disabled={isCreatingItem}
-                  className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-60"
-                >
-                  {isCreatingItem ? 'Creating...' : 'Create Item'}
-                </button>
-                <p className="text-[11px] text-gray-500">After creating, Item ID is auto-filled below.</p>
-              </div>
-            </div>
-
             <div className="rounded-xl border border-gray-200 p-4 bg-gray-50/60">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div className="md:col-span-1">
@@ -1112,7 +1051,7 @@ export const PodModulesPanel: React.FC<PodModulesPanelProps> = ({ pod, onClose }
                     <option value="">{isLoadingItems ? 'Loading items...' : 'Select an item'}</option>
                     {availableItems.map((item) => {
                       const unitCost = getItemUnitCost(item)
-                      const name = item.name || item.item_name || item.code || item.sku || item.id
+                      const name = getItemDisplayName(item) || item.id
                       return (
                         <option key={item.id} value={item.id}>
                           {unitCost == null ? `${name} | Unit cost: N/A` : `${name} | Unit cost: ${unitCost}`}
@@ -1206,69 +1145,128 @@ export const PodModulesPanel: React.FC<PodModulesPanelProps> = ({ pod, onClose }
               </div>
             </div>
 
-            <div className="space-y-2">
-              {podItems.length === 0 ? (
-                <p className="text-sm text-gray-400">No pod items yet</p>
-              ) : podItems.map((item) => {
-                const isMissing = item.current_quantity < item.expected_quantity
+            <div className="overflow-x-auto border border-gray-100 rounded-lg">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Item</th>
+                    <th className="px-3 py-2 text-left">Expected</th>
+                    <th className="px-3 py-2 text-left">Current</th>
+                    <th className="px-3 py-2 text-left">Status</th>
+                    <th className="px-3 py-2 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {podItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-3 py-8 text-center text-gray-400 text-sm">No pod items yet</td>
+                    </tr>
+                  ) : podItems.map((item) => {
+                    const isMissing = item.current_quantity < item.expected_quantity
+                    const sourceItem = availableItems.find((x) => x.id === item.item_id)
+                    const itemName = getItemDisplayName(sourceItem) || item.item_id
 
-                return (
-                  <div key={item.id} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg">
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">Item ID: {item.item_id}</p>
-                      <p className="text-xs text-gray-500">Expected: {item.expected_quantity} | Current: {item.current_quantity}</p>
-                      <span className={`inline-flex mt-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${isMissing ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                        {isMissing ? 'Missing items' : 'Sufficient'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={async () => {
-                          const expectedRaw = window.prompt('Expected quantity (>= 0)', String(item.expected_quantity))
-                          const currentRaw = window.prompt('Current quantity (>= 0)', String(item.current_quantity))
-                          if (expectedRaw == null || currentRaw == null) return
-
-                          const expected = parseNonNegativeInt(expectedRaw)
-                          const current = parseNonNegativeInt(currentRaw)
-                          if (expected === null || current === null) {
-                            toast.error('Quantities must be whole numbers >= 0')
-                            return
-                          }
-
-                          try {
-                            await podItemApi.update(item.id, { expected_quantity: expected, current_quantity: current })
-                            await loadModuleData()
-                            toast.success('Pod item updated')
-                          } catch (error: any) {
-                            toast.error(error?.response?.data?.message || 'Failed to update pod item')
-                          }
-                        }}
-                        className="px-2.5 py-1.5 rounded border border-gray-200 text-sm"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={async () => {
-                          if (!window.confirm('Delete this pod item?')) return
-                          try {
-                            await podItemApi.delete(item.id)
-                            await loadModuleData()
-                            toast.success('Pod item deleted')
-                          } catch (error: any) {
-                            toast.error(error?.response?.data?.message || 'Failed to delete pod item')
-                          }
-                        }}
-                        className="px-2.5 py-1.5 rounded border border-red-200 text-red-600 text-sm"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
+                    return (
+                      <tr key={item.id} className="border-t border-gray-100 hover:bg-gray-50">
+                        <td className="px-3 py-2">
+                          <p className="font-medium text-gray-800">{itemName}</p>
+                        </td>
+                        <td className="px-3 py-2 text-gray-700">{item.expected_quantity}</td>
+                        <td className="px-3 py-2 text-gray-700">{item.current_quantity}</td>
+                        <td className="px-3 py-2">
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${isMissing ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            {isMissing ? 'Missing items' : 'Sufficient'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <div className="inline-flex gap-2">
+                            <button
+                              onClick={() => openEditPodItemModal(item)}
+                              className="px-2.5 py-1.5 rounded border border-gray-200 text-xs"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (!window.confirm('Delete this pod item?')) return
+                                try {
+                                  await podItemApi.delete(item.id)
+                                  await loadModuleData()
+                                  toast.success('Pod item deleted')
+                                } catch (error: any) {
+                                  toast.error(error?.response?.data?.message || 'Failed to delete pod item')
+                                }
+                              }}
+                              className="px-2.5 py-1.5 rounded border border-red-200 text-red-600 text-xs hover:bg-red-50"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
+
+        <Modal
+          isOpen={Boolean(editingPodItem)}
+          onClose={closeEditPodItemModal}
+          title="Edit Pod Item"
+          size="sm"
+          footer={(
+            <>
+              <button
+                onClick={closeEditPodItemModal}
+                disabled={isSavingPodItemEdit}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEditPodItem}
+                disabled={isSavingPodItemEdit}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                {isSavingPodItemEdit ? 'Saving...' : 'Save Changes'}
+              </button>
+            </>
+          )}
+        >
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Item</label>
+              <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700">
+                {editingPodItem ? (getItemDisplayName(availableItems.find((x) => x.id === editingPodItem.item_id)) || editingPodItem.item_id) : '—'}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Expected Quantity</label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={editExpectedQty}
+                onChange={(e) => setEditExpectedQty(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Current Quantity</label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={editCurrentQty}
+                onChange={(e) => setEditCurrentQty(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+              />
+            </div>
+          </div>
+        </Modal>
         </div>
       </div>
     </div>

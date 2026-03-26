@@ -15,9 +15,11 @@ import { bookingApi, type BookingItem } from '../../api/lib/bookingApi'
 import { podApi, type PodItem } from '../../api/lib/podApi'
 import { podClusterApi, type PodClusterItem } from '../../api/lib/podClusterApi'
 import { locationShiftApi, type WorkingStaffAssignment } from '../../api/lib/locationShiftApi'
+import { userApi, type UserListItem } from '../../api/lib/userApi'
 
 type StatusFilter = CleaningTaskStatus | 'all'
 type SourceFilter = CleaningRequestSource | 'all'
+type QuickCleanerSource = 'assignment' | 'all_cleaners'
 
 interface TaskFormState {
   pod_id: string
@@ -149,6 +151,17 @@ const formatStaffOption = (item: WorkingStaffAssignment) => {
   return `${name} | ${shiftName} (${shiftWindow}) | assignment ${item.assignment_id}`
 }
 
+const getUserId = (user: UserListItem) => user.id || user._id || ''
+
+const normalizeRole = (role?: string) => (role || '').trim().toLowerCase()
+
+const formatCleanerOption = (user: UserListItem) => {
+  const cleanerId = getUserId(user)
+  const name = user.name?.trim() || 'Unknown cleaner'
+  const email = user.email?.trim() || 'no-email'
+  return `${name} (${email}) | ${cleanerId || 'no-id'}`
+}
+
 export const CleaningTaskManagement = () => {
   const [tasks, setTasks] = useState<CleaningTaskItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -174,13 +187,20 @@ export const CleaningTaskManagement = () => {
 
   const [availableStaff, setAvailableStaff] = useState<WorkingStaffAssignment[]>([])
   const [isStaffLoading, setIsStaffLoading] = useState(false)
+  const [isAllCleanersLoading, setIsAllCleanersLoading] = useState(false)
+  const [allCleanersLoadError, setAllCleanersLoadError] = useState('')
   const [selectedAssignmentId, setSelectedAssignmentId] = useState('')
+  const [quickCleanerSource, setQuickCleanerSource] = useState<QuickCleanerSource>('assignment')
+  const [allCleaners, setAllCleaners] = useState<UserListItem[]>([])
+  const [selectedCleanerId, setSelectedCleanerId] = useState('')
   const [quickCreateNote, setQuickCreateNote] = useState('')
   const [isQuickCreating, setIsQuickCreating] = useState(false)
 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<CleaningTaskItem | null>(null)
   const [form, setForm] = useState<TaskFormState>(createEmptyTaskForm())
+  const [modalShiftAssignments, setModalShiftAssignments] = useState<WorkingStaffAssignment[]>([])
+  const [isModalShiftLoading, setIsModalShiftLoading] = useState(false)
 
   const [backfillForm, setBackfillForm] = useState<BackfillFormState>(createDefaultBackfillForm())
   const [backfillSummary, setBackfillSummary] = useState<{
@@ -316,12 +336,14 @@ export const CleaningTaskManagement = () => {
   const openCreateModal = () => {
     setEditingTask(null)
     setForm(createEmptyTaskForm())
+    setModalShiftAssignments([])
     setIsModalOpen(true)
   }
 
   const openEditModal = (task: CleaningTaskItem) => {
     setEditingTask(task)
     setForm(toFormState(task))
+    setModalShiftAssignments([])
     setIsModalOpen(true)
   }
 
@@ -330,7 +352,45 @@ export const CleaningTaskManagement = () => {
     setIsModalOpen(false)
     setEditingTask(null)
     setForm(createEmptyTaskForm())
+    setModalShiftAssignments([])
   }
+
+  const fetchModalShiftAssignments = async (locationId: string, targetDate?: string) => {
+    try {
+      setIsModalShiftLoading(true)
+      const response = await locationShiftApi.getWorkingStaffByLocation(locationId, {
+        role: 'CLEANER',
+        include_assigned: true,
+        target_date: targetDate
+      })
+      setModalShiftAssignments(response.data)
+    } catch {
+      setModalShiftAssignments([])
+    } finally {
+      setIsModalShiftLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!isModalOpen) return
+
+    if (allCleaners.length === 0 && !isAllCleanersLoading) {
+      fetchAllCleaners()
+    }
+
+    const pod = podMap.get(form.pod_id)
+    const cluster = pod ? clusterMap.get(pod.cluster_id) : null
+    const locationId = cluster?.location_id
+    const targetDate = formatDateOnly(form.due_at)
+
+    if (!locationId) {
+      setModalShiftAssignments([])
+      return
+    }
+
+    fetchModalShiftAssignments(locationId, targetDate)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isModalOpen, form.pod_id, form.due_at, podMap, clusterMap])
 
   const updateForm = <K extends keyof TaskFormState>(key: K, value: TaskFormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -429,6 +489,9 @@ export const CleaningTaskManagement = () => {
     setSelectedBookingTasks([])
     setAvailableStaff([])
     setSelectedAssignmentId('')
+    setSelectedCleanerId('')
+    setAllCleanersLoadError('')
+    setQuickCleanerSource('assignment')
     setQuickCreateNote('')
 
     try {
@@ -468,6 +531,50 @@ export const CleaningTaskManagement = () => {
     }
   }
 
+  const fetchAllCleaners = async () => {
+    try {
+      setIsAllCleanersLoading(true)
+      setAllCleanersLoadError('')
+      const [upperRoleRes, lowerRoleRes] = await Promise.all([
+        userApi.getAll({ role: 'CLEANER', isActive: true }),
+        userApi.getAll({ role: 'cleaner', isActive: true })
+      ])
+
+      const merged = [...upperRoleRes.data, ...lowerRoleRes.data]
+      const dedupedById = new Map<string, UserListItem>()
+
+      merged.forEach((user) => {
+        const id = getUserId(user)
+        if (!id) return
+
+        if (normalizeRole(user.role) !== 'cleaner') return
+        dedupedById.set(id, user)
+      })
+
+      const cleaners = Array.from(dedupedById.values())
+      setAllCleaners(cleaners)
+
+      if (cleaners.length > 0) {
+        setSelectedCleanerId((prev) => prev || getUserId(cleaners[0]))
+      }
+    } catch (error: any) {
+      const message = error?.response?.data?.message || error?.message || 'Failed to load all cleaners'
+      setAllCleanersLoadError(message)
+      setAllCleaners([])
+      toast.warning('Cannot auto-load all cleaners. You can still paste cleaner_id manually.')
+    } finally {
+      setIsAllCleanersLoading(false)
+    }
+  }
+
+  const handleChangeQuickCleanerSource = async (source: QuickCleanerSource) => {
+    setQuickCleanerSource(source)
+
+    if (source === 'all_cleaners' && allCleaners.length === 0) {
+      await fetchAllCleaners()
+    }
+  }
+
   const handleQuickCreateTask = async () => {
     if (!selectedBooking) return
 
@@ -476,16 +583,28 @@ export const CleaningTaskManagement = () => {
       return
     }
 
-    const pickedAssignment = availableStaff.find((item) => item.assignment_id === selectedAssignmentId)
-    if (!pickedAssignment) {
-      toast.error('Please choose a cleaner assignment')
-      return
-    }
+    let cleanerId = ''
+    let shiftAssignmentId: string | null = null
 
-    const cleanerId = getStaffId(pickedAssignment)
-    if (!cleanerId) {
-      toast.error('Selected assignment has no valid staff id from backend response')
-      return
+    if (quickCleanerSource === 'assignment') {
+      const pickedAssignment = availableStaff.find((item) => item.assignment_id === selectedAssignmentId)
+      if (!pickedAssignment) {
+        toast.error('Please choose a cleaner assignment')
+        return
+      }
+
+      cleanerId = getStaffId(pickedAssignment)
+      shiftAssignmentId = pickedAssignment.assignment_id
+      if (!cleanerId) {
+        toast.error('Selected assignment has no valid staff id from backend response')
+        return
+      }
+    } else {
+      cleanerId = selectedCleanerId.trim()
+      if (!cleanerId) {
+        toast.error('Please choose a cleaner')
+        return
+      }
     }
 
     try {
@@ -494,7 +613,7 @@ export const CleaningTaskManagement = () => {
         pod_id: selectedBooking.pod_id,
         booking_id: selectedBooking.id,
         cleaner_id: cleanerId,
-        shift_assignment_id: pickedAssignment.assignment_id,
+        shift_assignment_id: shiftAssignmentId,
         request_source: 'AUTO_AFTER_CHECKOUT',
         due_at: selectedBooking.end_time,
         status: 'ASSIGNED',
@@ -661,25 +780,75 @@ export const CleaningTaskManagement = () => {
                 <h4 className="text-sm font-semibold text-gray-900 mb-2">Create New Task For Selected Booking</h4>
                 <p className="text-xs text-gray-500 mb-3">Staff list is loaded by location-shifts/locations/:locationId/working with role CLEANER and include_assigned=true.</p>
 
+                <div className="mb-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cleaner source</label>
+                  <select
+                    value={quickCleanerSource}
+                    onChange={(e) => handleChangeQuickCleanerSource(e.target.value as QuickCleanerSource)}
+                    className="w-full md:w-[360px] px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  >
+                    <option value="assignment">Working assignment (by location + date)</option>
+                    <option value="all_cleaners">All cleaners in system</option>
+                  </select>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Cleaner + Shift Assignment</label>
-                    <select
-                      value={selectedAssignmentId}
-                      onChange={(e) => setSelectedAssignmentId(e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                      disabled={isStaffLoading || availableStaff.length === 0}
-                    >
-                      {isStaffLoading ? (
-                        <option value="">Loading staff...</option>
-                      ) : availableStaff.length === 0 ? (
-                        <option value="">No eligible cleaner assignment found</option>
-                      ) : (
-                        availableStaff.map((item) => (
-                          <option key={item.assignment_id} value={item.assignment_id}>{formatStaffOption(item)}</option>
-                        ))
-                      )}
-                    </select>
+                    {quickCleanerSource === 'assignment' ? (
+                      <select
+                        value={selectedAssignmentId}
+                        onChange={(e) => setSelectedAssignmentId(e.target.value)}
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                        disabled={isStaffLoading || availableStaff.length === 0}
+                      >
+                        {isStaffLoading ? (
+                          <option value="">Loading staff...</option>
+                        ) : availableStaff.length === 0 ? (
+                          <option value="">No eligible cleaner assignment found</option>
+                        ) : (
+                          availableStaff.map((item) => (
+                            <option key={item.assignment_id} value={item.assignment_id}>{formatStaffOption(item)}</option>
+                          ))
+                        )}
+                      </select>
+                    ) : (
+                      <>
+                        <select
+                          value={selectedCleanerId}
+                          onChange={(e) => setSelectedCleanerId(e.target.value)}
+                          className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                          disabled={isAllCleanersLoading || allCleaners.length === 0}
+                        >
+                          {isAllCleanersLoading ? (
+                            <option value="">Loading cleaners...</option>
+                          ) : allCleaners.length === 0 ? (
+                            <option value="">No cleaner list API available</option>
+                          ) : (
+                            allCleaners.map((cleaner) => {
+                              const id = getUserId(cleaner)
+                              return (
+                                <option key={id} value={id}>{formatCleanerOption(cleaner)}</option>
+                              )
+                            })
+                          )}
+                        </select>
+
+                        <input
+                          type="text"
+                          value={selectedCleanerId}
+                          onChange={(e) => setSelectedCleanerId(e.target.value)}
+                          placeholder="Or paste cleaner_id manually"
+                          className="mt-2 w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+
+                        {allCleanersLoadError && (
+                          <p className="mt-1 text-xs text-amber-700">
+                            Auto-load failed: {allCleanersLoadError}. Please paste cleaner_id manually.
+                          </p>
+                        )}
+                      </>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Note</label>
@@ -695,7 +864,11 @@ export const CleaningTaskManagement = () => {
 
                 <button
                   onClick={handleQuickCreateTask}
-                  disabled={isQuickCreating || isStaffLoading || availableStaff.length === 0 || !selectedAssignmentId}
+                  disabled={
+                    isQuickCreating ||
+                    (quickCleanerSource === 'assignment' && (isStaffLoading || availableStaff.length === 0 || !selectedAssignmentId)) ||
+                    (quickCleanerSource === 'all_cleaners' && (isAllCleanersLoading || allCleaners.length === 0 || !selectedCleanerId))
+                  }
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-60"
                 >
                   <Plus className="w-4 h-4" />
@@ -948,19 +1121,29 @@ export const CleaningTaskManagement = () => {
                 type="text"
                 value={form.pod_id}
                 onChange={(e) => updateForm('pod_id', e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                disabled={Boolean(editingTask)}
                 required
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">cleaner_id *</label>
-              <input
-                type="text"
+              <select
                 value={form.cleaner_id}
                 onChange={(e) => updateForm('cleaner_id', e.target.value)}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
-              />
+              >
+                {!form.cleaner_id && <option value="">Select cleaner</option>}
+                {allCleaners.map((cleaner) => {
+                  const id = getUserId(cleaner)
+                  if (!id) return null
+                  return <option key={id} value={id}>{formatCleanerOption(cleaner)}</option>
+                })}
+                {form.cleaner_id && !allCleaners.some((cleaner) => getUserId(cleaner) === form.cleaner_id) && (
+                  <option value={form.cleaner_id}>{form.cleaner_id} (current)</option>
+                )}
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">booking_id</label>
@@ -968,17 +1151,29 @@ export const CleaningTaskManagement = () => {
                 type="text"
                 value={form.booking_id}
                 onChange={(e) => updateForm('booking_id', e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                disabled={Boolean(editingTask)}
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">shift_assignment_id</label>
-              <input
-                type="text"
+              <select
                 value={form.shift_assignment_id}
                 onChange={(e) => updateForm('shift_assignment_id', e.target.value)}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+              >
+                <option value="">No shift assignment</option>
+                {isModalShiftLoading ? (
+                  <option value="" disabled>Loading assignments...</option>
+                ) : (
+                  modalShiftAssignments.map((item) => (
+                    <option key={item.assignment_id} value={item.assignment_id}>{formatStaffOption(item)}</option>
+                  ))
+                )}
+                {form.shift_assignment_id && !modalShiftAssignments.some((item) => item.assignment_id === form.shift_assignment_id) && (
+                  <option value={form.shift_assignment_id}>{form.shift_assignment_id} (current)</option>
+                )}
+              </select>
             </div>
 
             <div>
@@ -1062,12 +1257,21 @@ export const CleaningTaskManagement = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">reassigned_from_cleaner_id</label>
-              <input
-                type="text"
+              <select
                 value={form.reassigned_from_cleaner_id}
                 onChange={(e) => updateForm('reassigned_from_cleaner_id', e.target.value)}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+              >
+                <option value="">None</option>
+                {allCleaners.map((cleaner) => {
+                  const id = getUserId(cleaner)
+                  if (!id) return null
+                  return <option key={id} value={id}>{formatCleanerOption(cleaner)}</option>
+                })}
+                {form.reassigned_from_cleaner_id && !allCleaners.some((cleaner) => getUserId(cleaner) === form.reassigned_from_cleaner_id) && (
+                  <option value={form.reassigned_from_cleaner_id}>{form.reassigned_from_cleaner_id} (current)</option>
+                )}
+              </select>
             </div>
           </div>
 

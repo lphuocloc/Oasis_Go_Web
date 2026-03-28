@@ -136,7 +136,7 @@ export const PodClusterManagement = () => {
   const openCreateModal = () => {
     setEditingCluster(null)
     setImages([])
-    setForm((prev) => ({ ...createEmptyForm(), location_id: locations[0]?.id ?? '' }))
+    setForm({ ...createEmptyForm(), location_id: locations[0]?.id ?? '' })
     setIsModalOpen(true)
   }
 

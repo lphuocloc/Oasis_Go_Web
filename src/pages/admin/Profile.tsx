@@ -51,6 +51,7 @@ export const AdminProfile = () => {
       setLoading(true)
       await userApi.updateProfile({
         name: formData.name,
+        phone: formData.phone,
         avatar: formData.avatar
       })
       toast.success('Profile updated successfully')

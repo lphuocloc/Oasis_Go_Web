@@ -13,6 +13,18 @@ export type PodStatus = (typeof POD_STATUSES)[number]
 export interface PodItem {
   id: string
   cluster_id: string
+  cluster?: {
+    id: string
+    name?: string
+    description?: string | null
+    slot_duration_minutes?: number | null
+    location?: {
+      id: string
+      name?: string
+      type?: string
+      description?: string | null
+    }
+  }
   code: string
   name: string
   description?: string | null

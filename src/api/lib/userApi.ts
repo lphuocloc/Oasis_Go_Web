@@ -93,5 +93,21 @@ export const userApi = {
   
   getProfile: () => {
     return api.get<UpdateProfileResponse>('/users/profile').then((r) => r.data)
+  },
+
+  getActiveUsers: async (role?: string) => {
+    const response = await api.get<UserListResponse | UserListItem[]>('/users', { params: { role } })
+    const payload = response.data
+
+    if (Array.isArray(payload)) {
+      return { success: true, count: payload.length, data: payload }
+    }
+
+    const list = payload.data ?? payload.users ?? []
+    return {
+      success: payload.success ?? true,
+      count: payload.count ?? list.length,
+      data: list
+    }
   }
 }

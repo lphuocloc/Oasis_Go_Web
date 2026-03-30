@@ -6,8 +6,7 @@ import {
   Plus,
   RefreshCw,
   Search,
-  Trash2,
-  X
+  Trash2
 } from 'lucide-react'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'

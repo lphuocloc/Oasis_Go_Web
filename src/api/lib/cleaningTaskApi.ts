@@ -42,6 +42,7 @@ export interface CleaningTaskItem {
 }
 
 export interface CleaningTaskListFilters {
+  pod_ids?: string
   cleaner_id?: string
   shift_assignment_id?: string
   pod_id?: string
@@ -117,6 +118,7 @@ const buildParams = (filters?: CleaningTaskListFilters): URLSearchParams => {
   const params = new URLSearchParams()
   if (!filters) return params
 
+  if (filters.pod_ids?.trim()) params.append('pod_ids', filters.pod_ids.trim())
   if (filters.cleaner_id?.trim()) params.append('cleaner_id', filters.cleaner_id.trim())
   if (filters.shift_assignment_id?.trim()) params.append('shift_assignment_id', filters.shift_assignment_id.trim())
   if (filters.pod_id?.trim()) params.append('pod_id', filters.pod_id.trim())
@@ -133,6 +135,11 @@ export const cleaningTaskApi = {
   getAll: (filters?: CleaningTaskListFilters) => {
     const params = buildParams(filters)
     return api.get<CleaningTaskListResponse>('/cleaning-tasks', { params }).then((r) => r.data)
+  },
+
+  getMyTasks: (filters?: CleaningTaskListFilters) => {
+    const params = buildParams(filters)
+    return api.get<CleaningTaskListResponse>('/cleaning-tasks/me', { params }).then((r) => r.data)
   },
 
   getById: (id: string) => api.get<CleaningTaskSingleResponse>(`/cleaning-tasks/${id}`).then((r) => r.data),

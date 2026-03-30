@@ -15,6 +15,7 @@ import { PodManagement } from './pages/manager/PodManagement'
 import { BookingManagement } from './pages/manager/BookingManagement'
 import { CleaningManagement } from './pages/manager/CleaningManagement'
 import { IncidentManagement } from './pages/manager/IncidentManagement'
+import { ShiftManagement } from './pages/manager/ShiftManagement'
 import { LostAndFoundManagement } from './pages/manager/LostAndFoundManagement'
 import { AdminLayout } from './layouts/AdminLayout'
 import { ManagerLayout } from './layouts/ManagerLayout'
@@ -107,6 +108,10 @@ export const router = createBrowserRouter([
           {
             path: "incidents",
             element: <IncidentManagement />
+          },
+          {
+            path: "shifts",
+            element: <ShiftManagement />
           },
           {
             path: "lost-found",

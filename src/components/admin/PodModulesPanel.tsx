@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react'
+import { DatePicker } from 'antd'
+import dayjs from 'dayjs'
 import { DoorClosed, DoorOpen, Lock, LockOpen, RefreshCw, Trash2, X } from 'lucide-react'
 import { toast } from 'react-toastify'
 import Modal from '../common/Modal'
@@ -606,7 +608,13 @@ export const PodModulesPanel: React.FC<PodModulesPanelProps> = ({ pod, onClose }
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-gray-800">Pod QR Codes</h3>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <input type="datetime-local" value={qrExpiresAt} onChange={(e) => setQrExpiresAt(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg" />
+              <DatePicker
+                showTime={{ format: 'HH:mm' }}
+                format="YYYY-MM-DD HH:mm"
+                value={qrExpiresAt ? dayjs(qrExpiresAt) : null}
+                onChange={(value) => setQrExpiresAt(value ? value.format('YYYY-MM-DDTHH:mm') : '')}
+                className="w-full"
+              />
               <input value={qrToken} onChange={(e) => setQrToken(e.target.value)} placeholder="QR token (optional)" className="px-3 py-2 border border-gray-200 rounded-lg" />
               <label className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700">
                 <input type="checkbox" checked={qrActive} onChange={(e) => setQrActive(e.target.checked)} />
@@ -731,20 +739,22 @@ export const PodModulesPanel: React.FC<PodModulesPanelProps> = ({ pod, onClose }
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-medium text-gray-600">Start time <span className="text-red-500">*</span></label>
-                  <input
-                    type="datetime-local"
-                    value={slotStartAt}
-                    onChange={(e) => setSlotStartAt(e.target.value)}
-                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  <DatePicker
+                    showTime={{ format: 'HH:mm' }}
+                    format="YYYY-MM-DD HH:mm"
+                    value={slotStartAt ? dayjs(slotStartAt) : null}
+                    onChange={(value) => setSlotStartAt(value ? value.format('YYYY-MM-DDTHH:mm') : '')}
+                    className="w-full"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-medium text-gray-600">End time <span className="text-red-500">*</span></label>
-                  <input
-                    type="datetime-local"
-                    value={slotEndAt}
-                    onChange={(e) => setSlotEndAt(e.target.value)}
-                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  <DatePicker
+                    showTime={{ format: 'HH:mm' }}
+                    format="YYYY-MM-DD HH:mm"
+                    value={slotEndAt ? dayjs(slotEndAt) : null}
+                    onChange={(value) => setSlotEndAt(value ? value.format('YYYY-MM-DDTHH:mm') : '')}
+                    className="w-full"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
@@ -830,20 +840,20 @@ export const PodModulesPanel: React.FC<PodModulesPanelProps> = ({ pod, onClose }
               <div className="flex flex-wrap items-end gap-3 mb-4">
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-medium text-gray-600">From date</label>
-                  <input
-                    type="date"
-                    value={slotStartDate}
-                    onChange={(e) => setSlotStartDate(e.target.value)}
-                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  <DatePicker
+                    value={slotStartDate ? dayjs(slotStartDate) : null}
+                    format="YYYY-MM-DD"
+                    onChange={(value) => setSlotStartDate(value ? value.format('YYYY-MM-DD') : '')}
+                    className="w-full"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-medium text-gray-600">To date</label>
-                  <input
-                    type="date"
-                    value={slotEndDate}
-                    onChange={(e) => setSlotEndDate(e.target.value)}
-                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  <DatePicker
+                    value={slotEndDate ? dayjs(slotEndDate) : null}
+                    format="YYYY-MM-DD"
+                    onChange={(value) => setSlotEndDate(value ? value.format('YYYY-MM-DD') : '')}
+                    className="w-full"
                   />
                 </div>
                 <button
@@ -993,11 +1003,11 @@ export const PodModulesPanel: React.FC<PodModulesPanelProps> = ({ pod, onClose }
               <div className="flex items-end gap-3 flex-wrap">
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-medium text-gray-600">Select date</label>
-                  <input
-                    type="date"
-                    value={clusterAvailDate}
-                    onChange={(e) => setClusterAvailDate(e.target.value)}
-                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  <DatePicker
+                    value={clusterAvailDate ? dayjs(clusterAvailDate) : null}
+                    format="YYYY-MM-DD"
+                    onChange={(value) => setClusterAvailDate(value ? value.format('YYYY-MM-DD') : '')}
+                    className="w-full"
                   />
                 </div>
                 <button

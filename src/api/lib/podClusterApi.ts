@@ -7,10 +7,14 @@ export interface PodClusterItem {
     id: string
     name?: string
     type?: string
+    parent_id?: string | null
+    description?: string | null
   }
   name: string
   description?: string | null
   base_price_modifier?: number | null
+  slot_duration_minutes?: number | null
+  images?: PodClusterImage[]
   createdAt?: string
   updatedAt?: string
 }

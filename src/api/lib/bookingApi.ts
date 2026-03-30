@@ -85,6 +85,13 @@ interface BookingListResponse {
   success: boolean
   message?: string
   data: BookingItem[] | BookingListPayload
+  pagination?: BookingPagination
+}
+
+export interface BookingListResult {
+  bookings: BookingItem[]
+  pagination?: BookingPagination
+  data: BookingItem[]
 }
 
 const buildParams = (filters?: BookingListFilters): URLSearchParams => {
@@ -92,12 +99,12 @@ const buildParams = (filters?: BookingListFilters): URLSearchParams => {
 
   if (!filters) return params
 
-  if (filters.user_id) params.append('user_id', filters.user_id)
-  if (filters.pod_id) params.append('pod_id', filters.pod_id)
-  if (filters.order_id) params.append('order_id', filters.order_id)
+  if (filters.user_id?.trim()) params.append('user_id', filters.user_id.trim())
+  if (filters.pod_id?.trim()) params.append('pod_id', filters.pod_id.trim())
+  if (filters.order_id?.trim()) params.append('order_id', filters.order_id.trim())
   if (filters.status) params.append('status', filters.status)
-  if (filters.start_date) params.append('start_date', filters.start_date)
-  if (filters.end_date) params.append('end_date', filters.end_date)
+  if (filters.start_date?.trim()) params.append('start_date', filters.start_date.trim())
+  if (filters.end_date?.trim()) params.append('end_date', filters.end_date.trim())
   if (filters.page) params.append('page', String(filters.page))
   if (filters.limit) params.append('limit', String(filters.limit))
 
@@ -105,26 +112,29 @@ const buildParams = (filters?: BookingListFilters): URLSearchParams => {
 }
 
 const normalizeSingleBooking = (payload: BookingSingleResponse): BookingItem => {
-  if ('booking' in payload.data) {
-    return payload.data.booking
-  }
-
+  if ('booking' in payload.data) return payload.data.booking
   return payload.data
 }
 
-const normalizeBookingList = (payload: BookingListResponse): BookingListPayload => {
+const normalizeBookingList = (payload: BookingListResponse): BookingListResult => {
   if (Array.isArray(payload.data)) {
-    return { bookings: payload.data }
+    return {
+      bookings: payload.data,
+      pagination: payload.pagination,
+      data: payload.data
+    }
   }
 
+  const bookings = payload.data.bookings ?? []
   return {
-    bookings: payload.data.bookings ?? [],
-    pagination: payload.data.pagination
+    bookings,
+    pagination: payload.data.pagination ?? payload.pagination,
+    data: bookings
   }
 }
 
 export const bookingApi = {
-  getAll: async (filters?: BookingListFilters): Promise<BookingListPayload> => {
+  getAll: async (filters?: BookingListFilters): Promise<BookingListResult> => {
     const params = buildParams(filters)
     const response = await api.get<BookingListResponse>('/bookings', { params })
     return normalizeBookingList(response.data)
@@ -151,66 +161,5 @@ export const bookingApi = {
   setCleanerAccess: async (bookingId: string, allowed: boolean): Promise<BookingItem> => {
     const response = await api.post<BookingSingleResponse>(`/bookings/${bookingId}/cleaner-access`, { allowed })
     return normalizeSingleBooking(response.data)
-  }
-}
-import { api } from '../api'
-
-export type BookingStatus = 'BOOKED' | 'IN_USE' | 'COMPLETED' | 'CANCELLED'
-
-export interface BookingItem {
-  id: string
-  order_id: string
-  user_id: string
-  pod_id: string
-  start_time: string
-  end_time: string
-  actual_end_time?: string | null
-  status: BookingStatus
-  checkin_state?: string | null
-  cleaner_access_allowed?: boolean
-  cleaner_access_updated_at?: string | null
-  createdAt?: string
-  updatedAt?: string
-}
-
-export interface BookingListFilters {
-  user_id?: string
-  pod_id?: string
-  order_id?: string
-  status?: BookingStatus
-  start_date?: string
-  end_date?: string
-}
-
-interface BookingListResponse {
-  success: boolean
-  message?: string
-  data: BookingItem[]
-  pagination?: {
-    current_page: number
-    total_pages: number
-    total_items: number
-    items_per_page: number
-  }
-}
-
-const buildParams = (filters?: BookingListFilters): URLSearchParams => {
-  const params = new URLSearchParams()
-  if (!filters) return params
-
-  if (filters.user_id?.trim()) params.append('user_id', filters.user_id.trim())
-  if (filters.pod_id?.trim()) params.append('pod_id', filters.pod_id.trim())
-  if (filters.order_id?.trim()) params.append('order_id', filters.order_id.trim())
-  if (filters.status) params.append('status', filters.status)
-  if (filters.start_date?.trim()) params.append('start_date', filters.start_date.trim())
-  if (filters.end_date?.trim()) params.append('end_date', filters.end_date.trim())
-
-  return params
-}
-
-export const bookingApi = {
-  getAll: (filters?: BookingListFilters) => {
-    const params = buildParams(filters)
-    return api.get<BookingListResponse>('/bookings', { params }).then((r) => r.data)
   }
 }

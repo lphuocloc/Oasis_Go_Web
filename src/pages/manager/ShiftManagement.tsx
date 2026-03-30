@@ -11,7 +11,7 @@ import { staffShiftApi, type StaffShiftItem, type StaffShiftName } from '../../a
 import { locationShiftApi, type LocationShiftItem } from '../../api/lib/locationShiftApi'
 import { staffWorkRosterApi, type StaffWorkRosterItem } from '../../api/lib/staffWorkRosterApi'
 import { staffShiftAssignmentApi, type StaffShiftAssignmentItem } from '../../api/lib/staffShiftAssignmentApi'
-import { userApi, type UserItem } from '../../api/lib/userApi'
+import { userApi, type UserListItem } from '../../api/lib/userApi'
 
 type TabType = 'STAFF_SHIFTS' | 'LOCATION_SHIFTS' | 'ROSTERS' | 'ASSIGNMENTS'
 
@@ -324,7 +324,7 @@ const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'F
 function RostersTab() {
   const { locationOptions } = useManagerScope()
   const [rosters, setRosters] = useState<StaffWorkRosterItem[]>([])
-  const [cleaners, setCleaners] = useState<UserItem[]>([])
+  const [cleaners, setCleaners] = useState<UserListItem[]>([])
   const [locShifts, setLocShifts] = useState<LocationShiftItem[]>([])
   const [shifts, setShifts] = useState<StaffShiftItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -494,7 +494,7 @@ function RostersTab() {
 function AssignmentsTab() {
   const { locationOptions } = useManagerScope()
   const [assignments, setAssignments] = useState<StaffShiftAssignmentItem[]>([])
-  const [cleaners, setCleaners] = useState<UserItem[]>([])
+  const [cleaners, setCleaners] = useState<UserListItem[]>([])
   const [locShifts, setLocShifts] = useState<LocationShiftItem[]>([])
   const [shifts, setShifts] = useState<StaffShiftItem[]>([])
   const [isLoading, setIsLoading] = useState(false)

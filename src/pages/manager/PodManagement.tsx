@@ -9,7 +9,7 @@ import {
   type PodStatus,
   type UpdatePodStatusPayload
 } from '../../api/lib/podApi'
-import { userApi, type UserItem } from '../../api/lib/userApi'
+import { userApi, type UserListItem } from '../../api/lib/userApi'
 import { cleaningTaskApi } from '../../api/lib/cleaningTaskApi'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
 
@@ -51,7 +51,7 @@ export const PodManagement = () => {
 
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false)
   const [assignPod, setAssignPod] = useState<PodItem | null>(null)
-  const [cleaners, setCleaners] = useState<UserItem[]>([])
+  const [cleaners, setCleaners] = useState<UserListItem[]>([])
   const [selectedCleaner, setSelectedCleaner] = useState('')
   const [isAssigning, setIsAssigning] = useState(false)
 

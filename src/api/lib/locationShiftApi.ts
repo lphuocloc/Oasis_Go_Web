@@ -60,6 +60,12 @@ interface WorkingStaffByLocationResponse {
   data: WorkingStaffAssignment[]
 }
 
+interface LocationShiftListResponse {
+  success: boolean
+  count: number
+  data: LocationShiftItem[]
+}
+
 const buildWorkingStaffParams = (filters?: WorkingStaffFilters): URLSearchParams => {
   const params = new URLSearchParams()
 
@@ -92,5 +98,14 @@ export const locationShiftApi = {
     return api
       .get<WorkingStaffByLocationResponse>(`/location-shifts/locations/${locationId}/working`, { params })
       .then((r) => r.data)
+  },
+
+  getAll: () => {
+    return api.get<LocationShiftListResponse>('/location-shifts').then((r) => r.data)
+  },
+
+  delete: (id: string) => {
+    return api.delete<{ success: boolean; message: string }>(`/location-shifts/${id}`).then((r) => r.data)
   }
 }
+

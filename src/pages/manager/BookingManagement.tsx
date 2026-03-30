@@ -8,6 +8,8 @@ import {
   Shield,
   ShieldOff
 } from 'lucide-react'
+import { DatePicker } from 'antd'
+import dayjs from 'dayjs'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
 import {
@@ -451,24 +453,26 @@ export const BookingManagement = () => {
                 ))}
               </select>
 
-              <input
-                type="datetime-local"
-                value={bookingStartFilter}
-                onChange={(e) => {
+              <DatePicker
+                showTime={{ format: 'HH:mm' }}
+                format="YYYY-MM-DD HH:mm"
+                value={bookingStartFilter ? dayjs(bookingStartFilter) : null}
+                onChange={(value) => {
                   setBookingPage(1)
-                  setBookingStartFilter(e.target.value)
+                  setBookingStartFilter(value ? value.format('YYYY-MM-DDTHH:mm') : '')
                 }}
-                className="px-3 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full"
               />
 
-              <input
-                type="datetime-local"
-                value={bookingEndFilter}
-                onChange={(e) => {
+              <DatePicker
+                showTime={{ format: 'HH:mm' }}
+                format="YYYY-MM-DD HH:mm"
+                value={bookingEndFilter ? dayjs(bookingEndFilter) : null}
+                onChange={(value) => {
                   setBookingPage(1)
-                  setBookingEndFilter(e.target.value)
+                  setBookingEndFilter(value ? value.format('YYYY-MM-DDTHH:mm') : '')
                 }}
-                className="px-3 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full"
               />
             </div>
           </div>

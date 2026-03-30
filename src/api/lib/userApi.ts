@@ -1,5 +1,21 @@
 import { api } from '../api'
 
+export interface UserItem {
+  id?: string
+  _id?: string
+  email: string
+  name: string
+  phone: string
+  role: string
+  isActive: boolean
+}
+
+export interface UserListResponse {
+  success: boolean
+  count: number
+  data: UserItem[]
+}
+
 interface UpdateProfileRequest {
     name: string
     phone: string
@@ -27,5 +43,9 @@ export const userApi = {
   
   getProfile: () => {
     return api.get<UpdateProfileResponse>('/users/profile').then((r) => r.data)
+  },
+
+  getActiveUsers: (role?: string) => {
+    return api.get<UserListResponse>('/users', { params: { role } }).then((r) => r.data)
   }
 }

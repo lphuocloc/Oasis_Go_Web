@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link2, Package, Plus, RefreshCw } from 'lucide-react'
+import { DatePicker } from 'antd'
+import dayjs from 'dayjs'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
 import { useAuth } from '../../contexts/AuthContext'
@@ -1302,8 +1304,20 @@ export const InventoryWarehouseManagement: React.FC = () => {
                     <option key={action} value={action}>{action}</option>
                   ))}
                 </select>
-                <input type="datetime-local" value={logFromFilter} onChange={(e) => setLogFromFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg" />
-                <input type="datetime-local" value={logToFilter} onChange={(e) => setLogToFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg" />
+                <DatePicker
+                  showTime={{ format: 'HH:mm' }}
+                  format="YYYY-MM-DD HH:mm"
+                  value={logFromFilter ? dayjs(logFromFilter) : null}
+                  onChange={(value) => setLogFromFilter(value ? value.format('YYYY-MM-DDTHH:mm') : '')}
+                  className="w-full"
+                />
+                <DatePicker
+                  showTime={{ format: 'HH:mm' }}
+                  format="YYYY-MM-DD HH:mm"
+                  value={logToFilter ? dayjs(logToFilter) : null}
+                  onChange={(value) => setLogToFilter(value ? value.format('YYYY-MM-DDTHH:mm') : '')}
+                  className="w-full"
+                />
               </div>
               <div className="overflow-x-auto">
               <table className="w-full text-sm">

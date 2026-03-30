@@ -9,6 +9,8 @@ import {
   type PodStatus,
   type UpdatePodStatusPayload
 } from '../../api/lib/podApi'
+import { userApi, type UserItem } from '../../api/lib/userApi'
+import { cleaningTaskApi } from '../../api/lib/cleaningTaskApi'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
 
 const statusBadgeClass = (status: PodStatus) => {
@@ -46,6 +48,12 @@ export const PodManagement = () => {
   const [statusPod, setStatusPod] = useState<PodItem | null>(null)
   const [nextStatus, setNextStatus] = useState<PodStatus>('AVAILABLE')
   const [maintenanceReason, setMaintenanceReason] = useState('')
+
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false)
+  const [assignPod, setAssignPod] = useState<PodItem | null>(null)
+  const [cleaners, setCleaners] = useState<UserItem[]>([])
+  const [selectedCleaner, setSelectedCleaner] = useState('')
+  const [isAssigning, setIsAssigning] = useState(false)
 
   const fetchPods = async () => {
     try {
@@ -179,6 +187,48 @@ export const PodManagement = () => {
     }
   }
 
+  const openAssignModal = async (pod: PodItem) => {
+    setAssignPod(pod)
+    setIsAssignModalOpen(true)
+    if (cleaners.length === 0) {
+      try {
+        const res = await userApi.getActiveUsers('cleaner')
+        setCleaners(res.data)
+      } catch (error: any) {
+        toast.error(error?.response?.data?.message || 'Failed to load cleaners')
+      }
+    }
+  }
+
+  const closeAssignModal = () => {
+    if (isAssigning) return
+    setIsAssignModalOpen(false)
+    setAssignPod(null)
+    setSelectedCleaner('')
+  }
+
+  const handleAssignCleaner = async () => {
+    if (!assignPod || !selectedCleaner) {
+      toast.error('Please select a cleaner')
+      return
+    }
+    try {
+      setIsAssigning(true)
+      await cleaningTaskApi.create({
+        pod_id: assignPod.id,
+        cleaner_id: selectedCleaner,
+        request_source: 'USER_REQUEST'
+      })
+      toast.success('Cleaner assigned successfully')
+      closeAssignModal()
+      fetchPods()
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to assign cleaner')
+    } finally {
+      setIsAssigning(false)
+    }
+  }
+
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-8">
@@ -306,7 +356,16 @@ export const PodManagement = () => {
                       {pod.last_cleaned_at ? new Date(pod.last_cleaned_at).toLocaleString() : '-'}
                     </td>
                     <td className="px-6 py-4 align-top">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-2 flex-wrap">
+                        {pod.status === 'NEEDS_CLEANING' && (
+                          <button
+                            type="button"
+                            onClick={() => openAssignModal(pod)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-amber-200 text-amber-700 hover:bg-amber-50 transition-colors"
+                          >
+                            Assign Cleaner
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => openDetailModal(pod.id)}
@@ -468,6 +527,50 @@ export const PodManagement = () => {
               />
             </div>
           )}
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isAssignModalOpen}
+        onClose={closeAssignModal}
+        title={assignPod ? `Assign Cleaner - ${assignPod.code}` : 'Assign Cleaner'}
+        size="md"
+        footer={(
+          <>
+            <button
+              onClick={closeAssignModal}
+              disabled={isAssigning}
+              className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleAssignCleaner}
+              disabled={isAssigning || !selectedCleaner}
+              className="px-4 py-2 rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isAssigning ? 'Assigning...' : 'Assign Task'}
+            </button>
+          </>
+        )}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Select a cleaner to create a cleaning task for pod <strong>{assignPod?.name}</strong>.
+          </p>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Cleaner</label>
+            <select
+              value={selectedCleaner}
+              onChange={(e) => setSelectedCleaner(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white"
+            >
+              <option value="" disabled>-- Select a cleaner --</option>
+              {cleaners.map((c) => (
+                <option key={c.id || c._id} value={c.id || c._id}>{c.name} ({c.email})</option>
+              ))}
+            </select>
+          </div>
         </div>
       </Modal>
     </div>

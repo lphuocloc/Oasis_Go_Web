@@ -4,6 +4,7 @@ import type { StaffShiftItem } from './staffShiftApi'
 
 export const STAFF_SHIFT_ASSIGNMENT_STATUSES = [
   'ASSIGNED',
+  'CHECKED_IN',
   'COMPLETED',
   'ABSENT'
 ] as const

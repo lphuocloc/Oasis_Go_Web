@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { podClusterApi, type PodClusterItem } from '../api/lib/podClusterApi'
-import { staffShiftAssignmentApi } from '../api/lib/staffShiftAssignmentApi'
+import { locationShiftApi, type LocationShiftItem } from '../api/lib/locationShiftApi'
 import { locationApi } from '../api/lib/locationApi'
 
 interface ScopeLocationOption {
@@ -17,14 +17,6 @@ interface ManagerScopeContextType {
 
 const ManagerScopeContext = createContext<ManagerScopeContextType | undefined>(undefined)
 
-const getTodayDateString = () => {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
 export const ManagerScopeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [clusters, setClusters] = useState<PodClusterItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -32,13 +24,10 @@ export const ManagerScopeProvider: React.FC<{ children: ReactNode }> = ({ childr
   const refreshScope = useCallback(async () => {
     try {
       setIsLoading(true)
-      const assignmentsResponse = await staffShiftAssignmentApi.getMyAssignments({
-        work_date: getTodayDateString(),
-        status: 'ASSIGNED'
-      })
+      const locationShiftsResponse = await locationShiftApi.getAll()
 
-      const assignmentLocationIds = Array.from(new Set(assignmentsResponse.data
-        .map((assignment) => assignment.location?.id)
+      const assignmentLocationIds = Array.from(new Set(locationShiftsResponse.data
+        .map((ls: LocationShiftItem) => ls.location_id)
         .filter((id): id is string => Boolean(id))))
 
       if (assignmentLocationIds.length === 0) {

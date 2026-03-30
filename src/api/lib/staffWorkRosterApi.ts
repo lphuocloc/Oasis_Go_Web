@@ -12,7 +12,8 @@ export interface StaffWorkRosterItem {
 export interface StaffWorkRosterCreatePayload {
   staff_id: string
   location_shift_id: string
-  day_of_week: number
+  day_of_week?: number
+  days_of_week?: number[]
   is_active?: boolean
 }
 

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 
 interface ModalProps {
   isOpen: boolean
@@ -19,6 +19,17 @@ const Modal: React.FC<ModalProps> = ({
   size = 'md',
   closeButton = true
 }) => {
+  useEffect(() => {
+    if (!isOpen) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [isOpen])
+
   if (!isOpen) return null
 
   const sizeClasses = {
@@ -29,7 +40,7 @@ const Modal: React.FC<ModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden">
       {/* Overlay */}
       <div
         className="absolute inset-0 bg-black bg-opacity-50 transition-opacity"
@@ -37,9 +48,9 @@ const Modal: React.FC<ModalProps> = ({
       />
 
       {/* Modal content */}
-      <div className={`relative bg-white rounded-lg shadow-lg ${sizeClasses[size]} w-full mx-4 animate-in fade-in zoom-in-95`}>
+      <div className={`relative bg-white rounded-lg shadow-lg ${sizeClasses[size]} w-full mx-auto my-6 max-h-[calc(100vh-3rem)] flex flex-col animate-in fade-in zoom-in-95`}>
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 shrink-0">
           <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
           {closeButton && (
             <button
@@ -54,13 +65,13 @@ const Modal: React.FC<ModalProps> = ({
         </div>
 
         {/* Body */}
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto flex-1 min-h-0">
           {children}
         </div>
 
         {/* Footer */}
         {footer && (
-          <div className="flex justify-end gap-3 p-6 border-t border-gray-200">
+          <div className="flex justify-end gap-3 p-6 border-t border-gray-200 shrink-0 bg-white">
             {footer}
           </div>
         )}

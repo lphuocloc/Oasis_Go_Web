@@ -1,6 +1,7 @@
 import './App.css'
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
+import { CleaningTaskManagement } from './pages/admin/CleaningTaskManagement'
 import { LocationManagement } from './pages/admin/LocationManagement'
 import { PodClusterManagement } from './pages/admin/PodClusterManagement'
 import { AdminPodManagement } from './pages/admin/PodManagement'
@@ -63,6 +64,10 @@ export const router = createBrowserRouter([
           {
             path: 'inventory-warehouse',
             element: <InventoryWarehouseManagement />
+          },
+          {
+            path: 'cleaning-tasks',
+            element: <CleaningTaskManagement />
           },
           {
             path: "profile",

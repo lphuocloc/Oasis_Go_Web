@@ -53,7 +53,7 @@ export interface BookingListFilters {
   user_id?: string
   pod_id?: string
   order_id?: string
-  status?: BookingStatus
+  status?: BookingStatus | string
   start_date?: string
   end_date?: string
   page?: number
@@ -92,6 +92,10 @@ export interface BookingListResult {
   bookings: BookingItem[]
   pagination?: BookingPagination
   data: BookingItem[]
+}
+
+export interface ChangeBookingPodPayload {
+  pod_id: string
 }
 
 const buildParams = (filters?: BookingListFilters): URLSearchParams => {
@@ -160,6 +164,11 @@ export const bookingApi = {
 
   setCleanerAccess: async (bookingId: string, allowed: boolean): Promise<BookingItem> => {
     const response = await api.post<BookingSingleResponse>(`/bookings/${bookingId}/cleaner-access`, { allowed })
+    return normalizeSingleBooking(response.data)
+  },
+
+  changePod: async (bookingId: string, payload: ChangeBookingPodPayload): Promise<BookingItem> => {
+    const response = await api.patch<BookingSingleResponse>(`/bookings/${bookingId}/change-pod`, payload)
     return normalizeSingleBooking(response.data)
   }
 }

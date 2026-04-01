@@ -1,7 +1,7 @@
 import React from 'react'
 import type { NavItem } from './Sidebar'
 import Sidebar from './Sidebar'
-import { LayoutGrid, MapPin, Home, Calendar, CheckCircle, AlertCircle, Package, Clock } from 'lucide-react'
+import { LayoutGrid, MapPin, Home, Calendar, CheckCircle, AlertCircle, Package, Clock, LifeBuoy } from 'lucide-react'
 
 const ManagerSidebar: React.FC<{ userName?: string; userRole?: string }> = ({ 
   userName = 'Manager User', 
@@ -42,6 +42,11 @@ const ManagerSidebar: React.FC<{ userName?: string; userRole?: string }> = ({
       label: 'Lost and Found',
       path: '/manager/lost-found',
       icon: <Package className="w-6 h-6" />
+    },
+    {
+      label: 'Support',
+      path: '/manager/support',
+      icon: <LifeBuoy className="w-6 h-6" />
     },
     {
       label: 'Shifts',

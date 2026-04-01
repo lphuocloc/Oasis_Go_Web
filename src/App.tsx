@@ -17,6 +17,7 @@ import { CleaningManagement } from './pages/manager/CleaningManagement'
 import { IncidentManagement } from './pages/manager/IncidentManagement'
 import { ShiftManagement } from './pages/manager/ShiftManagement'
 import { LostAndFoundManagement } from './pages/manager/LostAndFoundManagement'
+import { SupportManagement } from './pages/manager/SupportManagement'
 import { AdminLayout } from './layouts/AdminLayout'
 import { ManagerLayout } from './layouts/ManagerLayout'
 import { AuthProvider } from './contexts/AuthContext'
@@ -116,6 +117,10 @@ export const router = createBrowserRouter([
           {
             path: "lost-found",
             element: <LostAndFoundManagement />
+          },
+          {
+            path: 'support',
+            element: <SupportManagement />
           },
           {
             path: "profile",

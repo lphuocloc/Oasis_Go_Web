@@ -18,6 +18,8 @@ const statusBadgeClass = (status: string) => {
       return 'bg-amber-50 text-amber-700 border border-amber-200'
     case 'INVESTIGATING':
       return 'bg-blue-50 text-blue-700 border border-blue-200'
+    case 'ESCALATED':
+      return 'bg-rose-50 text-rose-700 border border-rose-200'
     case 'RESOLVED':
       return 'bg-emerald-50 text-emerald-700 border border-emerald-200'
     case 'CLOSED':
@@ -59,6 +61,8 @@ export const IncidentManagement = () => {
   const [isStatusSaving, setIsStatusSaving] = useState(false)
   const [statusIncident, setStatusIncident] = useState<IncidentItem | null>(null)
   const [nextStatus, setNextStatus] = useState<IncidentStatus>('PENDING')
+  const [resolutionNote, setResolutionNote] = useState('')
+  const [escalationNote, setEscalationNote] = useState('')
 
   const [isEscalateModalOpen, setIsEscalateModalOpen] = useState(false)
   const [isEscalateSaving, setIsEscalateSaving] = useState(false)
@@ -143,14 +147,30 @@ export const IncidentManagement = () => {
   const openStatusModal = (incident: IncidentItem) => {
     setStatusIncident(incident)
     setNextStatus(incident.status)
+    setResolutionNote(incident.resolution_note || '')
+    setEscalationNote(incident.escalation_note || '')
     setIsStatusModalOpen(true)
   }
 
   const handleUpdateStatus = async () => {
     if (!statusIncident) return
+
+    if (nextStatus === 'RESOLVED' && !resolutionNote.trim()) {
+      toast.error('Resolution note is required when resolving')
+      return
+    }
+    if (nextStatus === 'ESCALATED' && !escalationNote.trim()) {
+      toast.error('Escalation note is required when escalating')
+      return
+    }
+
     try {
       setIsStatusSaving(true)
-      await incidentApi.updateStatus(statusIncident.id, { status: nextStatus })
+      await incidentApi.updateStatus(statusIncident.id, { 
+        status: nextStatus,
+        resolution_note: nextStatus === 'RESOLVED' ? resolutionNote.trim() : undefined,
+        escalation_note: nextStatus === 'ESCALATED' ? escalationNote.trim() : undefined,
+      })
       toast.success('Incident status updated')
       setIsStatusModalOpen(false)
       fetchPrimaryData()
@@ -184,12 +204,15 @@ export const IncidentManagement = () => {
       toast.success('Maintenance task created successfully!')
       setIsEscalateModalOpen(false)
       
-      // Auto-update incident status to INVESTIGATING if it's PENDING
-      if (escalateIncident.status === 'PENDING') {
-        await incidentApi.updateStatus(escalateIncident.id, { status: 'INVESTIGATING' })
+      // Auto-update incident status to ESCALATED
+      if (escalateIncident.status === 'PENDING' || escalateIncident.status === 'INVESTIGATING') {
+        await incidentApi.updateStatus(escalateIncident.id, { 
+          status: 'ESCALATED',
+          escalation_note: escalateDescription
+        })
         fetchPrimaryData()
         if (detailIncident?.id === escalateIncident.id) {
-            setDetailIncident(prev => prev ? { ...prev, status: 'INVESTIGATING' } : null)
+            setDetailIncident(prev => prev ? { ...prev, status: 'ESCALATED', escalation_note: escalateDescription } : null)
         }
       }
     } catch (err: unknown) {
@@ -365,7 +388,7 @@ export const IncidentManagement = () => {
                   >
                     Update Status
                  </button>
-                 {detailIncident.status !== 'CLOSED' && detailIncident.status !== 'RESOLVED' && (
+                 {detailIncident.status !== 'CLOSED' && detailIncident.status !== 'RESOLVED' && detailIncident.status !== 'ESCALATED' && (
                     <button
                       onClick={() => { closeDetailModal(); openEscalateModal(detailIncident); }}
                       className="inline-flex items-center gap-2 px-4 py-2 bg-rose-600 text-white hover:bg-rose-700 rounded-lg text-sm font-medium transition-colors shadow-sm"
@@ -404,6 +427,24 @@ export const IncidentManagement = () => {
                </div>
             </div>
 
+            {detailIncident.escalation_note && (
+               <div>
+                  <p className="text-xs font-semibold text-rose-500 uppercase tracking-wider mb-2">Escalation Note</p>
+                  <div className="p-4 bg-rose-50 rounded-xl border border-rose-100 text-rose-800 text-sm whitespace-pre-wrap">
+                    {detailIncident.escalation_note}
+                  </div>
+               </div>
+            )}
+
+            {detailIncident.resolution_note && (
+               <div>
+                  <p className="text-xs font-semibold text-emerald-500 uppercase tracking-wider mb-2">Resolution Note</p>
+                  <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 text-emerald-800 text-sm whitespace-pre-wrap">
+                    {detailIncident.resolution_note}
+                  </div>
+               </div>
+            )}
+
             {detailIncident.photo_urls && detailIncident.photo_urls.length > 0 && (
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Attached Evidence ({detailIncident.photo_urls.length})</p>
@@ -427,7 +468,7 @@ export const IncidentManagement = () => {
         <div className="space-y-4">
            <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">New Status</label>
-            <select
+             <select
               value={nextStatus}
               onChange={(e) => setNextStatus(e.target.value as IncidentStatus)}
               className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
@@ -435,6 +476,33 @@ export const IncidentManagement = () => {
               {INCIDENT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
            </div>
+           
+           {nextStatus === 'RESOLVED' && (
+             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Resolution Note</label>
+              <textarea
+                value={resolutionNote}
+                onChange={(e) => setResolutionNote(e.target.value)}
+                placeholder="How was this incident resolved?"
+                rows={3}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              />
+             </div>
+           )}
+
+           {nextStatus === 'ESCALATED' && (
+             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Escalation Note</label>
+              <textarea
+                value={escalationNote}
+                onChange={(e) => setEscalationNote(e.target.value)}
+                placeholder="Why is it escalated?"
+                rows={3}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              />
+             </div>
+           )}
+
            <div className="flex gap-3 justify-end pt-4">
              <button disabled={isStatusSaving} onClick={() => setIsStatusModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium">Cancel</button>
              <button disabled={isStatusSaving} onClick={handleUpdateStatus} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium">

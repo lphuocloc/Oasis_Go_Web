@@ -3,6 +3,7 @@ import { api } from '../api'
 export const INCIDENT_STATUSES = [
   'PENDING',
   'INVESTIGATING',
+  'ESCALATED',
   'RESOLVED',
   'CLOSED'
 ] as const
@@ -29,6 +30,8 @@ export interface IncidentItem {
   status: IncidentStatus
   has_lost_found: boolean
   photo_urls: string[]
+  resolution_note?: string | null
+  escalation_note?: string | null
   created_at: string
   updated_at: string
 }
@@ -56,6 +59,8 @@ export interface IncidentListFilters {
 
 export interface IncidentStatusUpdatePayload {
   status: IncidentStatus
+  resolution_note?: string
+  escalation_note?: string
 }
 
 const buildParams = (filters?: IncidentListFilters): URLSearchParams => {

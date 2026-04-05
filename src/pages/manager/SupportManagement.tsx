@@ -9,7 +9,8 @@ import {
   type RoomChangeCandidatePod,
   type SupportMaintenanceSeverity,
   type SupportRequestItem,
-  type SupportRequestStatus
+  type SupportRequestStatus,
+  type RoomChangeResultPayload
 } from '../../api/lib/supportRequestApi'
 import { bookingApi, type BookingItem } from '../../api/lib/bookingApi'
 import { podApi, type PodItem } from '../../api/lib/podApi'
@@ -42,6 +43,8 @@ const supportStatusClass = (status: SupportRequestStatus) => {
       return 'bg-emerald-50 text-emerald-700 border border-emerald-200'
     case 'REJECTED':
       return 'bg-gray-100 text-gray-700 border border-gray-200'
+    case 'CANCELED':
+      return 'bg-gray-100 text-gray-400 border border-gray-200'
     default:
       return 'bg-slate-100 text-slate-700 border border-slate-200'
   }
@@ -78,6 +81,7 @@ const normalizeStatus = (status?: string | null): SupportRequestStatus => {
   if (normalized === 'ESCALATED') return 'ESCALATED'
   if (normalized === 'RESOLVED') return 'RESOLVED'
   if (normalized === 'REJECTED') return 'REJECTED'
+  if (normalized === 'CANCELED') return 'CANCELED'
   return 'PENDING'
 }
 
@@ -135,6 +139,7 @@ export const SupportManagement = () => {
   const [loadingRoomChangeRequestId, setLoadingRoomChangeRequestId] = useState<string | null>(null)
   const [selectedSeverityByRequest, setSelectedSeverityByRequest] = useState<Record<string, SupportMaintenanceSeverity>>({})
   const [roomChangeResolutionByRequest, setRoomChangeResolutionByRequest] = useState<Record<string, string>>({})
+  const [roomChangeResult, setRoomChangeResult] = useState<RoomChangeResultPayload | null>(null)
   const [statusModal, setStatusModal] = useState<StatusTransitionModalState>({
     isOpen: false,
     request: null,
@@ -193,7 +198,7 @@ export const SupportManagement = () => {
     } catch (error) {
       console.error(error)
       setPods([])
-      toast.error('Failed to load pods')
+      toast.error('Lỗi: Không tải được danh sách phòng')
     } finally {
       setIsPodsLoading(false)
     }
@@ -209,7 +214,7 @@ export const SupportManagement = () => {
       setSupportRequests(response.supportRequests)
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { message?: string } } }
-      toast.error(apiError?.response?.data?.message || 'Failed to load support requests')
+      toast.error(apiError?.response?.data?.message || 'Lỗi: Không thể tải danh sách yêu cầu hỗ trợ')
       setSupportRequests([])
     } finally {
       setIsSupportLoading(false)
@@ -249,7 +254,7 @@ export const SupportManagement = () => {
         setBookingDetailsById((prev) => ({ ...prev, [bookingId]: booking }))
       } catch (error: unknown) {
         const apiError = error as { response?: { data?: { message?: string } } }
-        toast.error(apiError?.response?.data?.message || 'Failed to load booking details')
+        toast.error(apiError?.response?.data?.message || 'Lỗi: Không tải được chi tiết đơn đặt phòng')
       } finally {
         setLoadingBookingId(null)
       }
@@ -262,20 +267,16 @@ export const SupportManagement = () => {
     if (!detailRequest) return
     const supportsRoomChange = isChangePodRequest(detailRequest.type) || isMaintenanceRequest(detailRequest.type)
     if (!supportsRoomChange) return
-
-    const resolvedBooking = bookingDetailsById[getBookingIdFromRequest(detailRequest)]
-    const knownBookingStatus = String(resolvedBooking?.status || detailRequest.booking?.status || '').toUpperCase()
-    if (knownBookingStatus && knownBookingStatus !== 'IN_USE') return
     if (roomChangeCandidatesByRequest[detailRequest.id]) return
 
     const loadCandidates = async () => {
       try {
         setLoadingRoomChangeRequestId(detailRequest.id)
-        const candidates = await supportRequestApi.getRoomChangeCandidates(detailRequest.id)
-        setRoomChangeCandidatesByRequest((prev) => ({ ...prev, [detailRequest.id]: candidates }))
+        const result = await supportRequestApi.getRoomChangeCandidates(detailRequest.id)
+        setRoomChangeCandidatesByRequest((prev) => ({ ...prev, [detailRequest.id]: result.candidates }))
       } catch (error: unknown) {
         const apiError = error as { response?: { data?: { message?: string } } }
-        toast.error(apiError?.response?.data?.message || 'Failed to load replacement pods')
+        toast.error(apiError?.response?.data?.message || 'Lỗi: Không tải được danh sách phòng thay thế')
       } finally {
         setLoadingRoomChangeRequestId(null)
       }
@@ -288,10 +289,10 @@ export const SupportManagement = () => {
     try {
       await refreshScope()
       await Promise.all([fetchPods(), fetchSupportRequests()])
-      toast.success('Support data refreshed')
+      toast.success('Đã tải lại dữ liệu phiên làm việc')
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { message?: string } } }
-      toast.error(apiError?.response?.data?.message || 'Failed to refresh support data')
+      toast.error(apiError?.response?.data?.message || 'Lỗi: Không làm mới được dữ liệu hỗ trợ')
     }
   }
 
@@ -308,10 +309,10 @@ export const SupportManagement = () => {
       setUpdatingSupportId(id)
       const updated = await supportRequestApi.updateStatus(id, payload)
       setSupportRequests((prev) => prev.map((item) => (item.id === id ? updated : item)))
-      toast.success('Support request status updated')
+      toast.success('Đã cập nhật trạng thái yêu cầu hỗ trợ')
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { message?: string } } }
-      toast.error(apiError?.response?.data?.message || 'Failed to update support request status')
+      toast.error(apiError?.response?.data?.message || 'Lỗi: Không thể cập nhật trạng thái')
     } finally {
       setUpdatingSupportId(null)
     }
@@ -387,15 +388,15 @@ export const SupportManagement = () => {
     if (targetStatus === 'ESCALATED') {
       const severity = statusModal.severity
       if (!isMaintenance) {
-        toast.error('Only MAINTENANCE requests can be escalated.')
+        toast.error('Chỉ yêu cầu BẢO TRÌ mới có thể thao tác Quá hạn/Chuyển cấp.')
         return
       }
       if (severity !== 'HIGH' && severity !== 'CRITICAL') {
-        toast.error('Escalation requires HIGH or CRITICAL severity.')
+        toast.error('Chuyển cấp quản trị yêu cầu mức độ sự cố CAO hoặc NGHIÊM TRỌNG.')
         return
       }
       if (!statusModal.escalationNote.trim()) {
-        toast.error('Escalation note is required.')
+        toast.error('Vui lòng nhập lý do/ghi chú chuyển cấp (Escalation note).')
         return
       }
 
@@ -409,12 +410,12 @@ export const SupportManagement = () => {
     }
 
     if (!statusModal.resolutionNote.trim()) {
-      toast.error('Resolution note is required.')
+      toast.error('Vui lòng nhập ghi chú hướng giải quyết (Resolution note).')
       return
     }
 
     if (targetStatus === 'REJECTED' && statusModal.resolutionNote.trim().length <= 10) {
-      toast.error('Reject reason must be longer than 10 characters.')
+      toast.error('Lý do từ chối phải dài hơn 10 ký tự.')
       return
     }
 
@@ -430,10 +431,10 @@ export const SupportManagement = () => {
     try {
       setUpdatingSupportId(request.id)
       await setStatusWithFallback(request.id, PROCESSING_STATUS)
-      toast.success('Request accepted. Status updated to PROCESSING.')
+      toast.success('Đã tiếp nhận yêu cầu. Cập nhật trạng thái thành ĐANG XỬ LÝ chờ điều phối.')
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { message?: string } } }
-      toast.error(apiError?.response?.data?.message || 'Failed to accept request.')
+      toast.error(apiError?.response?.data?.message || 'Lỗi: Không thể nhận xử lý phiếu này.')
     } finally {
       setUpdatingSupportId(null)
     }
@@ -446,13 +447,13 @@ export const SupportManagement = () => {
       setSupportRequests((prev) => prev.map((item) => (item.id === request.id ? updated : item)))
       const serverStatus = normalizeStatus(updated.status)
       if (serverStatus === 'PROCESSING') {
-        toast.info('Server keeps this request at PROCESSING. IN_PROGRESS is currently normalized by backend.')
+        toast.info('Ghi nhận hệ thống hiển thị: ĐANG CHỜ GIẢI QUYẾT do config riêng.')
       } else {
-        toast.success(`Work started. Status updated to ${serverStatus}.`)
+        toast.success(`Đã nhận việc! Cập nhật trạng thái thành: ${serverStatus}.`)
       }
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { message?: string } } }
-      toast.error(apiError?.response?.data?.message || 'Failed to start work.')
+      toast.error(apiError?.response?.data?.message || 'Lỗi: Không thể triển khai công việc.')
     } finally {
       setUpdatingSupportId(null)
     }
@@ -461,7 +462,7 @@ export const SupportManagement = () => {
   const handleEscalateMaintenance = async (request: SupportRequestItem) => {
     const severity = selectedSeverityByRequest[request.id] || normalizeSeverity(request.severity)
     if (severity !== 'HIGH' && severity !== 'CRITICAL') {
-      toast.error('Escalation is only available for HIGH or CRITICAL severity.')
+      toast.error('Chỉ hỗ trợ chuyển cấp nếu độ ưu tiên đạt CAO hoặc NGHIÊM TRỌNG.')
       return
     }
 
@@ -471,7 +472,7 @@ export const SupportManagement = () => {
   const handleChangePodFromRequest = async (request: SupportRequestItem) => {
     const selectedNewPodId = selectedNewPodByRequest[request.id]
     if (!selectedNewPodId) {
-      toast.error('Please choose a new pod')
+      toast.error('Vui lòng chọn phòng / Vị trí thay thế mới!')
       return
     }
 
@@ -481,7 +482,7 @@ export const SupportManagement = () => {
 
     try {
       setIsChangingPodRequestId(request.id)
-      await supportRequestApi.executeRoomChange(request.id, {
+      const result = await supportRequestApi.executeRoomChange(request.id, {
         target_pod_id: selectedNewPodId,
         old_pod_next_status: oldPodNextStatus,
         old_pod_reason: maintenanceMode ? (request.description || undefined) : undefined,
@@ -490,7 +491,8 @@ export const SupportManagement = () => {
       })
       setSelectedNewPodByRequest((prev) => ({ ...prev, [request.id]: '' }))
       setRoomChangeResolutionByRequest((prev) => ({ ...prev, [request.id]: '' }))
-      toast.success('Room changed successfully.')
+      toast.success('Đã cấu hình đổi phòng khẩn cấp thành công!')
+      setRoomChangeResult(result)
       await Promise.all([fetchSupportRequests(), fetchPods()])
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { message?: string } } }
@@ -506,7 +508,12 @@ export const SupportManagement = () => {
   const detailCurrentPodId = detailBooking?.pod_id || detailRequest?.pod_id || detailRequest?.booking?.pod_id || detailRequest?.pod?.id || ''
   const detailCurrentPod = detailCurrentPodId ? podMap.get(detailCurrentPodId) : undefined
   const detailSeverity = detailRequest ? (selectedSeverityByRequest[detailRequest.id] || normalizeSeverity(detailRequest.severity)) : 'MEDIUM'
-  const detailSupportsRoomChange = detailRequest ? (isChangePodRequest(detailRequest.type) || isMaintenanceRequest(detailRequest.type)) : false
+
+  // Only show Room Change UI if it's ACCEPTED (PROCESSING or IN_PROGRESS or ESCALATED)
+  const detailSupportsRoomChange = detailRequest
+    ? ((isChangePodRequest(detailRequest.type) || isMaintenanceRequest(detailRequest.type)) &&
+      ['PROCESSING', 'IN_PROGRESS', 'ESCALATED'].includes(detailCurrentStatus || ''))
+    : false
   const detailCanAccept = detailCurrentStatus === 'PENDING'
   const detailCanStartWork = detailCurrentStatus === 'PROCESSING'
   const detailCanResolve = detailCurrentStatus === 'PROCESSING' || detailCurrentStatus === 'IN_PROGRESS' || detailCurrentStatus === 'ESCALATED'
@@ -736,7 +743,7 @@ export const SupportManagement = () => {
                   </button>
                 )}
 
-                {detailCanResolve && (
+                {detailCanResolve && !isChangePodRequest(detailRequest.type) && (
                   <button
                     type="button"
                     onClick={() => openStatusTransitionModal(detailRequest, 'RESOLVED')}
@@ -837,12 +844,19 @@ export const SupportManagement = () => {
                 <button
                   type="button"
                   onClick={() => handleChangePodFromRequest(detailRequest)}
-                  disabled={!detailCanExecuteRoomChange || !selectedCandidatePodId || isChangingPodRequestId === detailRequest.id}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition disabled:opacity-60"
+                  disabled={!detailCanExecuteRoomChange || !selectedCandidatePodId || isChangingPodRequestId === detailRequest.id || detailCurrentStatus === 'PROCESSING'}
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white transition ${detailCurrentStatus === 'PROCESSING' ? 'bg-gray-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                  title={detailCurrentStatus === 'PROCESSING' ? "You must click 'Start Work' before confirming room change." : ""}
                 >
                   <ArrowRightLeft className="w-4 h-4" />
-                  {isChangingPodRequestId === detailRequest.id ? 'Changing room...' : 'Confirm Room Change'}
+                  {isChangingPodRequestId === detailRequest.id ? 'Changing room...' : 'Confirm Room Change & Mark Done'}
                 </button>
+
+                {detailCurrentStatus === 'PROCESSING' && (
+                  <p className="text-xs text-amber-600 mt-2">
+                    * Please check pod availability and click <b>Start Work</b> above to begin the change process.
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -917,6 +931,59 @@ export const SupportManagement = () => {
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60"
             >
               Confirm
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={Boolean(roomChangeResult)}
+        onClose={() => setRoomChangeResult(null)}
+        title="Room Change Confirmed!"
+        size="md"
+      >
+        <div className="space-y-4 pb-2">
+          <div className="flex flex-col items-center justify-center mb-4">
+            <div className="w-14 h-14 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-3">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-gray-900">Room Moved Successfully</h3>
+            <p className="text-sm text-gray-500">Booking and Smart Keys have been mapped.</p>
+          </div>
+
+          <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-center">
+            <p className="text-xs text-gray-500 font-semibold mb-1 uppercase">New Pod Information</p>
+            <p className="font-bold text-gray-900 text-xl">{roomChangeResult?.new_pod?.code || '—'}</p>
+            <p className="text-sm text-gray-600 mt-1">{roomChangeResult?.new_pod?.name || '—'}</p>
+          </div>
+
+          <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-center">
+            <p className="text-xs text-blue-800 font-semibold mb-3 uppercase flex items-center justify-center gap-1">
+              <Eye className="w-3.5 h-3.5" /> Check-in Token For User
+            </p>
+            {roomChangeResult?.new_pod_qr_token ? (
+              <div className="flex flex-col items-center gap-2">
+                <div className="px-6 py-3 bg-white border-2 border-dashed border-blue-200 rounded-lg w-full max-w-xs cursor-pointer hover:border-blue-400 transition" onClick={() => {
+                  navigator.clipboard.writeText(roomChangeResult.new_pod_qr_token!)
+                  toast.success('Copied token to clipboard!')
+                }}>
+                  <p className="font-mono text-xl tracking-widest text-blue-900 font-bold uppercase">{roomChangeResult.new_pod_qr_token}</p>
+                </div>
+                <p className="text-xs text-blue-700 mt-2">Mobile App already received this via notification.</p>
+              </div>
+            ) : (
+              <p className="text-sm text-amber-700">No active QR found for this pod! App check-in required.</p>
+            )}
+          </div>
+
+          <div className="mt-6 flex justify-center border-t border-gray-100 pt-5">
+            <button
+              onClick={() => setRoomChangeResult(null)}
+              className="px-8 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium"
+            >
+              Done & Close
             </button>
           </div>
         </div>

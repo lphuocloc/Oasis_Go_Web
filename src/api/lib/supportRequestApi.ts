@@ -1,6 +1,6 @@
 import { api } from '../api'
 
-export const SUPPORT_REQUEST_STATUSES = ['PENDING', 'PROCESSING', 'IN_PROGRESS', 'ESCALATED', 'RESOLVED', 'REJECTED'] as const
+export const SUPPORT_REQUEST_STATUSES = ['PENDING', 'PROCESSING', 'IN_PROGRESS', 'ESCALATED', 'RESOLVED', 'REJECTED', 'CANCELED'] as const
 export type SupportRequestStatus = (typeof SUPPORT_REQUEST_STATUSES)[number]
 
 export const SUPPORT_REQUEST_TYPES = ['MAINTENANCE', 'CHANGE_POD'] as const
@@ -113,7 +113,23 @@ interface RoomChangeCandidatesResponse {
     booking?: unknown
     current_pod?: unknown
     candidates?: RoomChangeCandidatePod[]
+    pagination?: SupportRequestPagination
   }
+}
+
+export interface RoomChangeResultPayload {
+  support_request: SupportRequestItem
+  booking: unknown
+  old_pod: unknown
+  new_pod: {
+    id: string
+    code?: string
+    name?: string
+    cluster_id?: string
+  }
+  new_pod_qr_token: string | null
+  buffer_minutes_applied?: number
+  escalated_to_admin?: boolean
 }
 
 export interface ExecuteRoomChangePayload {
@@ -171,15 +187,19 @@ export const supportRequestApi = {
     return response.data.data
   },
 
-  getRoomChangeCandidates: async (id: string): Promise<RoomChangeCandidatePod[]> => {
+  getRoomChangeCandidates: async (id: string): Promise<{ candidates: RoomChangeCandidatePod[] }> => {
     const response = await api.get<RoomChangeCandidatesResponse>(`/support-requests/${id}/room-change-candidates`)
     const payload = response.data.data
-    if (Array.isArray(payload)) return payload
-    return payload?.candidates ?? []
+    if (Array.isArray(payload)) {
+      return { candidates: payload }
+    }
+    return {
+      candidates: payload?.candidates ?? []
+    }
   },
 
-  executeRoomChange: async (id: string, payload: ExecuteRoomChangePayload): Promise<SupportRequestItem> => {
-    const response = await api.patch<SupportRequestSingleResponse>(`/support-requests/${id}/room-change`, payload)
+  executeRoomChange: async (id: string, payload: ExecuteRoomChangePayload): Promise<RoomChangeResultPayload> => {
+    const response = await api.patch<{ success: boolean; data: RoomChangeResultPayload }>(`/support-requests/${id}/room-change`, payload)
     return response.data.data
   }
 }

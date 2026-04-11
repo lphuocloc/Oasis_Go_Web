@@ -98,6 +98,10 @@ function StaffShiftsTab() {
       toast.error('Please fill all fields')
       return
     }
+    if (formData.shift_name !== 'NIGHT' && formData.start_time >= formData.end_time) {
+      toast.error('Start time cannot be after or equal to end time')
+      return
+    }
     try {
       setIsSaving(true)
       if (editId) {
@@ -124,7 +128,7 @@ function StaffShiftsTab() {
         onRefresh={fetchShifts}
         isLoading={isLoading}
         rightAction={
-          <button onClick={() => handleOpen()} className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+          <button onClick={() => handleOpen()} className="inline-flex items-center gap-2 px-5 py-2.5 text-base font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
             <Plus className="w-4 h-4" /> Create Shift
           </button>
         }
@@ -155,7 +159,7 @@ function StaffShiftsTab() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Shift Name</label>
-            <select value={formData.shift_name} onChange={e => setFormData({ ...formData, shift_name: e.target.value as StaffShiftName })} className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
+            <select value={formData.shift_name} onChange={e => setFormData({ ...formData, shift_name: e.target.value as StaffShiftName })} className="w-full px-4 py-2.5 text-base border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
               <option value="MORNING">Morning</option>
               <option value="AFTERNOON">Afternoon</option>
               <option value="NIGHT">Night</option>
@@ -165,25 +169,29 @@ function StaffShiftsTab() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
               <TimePicker
+                needConfirm={false}
+                size="large"
                 value={toTimePickerValue(formData.start_time)}
                 format="HH:mm"
                 onChange={(value) => setFormData({ ...formData, start_time: value ? value.format('HH:mm') : '' })}
-                className="w-full"
+                className="w-full text-base"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
               <TimePicker
+                needConfirm={false}
+                size="large"
                 value={toTimePickerValue(formData.end_time)}
                 format="HH:mm"
                 onChange={(value) => setFormData({ ...formData, end_time: value ? value.format('HH:mm') : '' })}
-                className="w-full"
+                className="w-full text-base"
               />
             </div>
           </div>
           <div className="pt-4 flex justify-end gap-2">
-            <button disabled={isSaving} onClick={() => setIsModalOpen(false)} className="px-4 py-2 border rounded-lg text-gray-600 hover:bg-gray-50">Cancel</button>
-            <button disabled={isSaving} onClick={handleSubmit} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">Save</button>
+            <button disabled={isSaving} onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-base border rounded-lg text-gray-600 hover:bg-gray-50">Cancel</button>
+            <button disabled={isSaving} onClick={handleSubmit} className="px-5 py-2.5 text-base font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">Save</button>
           </div>
         </div>
       </Modal>
@@ -255,7 +263,7 @@ function LocationShiftsTab() {
         onRefresh={fetchAll}
         isLoading={isLoading}
         rightAction={
-          <button onClick={() => { setFormData({ location_id: locationOptions[0]?.id || '', shift_id: shifts[0]?.id || '' }); setIsModalOpen(true); }} className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
+          <button onClick={() => { setFormData({ location_id: locationOptions[0]?.id || '', shift_id: shifts[0]?.id || '' }); setIsModalOpen(true); }} className="inline-flex items-center gap-2 px-5 py-2.5 text-base font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
             <Plus className="w-4 h-4" /> Bind Location
           </button>
         }
@@ -265,10 +273,10 @@ function LocationShiftsTab() {
         <table className="w-full text-sm text-left">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr>
-              <th className="px-6 py-4 font-medium text-gray-500">Location</th>
-              <th className="px-6 py-4 font-medium text-gray-500">Shift Name</th>
-              <th className="px-6 py-4 font-medium text-gray-500">Time Range</th>
-              <th className="px-6 py-4 text-right font-medium text-gray-500">Actions</th>
+              <th className="px-6 py-5 font-medium text-gray-500">Location</th>
+              <th className="px-6 py-5 font-medium text-gray-500">Shift Name</th>
+              <th className="px-6 py-5 font-medium text-gray-500">Time Range</th>
+              <th className="px-6 py-5 text-right font-medium text-gray-500">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
@@ -277,10 +285,10 @@ function LocationShiftsTab() {
               const shift = shifts.find(s => s.id === item.shift_id)
               return (
                 <tr key={item.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 font-medium text-gray-900">{location?.name || 'Unknown Location'}</td>
-                  <td className="px-6 py-4">{shift?.shift_name || 'Unknown Shift'}</td>
-                  <td className="px-6 py-4 text-gray-500">{shift ? `${shift.start_time} - ${shift.end_time}` : '-'}</td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-6 py-5 font-medium text-gray-900">{location?.name || 'Unknown Location'}</td>
+                  <td className="px-6 py-5">{shift?.shift_name || 'Unknown Shift'}</td>
+                  <td className="px-6 py-5 text-gray-500">{shift ? `${shift.start_time} - ${shift.end_time}` : '-'}</td>
+                  <td className="px-6 py-5 text-right">
                     <button onClick={() => handleDelete(item.id)} className="text-gray-400 hover:text-red-600 p-1"><Trash2 className="w-4 h-4" /></button>
                   </td>
                 </tr>
@@ -295,21 +303,21 @@ function LocationShiftsTab() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Target Location</label>
-            <select disabled={locationOptions.length === 1} value={formData.location_id} onChange={e => setFormData({ ...formData, location_id: e.target.value })} className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500 bg-white disabled:bg-gray-100 disabled:text-gray-500">
+            <select disabled={locationOptions.length === 1} value={formData.location_id} onChange={e => setFormData({ ...formData, location_id: e.target.value })} className="w-full px-4 py-2.5 text-base border rounded-lg outline-none focus:ring-2 focus:ring-purple-500 bg-white disabled:bg-gray-100 disabled:text-gray-500">
               <option value="" disabled>Choose Location</option>
               {locationOptions.map((opt) => <option key={opt.id} value={opt.id}>{opt.name}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Shift Template</label>
-            <select value={formData.shift_id} onChange={e => setFormData({ ...formData, shift_id: e.target.value })} className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
+            <select value={formData.shift_id} onChange={e => setFormData({ ...formData, shift_id: e.target.value })} className="w-full px-4 py-2.5 text-base border rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
               <option value="" disabled>Choose Shift</option>
               {shifts.map((s) => <option key={s.id} value={s.id}>{s.shift_name} ({s.start_time}-{s.end_time})</option>)}
             </select>
           </div>
           <div className="pt-4 flex justify-end gap-2">
-            <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 border rounded-lg text-gray-600">Cancel</button>
-            <button onClick={handleSubmit} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">Submit</button>
+            <button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-base border rounded-lg text-gray-600">Cancel</button>
+            <button onClick={handleSubmit} className="px-5 py-2.5 text-base font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700">Submit</button>
           </div>
         </div>
       </Modal>
@@ -401,7 +409,7 @@ function RostersTab() {
         onRefresh={fetchAll}
         isLoading={isLoading}
         rightAction={
-          <button onClick={() => { setFormData({ staff_id: cleaners[0]?.id || cleaners[0]?._id || '', location_shift_id: locShifts[0]?.id || '', days_of_week: [] }); setIsModalOpen(true); }} className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">
+          <button onClick={() => { setFormData({ staff_id: cleaners[0]?.id || cleaners[0]?._id || '', location_shift_id: locShifts[0]?.id || '', days_of_week: [] }); setIsModalOpen(true); }} className="inline-flex items-center gap-2 px-5 py-2.5 text-base font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">
             <CalendarDays className="w-4 h-4" /> Assign Roster
           </button>
         }
@@ -411,10 +419,10 @@ function RostersTab() {
         <table className="w-full text-sm text-left">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr>
-              <th className="px-6 py-4 font-medium text-gray-500">Cleaner</th>
-              <th className="px-6 py-4 font-medium text-gray-500">Location Shift</th>
-              <th className="px-6 py-4 font-medium text-gray-500">Day of Week</th>
-              <th className="px-6 py-4 text-right font-medium text-gray-500">Actions</th>
+              <th className="px-6 py-5 font-medium text-gray-500">Cleaner</th>
+              <th className="px-6 py-5 font-medium text-gray-500">Location Shift</th>
+              <th className="px-6 py-5 font-medium text-gray-500">Day of Week</th>
+              <th className="px-6 py-5 text-right font-medium text-gray-500">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
@@ -425,13 +433,13 @@ function RostersTab() {
               const shift = shifts.find(s => s.id === locShift?.shift_id)
               return (
                 <tr key={r.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 font-medium text-gray-900">{cleaner?.name || 'Unknown'}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-5 font-medium text-gray-900">{cleaner?.name || 'Unknown'}</td>
+                  <td className="px-6 py-5">
                     <div className="font-medium text-gray-900">{location?.name || 'Unknown'}</div>
                     <div className="text-xs text-gray-500">{shift?.shift_name} ({shift?.start_time}-{shift?.end_time})</div>
                   </td>
-                  <td className="px-6 py-4"><span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 font-semibold rounded text-xs">{DAYS_OF_WEEK[r.day_of_week]}</span></td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-6 py-5"><span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 font-semibold rounded text-xs">{DAYS_OF_WEEK[r.day_of_week]}</span></td>
+                  <td className="px-6 py-5 text-right">
                     <button onClick={() => handleDelete(r.id)} className="text-gray-400 hover:text-red-600 p-1"><Trash2 className="w-4 h-4" /></button>
                   </td>
                 </tr>
@@ -446,14 +454,14 @@ function RostersTab() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Cleaner</label>
-            <select value={formData.staff_id} onChange={e => setFormData({ ...formData, staff_id: e.target.value })} className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+            <select value={formData.staff_id} onChange={e => setFormData({ ...formData, staff_id: e.target.value })} className="w-full px-4 py-2.5 text-base border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
               <option value="" disabled>Select Cleaner</option>
               {cleaners.map((c) => <option key={c.id || c._id} value={c.id || c._id}>{c.name}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Location Shift (Location + Time)</label>
-            <select value={formData.location_shift_id} onChange={e => setFormData({ ...formData, location_shift_id: e.target.value })} className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+            <select value={formData.location_shift_id} onChange={e => setFormData({ ...formData, location_shift_id: e.target.value })} className="w-full px-4 py-2.5 text-base border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
               <option value="" disabled>Select Shift</option>
               {locShifts.map((ls) => {
                 const opt = locationOptions.find(x => x.id === ls.location_id)
@@ -480,8 +488,8 @@ function RostersTab() {
             </div>
           </div>
           <div className="pt-4 flex justify-end gap-2">
-            <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 border rounded-lg text-gray-600">Cancel</button>
-            <button onClick={handleSubmit} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Submit</button>
+            <button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-base border rounded-lg text-gray-600">Cancel</button>
+            <button onClick={handleSubmit} className="px-5 py-2.5 text-base font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Submit</button>
           </div>
         </div>
       </Modal>
@@ -544,6 +552,10 @@ function AssignmentsTab() {
 
   const handleSubmit = async () => {
     if (!formData.staff_id || !formData.location_shift_id || !formData.start_date || !formData.end_date) return toast.error('Fill required fields')
+    if (dayjs(formData.start_date).isAfter(dayjs(formData.end_date))) {
+      toast.error('Start date cannot be after end date')
+      return
+    }
     try {
       await staffShiftAssignmentApi.create(formData)
       toast.success('Assignment created')
@@ -570,7 +582,7 @@ function AssignmentsTab() {
         onRefresh={fetchAll}
         isLoading={isLoading}
         rightAction={
-          <button onClick={() => { setFormData({ staff_id: cleaners[0]?.id || cleaners[0]?._id || '', location_shift_id: locShifts[0]?.id || '', start_date: '', end_date: '' }); setIsModalOpen(true); }} className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition">
+          <button onClick={() => { setFormData({ staff_id: cleaners[0]?.id || cleaners[0]?._id || '', location_shift_id: locShifts[0]?.id || '', start_date: '', end_date: '' }); setIsModalOpen(true); }} className="inline-flex items-center gap-2 px-5 py-2.5 text-base font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition">
             <Plus className="w-4 h-4" /> Create Assignment
           </button>
         }
@@ -578,12 +590,16 @@ function AssignmentsTab() {
 
       <div className="flex gap-4 mb-4 items-center">
         <DatePicker
+                needConfirm={false}
+                size="large"
           value={dateFilter.start ? dayjs(dateFilter.start) : null}
           format="YYYY-MM-DD"
           onChange={(value) => setDateFilter(prev => ({ ...prev, start: value ? value.format('YYYY-MM-DD') : '' }))}
         />
         <span className="self-center text-gray-500 text-sm">to</span>
         <DatePicker
+                needConfirm={false}
+                size="large"
           value={dateFilter.end ? dayjs(dateFilter.end) : null}
           format="YYYY-MM-DD"
           onChange={(value) => setDateFilter(prev => ({ ...prev, end: value ? value.format('YYYY-MM-DD') : '' }))}
@@ -594,11 +610,11 @@ function AssignmentsTab() {
         <table className="w-full text-sm text-left">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr>
-              <th className="px-6 py-4 font-medium text-gray-500">Cleaner</th>
-              <th className="px-6 py-4 font-medium text-gray-500">Dates</th>
-              <th className="px-6 py-4 font-medium text-gray-500">Location Shift</th>
-              <th className="px-6 py-4 font-medium text-gray-500">Status</th>
-              <th className="px-6 py-4 text-right font-medium text-gray-500">Actions</th>
+              <th className="px-6 py-5 font-medium text-gray-500">Cleaner</th>
+              <th className="px-6 py-5 font-medium text-gray-500">Dates</th>
+              <th className="px-6 py-5 font-medium text-gray-500">Location Shift</th>
+              <th className="px-6 py-5 font-medium text-gray-500">Status</th>
+              <th className="px-6 py-5 text-right font-medium text-gray-500">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
@@ -609,13 +625,13 @@ function AssignmentsTab() {
               const shift = shifts.find(s => s.id === locShift?.shift_id)
               return (
                 <tr key={a.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 font-medium text-gray-900">{cleaner?.name || 'Unknown'}</td>
-                  <td className="px-6 py-4 text-gray-600">{new Date(a.start_date).toLocaleDateString()} &rarr; {new Date(a.end_date).toLocaleDateString()}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-5 font-medium text-gray-900">{cleaner?.name || 'Unknown'}</td>
+                  <td className="px-6 py-5 text-gray-600">{new Date(a.start_date).toLocaleDateString()} &rarr; {new Date(a.end_date).toLocaleDateString()}</td>
+                  <td className="px-6 py-5">
                     <div className="font-medium text-gray-900">{location?.name || 'Unknown'}</div>
                     <div className="text-xs text-gray-500">{shift?.shift_name}</div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-5">
                     <span className={`px-2.5 py-1 text-xs rounded-full font-semibold ${
                       a.status === 'ASSIGNED' ? 'bg-amber-50 text-amber-700' :
                       a.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700' :
@@ -624,7 +640,7 @@ function AssignmentsTab() {
                       {a.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-6 py-5 text-right">
                     <button onClick={() => handleDelete(a.id)} className="text-gray-400 hover:text-red-600 p-1"><Trash2 className="w-4 h-4" /></button>
                   </td>
                 </tr>
@@ -639,14 +655,14 @@ function AssignmentsTab() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Cleaner</label>
-            <select value={formData.staff_id} onChange={e => setFormData({ ...formData, staff_id: e.target.value })} className="w-full px-3 py-2 border rounded-lg bg-white">
+            <select value={formData.staff_id} onChange={e => setFormData({ ...formData, staff_id: e.target.value })} className="w-full px-4 py-2.5 text-base border rounded-lg bg-white">
               <option value="" disabled>Select Cleaner</option>
               {cleaners.map((c) => <option key={c.id || c._id} value={c.id || c._id}>{c.name}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Location Shift</label>
-            <select value={formData.location_shift_id} onChange={e => setFormData({ ...formData, location_shift_id: e.target.value })} className="w-full px-3 py-2 border rounded-lg bg-white">
+            <select value={formData.location_shift_id} onChange={e => setFormData({ ...formData, location_shift_id: e.target.value })} className="w-full px-4 py-2.5 text-base border rounded-lg bg-white">
               <option value="" disabled>Select Shift</option>
               {locShifts.map((ls) => {
                 const opt = locationOptions.find(x => x.id === ls.location_id)
@@ -659,25 +675,29 @@ function AssignmentsTab() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
               <DatePicker
+                needConfirm={false}
+                size="large"
                 value={formData.start_date ? dayjs(formData.start_date) : null}
                 format="YYYY-MM-DD"
                 onChange={(value) => setFormData({ ...formData, start_date: value ? value.format('YYYY-MM-DD') : '' })}
-                className="w-full"
+                className="w-full text-base"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
               <DatePicker
+                needConfirm={false}
+                size="large"
                 value={formData.end_date ? dayjs(formData.end_date) : null}
                 format="YYYY-MM-DD"
                 onChange={(value) => setFormData({ ...formData, end_date: value ? value.format('YYYY-MM-DD') : '' })}
-                className="w-full"
+                className="w-full text-base"
               />
             </div>
           </div>
           <div className="pt-4 flex justify-end gap-2">
-            <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 border rounded-lg text-gray-600">Cancel</button>
-            <button onClick={handleSubmit} className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Submit</button>
+            <button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-base border rounded-lg text-gray-600">Cancel</button>
+            <button onClick={handleSubmit} className="px-5 py-2.5 text-base font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Submit</button>
           </div>
         </div>
       </Modal>

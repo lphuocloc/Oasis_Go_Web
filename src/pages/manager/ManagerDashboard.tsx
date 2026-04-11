@@ -8,8 +8,8 @@ import {
   type ChartOptions,
   Filler,
   Legend,
-  LineController,
-  LineElement,
+  BarController,
+  BarElement,
   LinearScale,
   PointElement,
   Tooltip
@@ -20,18 +20,18 @@ import {
   type DashboardFilters,
   type DashboardPod
 } from '../../api/lib/dashboardApi'
-import { TrendingUp, AlertCircle, Calendar, Package, RefreshCw, ChevronDown } from 'lucide-react'
+import { TrendingUp, Calendar, Package, RefreshCw, ChevronDown } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
 
 ChartJS.register(
   DoughnutController,
-  LineController,
+  BarController,
+  BarElement,
   ArcElement,
   CategoryScale,
   LinearScale,
   PointElement,
-  LineElement,
   Filler,
   Tooltip,
   Legend
@@ -42,9 +42,9 @@ const OPEN_INCIDENT_STATUSES = ['PENDING', 'INVESTIGATING']
 type RangeOption = 'today' | 'week' | 'month'
 
 const RANGE_OPTIONS: { label: string; value: RangeOption }[] = [
-  { label: 'Today', value: 'today' },
-  { label: 'This Week', value: 'week' },
-  { label: 'This Month', value: 'month' }
+  { label: 'Hôm nay', value: 'today' },
+  { label: 'Tuần này', value: 'week' },
+  { label: 'Tháng này', value: 'month' }
 ]
 
 const getDateRange = (range: RangeOption): { from: Date; to: Date; groupBy: DashboardFilters['groupBy'] } => {
@@ -215,43 +215,66 @@ const DoughnutChart: React.FC<{
   )
 }
 
-const LineChart: React.FC<{
+const BarChart: React.FC<{
   labels: string[]
-  values: number[]
-}> = ({ labels, values }) => {
+  revenue: number[]
+  orders: number[]
+}> = ({ labels, revenue, orders }) => {
   const chartRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
     if (!chartRef.current) return
 
-    const data: ChartData<'line'> = {
+    const data: ChartData<'bar'> = {
       labels,
       datasets: [
         {
-          label: 'Revenue',
-          data: values,
-          borderColor: '#6366f1',
-          backgroundColor: 'rgba(99, 102, 241, 0.12)',
-          fill: true,
-          tension: 0.35,
-          borderWidth: 3,
-          pointRadius: 3,
-          pointHoverRadius: 5,
-          pointBackgroundColor: '#6366f1'
+          label: 'Doanh thu',
+          data: revenue,
+          backgroundColor: '#10b981',
+          yAxisID: 'y',
+          borderRadius: 4,
+          barPercentage: 0.7,
+          categoryPercentage: 0.7
+        },
+        {
+          label: 'Đơn hàng',
+          data: orders,
+          backgroundColor: '#3b82f6',
+          yAxisID: 'y1',
+          borderRadius: 4,
+          barPercentage: 0.7,
+          categoryPercentage: 0.7
         }
       ]
     }
 
-    const options: ChartOptions<'line'> = {
+    const options: ChartOptions<'bar'> = {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false,
+      },
       plugins: {
-        legend: { display: false },
+        legend: {
+          position: 'top',
+          align: 'end',
+          labels: {
+            usePointStyle: true,
+            boxWidth: 8,
+            color: '#64748b'
+          }
+        },
         tooltip: {
           callbacks: {
             label: (ctx) => {
-              const amount = Number(ctx.raw) || 0
-              return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount)
+              if (ctx.datasetIndex === 0) {
+                const amount = Number(ctx.raw) || 0
+                return `Doanh thu: ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount)}`
+              } else {
+                return `Đơn hàng: ${ctx.raw}`
+              }
             }
           }
         }
@@ -259,31 +282,43 @@ const LineChart: React.FC<{
       scales: {
         x: {
           grid: { display: false },
-          ticks: { color: '#64748b' }
+          ticks: { color: '#64748b', font: { size: 13, weight: '500' } }
         },
         y: {
+          type: 'linear',
+          display: true,
+          position: 'left',
           beginAtZero: true,
-          grid: { color: '#e2e8f0' },
+          grid: { color: '#f1f5f9' },
           ticks: {
             color: '#64748b',
+            font: { size: 13, weight: '500' },
             callback: (tickValue) =>
               new Intl.NumberFormat('vi-VN', {
                 notation: 'compact',
                 maximumFractionDigits: 1
               }).format(Number(tickValue))
           }
+        },
+        y1: {
+          type: 'linear',
+          display: true,
+          position: 'right',
+          beginAtZero: true,
+          grid: { drawOnChartArea: false },
+          ticks: { color: '#64748b', font: { size: 13, weight: '500' }, stepSize: 1 }
         }
       }
     }
 
     const chart = new ChartJS(chartRef.current, {
-      type: 'line',
+      type: 'bar',
       data,
       options
     })
 
     return () => chart.destroy()
-  }, [labels, values])
+  }, [labels, revenue, orders])
 
   return (
     <div className="h-72">
@@ -292,58 +327,89 @@ const LineChart: React.FC<{
   )
 }
 
+const mapDateLabelToVietnamese = (label: string, groupBy: string) => {
+  if (groupBy === 'day') {
+    const date = new Date(label)
+    if (!Number.isNaN(date.getTime())) {
+      const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7']
+      return days[date.getDay()]
+    }
+  }
+  return label
+}
+
 export const ManagerDashboard = () => {
   const { clusters: scopedClusters, isLoading: isScopeLoading, refreshScope } = useManagerScope()
-  const [rawData, setRawData] = useState<AdminDashboardResponse['data'] | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [range, setRange] = useState<RangeOption>('today')
-  const [showRangePicker, setShowRangePicker] = useState(false)
+  const [summaryRange, setSummaryRange] = useState<RangeOption>('month')
+  const [chartRange, setChartRange] = useState<RangeOption>('week')
 
-  const fetchDashboard = async (selectedRange: RangeOption) => {
+  const [summaryRawData, setSummaryRawData] = useState<AdminDashboardResponse['data'] | null>(null)
+  const [chartRawData, setChartRawData] = useState<AdminDashboardResponse['data'] | null>(null)
+
+  const [isSummaryLoading, setIsSummaryLoading] = useState(true)
+  const [isChartLoading, setIsChartLoading] = useState(true)
+
+  const [error, setError] = useState<string | null>(null)
+
+  const [showSummaryRangePicker, setShowSummaryRangePicker] = useState(false)
+  const [showChartRangePicker, setShowChartRangePicker] = useState(false)
+
+  const fetchSummaryDashboard = async (selectedRange: RangeOption) => {
     try {
-      setIsLoading(true)
-      setError(null)
+      setIsSummaryLoading(true)
       const { from, to, groupBy } = getDateRange(selectedRange)
       const response = await adminDashboardApi.getDashboard({ from, to, groupBy })
-      setRawData(response.data)
+      setSummaryRawData(response.data)
     } catch (fetchError: any) {
-      console.error('Dashboard error:', fetchError)
-      setError(fetchError?.response?.data?.message || 'Failed to load dashboard')
-      toast.error('Failed to load dashboard data')
+      setError(fetchError?.response?.data?.message || 'Failed to load summary data')
+      toast.error('Lỗi khi tải dữ liệu tổng quan')
     } finally {
-      setIsLoading(false)
+      setIsSummaryLoading(false)
+    }
+  }
+
+  const fetchChartDashboard = async (selectedRange: RangeOption) => {
+    try {
+      setIsChartLoading(true)
+      const { from, to, groupBy } = getDateRange(selectedRange)
+      const response = await adminDashboardApi.getDashboard({ from, to, groupBy })
+      setChartRawData(response.data)
+    } catch (fetchError: any) {
+      setError(fetchError?.response?.data?.message || 'Failed to load chart data')
+      toast.error('Lỗi khi tải dữ liệu biểu đồ')
+    } finally {
+      setIsChartLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchDashboard(range)
+    fetchSummaryDashboard(summaryRange)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range])
+  }, [summaryRange])
+
+  useEffect(() => {
+    fetchChartDashboard(chartRange)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chartRange])
 
   const scopedClusterIds = useMemo(
     () => new Set(scopedClusters.map((cluster) => cluster.id)),
     [scopedClusters]
   )
 
-  const rangeLabel = RANGE_OPTIONS.find((o) => o.value === range)?.label ?? 'Today'
+  const summaryRangeLabel = RANGE_OPTIONS.find((o) => o.value === summaryRange)?.label ?? 'Tháng này'
+  const chartRangeLabel = RANGE_OPTIONS.find((o) => o.value === chartRange)?.label ?? 'Tuần này'
 
-  const data = useMemo(() => {
-    if (!rawData) return null
+  const { summaryData, listData } = useMemo(() => {
+    if (!summaryRawData) return { summaryData: null, listData: null }
 
-    const scopedPods = rawData.pods.list.filter(
+    const scopedPods = summaryRawData.pods.list.filter(
       (pod) => !!pod.cluster_id && scopedClusterIds.has(String(pod.cluster_id))
     )
 
     const scopedPodIds = new Set(scopedPods.map((pod) => pod.id))
-    const scopedBookings = rawData.bookings.list.filter((booking) => scopedPodIds.has(String(booking.pod_id)))
-    const scopedIncidents = rawData.incidents.list.filter((incident) => scopedPodIds.has(String(incident.pod_id)))
-
-    const podsByStatus = scopedPods.reduce<Record<string, number>>((acc, pod) => {
-      const key = pod.status || 'UNKNOWN'
-      acc[key] = (acc[key] || 0) + 1
-      return acc
-    }, {})
+    const scopedBookings = summaryRawData.bookings.list.filter((booking) => scopedPodIds.has(String(booking.pod_id)))
+    const scopedIncidents = summaryRawData.incidents.list.filter((incident) => scopedPodIds.has(String(incident.pod_id)))
 
     const bookingsByStatus = scopedBookings.reduce<Record<string, number>>((acc, booking) => {
       const key = booking.status || 'UNKNOWN'
@@ -351,54 +417,20 @@ export const ManagerDashboard = () => {
       return acc
     }, {})
 
-    const incidentsByStatus = scopedIncidents.reduce<Record<string, number>>((acc, incident) => {
-      const key = incident.status || 'UNKNOWN'
-      acc[key] = (acc[key] || 0) + 1
-      return acc
-    }, {})
-
     const podMap = new Map<string, DashboardPod>(scopedPods.map((pod) => [pod.id, pod]))
 
     return {
-      summary: {
-        pods: {
-          total: scopedPods.length,
-          byStatus: podsByStatus
-        },
-        clusters: {
-          total: rawData.summary.clustersTotal ?? new Set(scopedPods.map((pod) => pod.cluster_id)).size
-        },
+      summaryData: {
         bookings: {
           totalInRange: scopedBookings.length,
           byStatus: bookingsByStatus
         },
-        incidents: {
-          totalInRange: scopedIncidents.length,
-          openNow: scopedIncidents.filter((item) => OPEN_INCIDENT_STATUSES.includes(item.status)).length,
-          byStatus: incidentsByStatus
-        },
+        ordersInRange: summaryRawData.summary.ordersInRange ?? 0,
         revenue: {
-          totalInRange: rawData.summary.revenueInRange ?? rawData.bookings.revenue?.total ?? 0
+          totalInRange: summaryRawData.summary.revenueInRange ?? summaryRawData.bookings.revenue?.total ?? 0
         }
       },
-      charts: {
-        bookingStatusRates:
-          rawData.charts?.bookingStatus ??
-          Object.entries(bookingsByStatus).map(([status, count]) => ({
-            status,
-            count,
-            rate: Math.round((count / Math.max(scopedBookings.length, 1)) * 100)
-          })),
-        podStatusRealtimeRates:
-          rawData.charts?.podStatusRealtime ??
-          Object.entries(podsByStatus).map(([status, count]) => ({
-            status,
-            count,
-            rate: Math.round((count / Math.max(scopedPods.length, 1)) * 100)
-          })),
-        revenueTrend: rawData.charts?.revenueTrend?.points ?? []
-      },
-      lists: {
+      listData: {
         latestBookings: [...scopedBookings]
           .sort((a, b) => new Date(b.start_time ?? 0).getTime() - new Date(a.start_time ?? 0).getTime())
           .slice(0, 5)
@@ -422,13 +454,42 @@ export const ManagerDashboard = () => {
           }))
       }
     }
-  }, [rawData, scopedClusterIds])
+  }, [summaryRawData, scopedClusterIds])
 
-  const isPageLoading = isLoading || isScopeLoading
+  const chartData = useMemo(() => {
+    if (!chartRawData) return null
+
+    const scopedPods = chartRawData.pods.list.filter(
+      (pod) => !!pod.cluster_id && scopedClusterIds.has(String(pod.cluster_id))
+    )
+
+    const scopedPodIds = new Set(scopedPods.map((pod) => pod.id))
+    const scopedBookings = chartRawData.bookings.list.filter((booking) => scopedPodIds.has(String(booking.pod_id)))
+
+    const bookingsByStatus = scopedBookings.reduce<Record<string, number>>((acc, booking) => {
+      const key = booking.status || 'UNKNOWN'
+      acc[key] = (acc[key] || 0) + 1
+      return acc
+    }, {})
+
+    return {
+      bookingStatusRates:
+        chartRawData.charts?.bookingStatus ??
+        Object.entries(bookingsByStatus).map(([status, count]) => ({
+          status,
+          count,
+          rate: Math.round((count / Math.max(scopedBookings.length, 1)) * 100)
+        })),
+      revenueTrend: chartRawData.charts?.revenueTrend?.points ?? [],
+      groupBy: chartRawData.charts?.revenueTrend?.groupBy || 'hour'
+    }
+  }, [chartRawData, scopedClusterIds])
+
+  const isPageLoading = isSummaryLoading || isChartLoading || isScopeLoading
 
   const handleRefresh = async () => {
     try {
-      await Promise.all([refreshScope(), fetchDashboard(range)])
+      await Promise.all([refreshScope(), fetchSummaryDashboard(summaryRange), fetchChartDashboard(chartRange)])
     } catch {
       // Errors are handled inside refreshScope/fetchDashboard.
     }
@@ -444,7 +505,7 @@ export const ManagerDashboard = () => {
     )
   }
 
-  if (!data) {
+  if (!summaryData || !chartData || !listData) {
     return (
       <div className="p-8">
         <div className="flex items-center justify-center h-96 bg-gray-50 rounded-lg">
@@ -458,42 +519,17 @@ export const ManagerDashboard = () => {
     <div className="p-8 bg-gray-50 min-h-screen">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-500 mt-1">Overview of operations in your assigned scope.</p>
+          <h1 className="text-3xl font-bold text-gray-900">Bảng Điều Khiển</h1>
+          <p className="text-gray-500 mt-1">Tổng quan hoạt động trong khu vực bạn quản lý.</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="relative">
-            <button
-              onClick={() => setShowRangePicker((v) => !v)}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
-            >
-              {rangeLabel}
-              <ChevronDown className="w-4 h-4 text-gray-400" />
-            </button>
-            {showRangePicker && (
-              <div className="absolute right-0 mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-10 overflow-hidden">
-                {RANGE_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => {
-                      setRange(opt.value)
-                      setShowRangePicker(false)
-                    }}
-                    className={`w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors ${range === opt.value ? 'text-blue-600 font-semibold bg-blue-50' : 'text-gray-700'}`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
           <button
             onClick={handleRefresh}
             disabled={isPageLoading}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 shadow-sm transition-colors"
           >
             <RefreshCw className={`w-4 h-4 ${isPageLoading ? 'animate-spin' : ''}`} />
-            Refresh
+            Làm mới
           </button>
         </div>
       </div>
@@ -508,37 +544,44 @@ export const ManagerDashboard = () => {
 
       {!isPageLoading && (
         <>
-          <div className="mb-3">
-            <SectionTitle icon={<Package className="w-4 h-4" />}>Operations Overview</SectionTitle>
+
+
+          <div className="flex items-center justify-between mb-3 mt-6">
+            <SectionTitle icon={<Package className="w-4 h-4" />}>Tổng Quan Hoạt Động</SectionTitle>
+            <div className="relative">
+              <button
+                onClick={() => setShowSummaryRangePicker((v) => !v)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
+              >
+                {summaryRangeLabel}
+                <ChevronDown className="w-4 h-4 text-gray-400" />
+              </button>
+              {showSummaryRangePicker && (
+                <div className="absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded-lg shadow-lg z-10 overflow-hidden">
+                  {RANGE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => {
+                        setSummaryRange(opt.value)
+                        setShowSummaryRangePicker(false)
+                      }}
+                      className={`w-full px-4 py-2 text-left text-xs hover:bg-gray-50 transition-colors ${summaryRange === opt.value ? 'text-blue-600 font-semibold bg-blue-50' : 'text-gray-700'}`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <SummaryCard
-              title="Total Pods"
-              value={data.summary.pods.total}
-              icon={<Package className="w-5 h-5 text-blue-600" />}
-              iconBg="bg-blue-50"
-              extra={Object.entries(data.summary.pods.byStatus).map(([status, count]) => (
-                <div key={status} className="flex justify-between items-center">
-                  <StatusBadge status={status} />
-                  <span className="font-semibold text-gray-700">{count}</span>
-                </div>
-              ))}
-            />
-
-            <SummaryCard
-              title="Total Clusters"
-              value={data.summary.clusters.total}
-              icon={<Package className="w-5 h-5 text-indigo-600" />}
-              iconBg="bg-indigo-50"
-            />
-
-            <SummaryCard
-              title={`Bookings (${rangeLabel})`}
-              value={data.summary.bookings.totalInRange}
+              title={`Tổng Booking (${summaryRangeLabel})`}
+              value={summaryData.bookings.totalInRange}
               icon={<Calendar className="w-5 h-5 text-green-600" />}
               iconBg="bg-green-50"
-              extra={Object.entries(data.summary.bookings.byStatus).map(([status, count]) => (
+              extra={Object.entries(summaryData.bookings.byStatus).map(([status, count]) => (
                 <div key={status} className="flex justify-between items-center">
                   <StatusBadge status={status} />
                   <span className="font-semibold text-gray-700">{count}</span>
@@ -547,103 +590,99 @@ export const ManagerDashboard = () => {
             />
 
             <SummaryCard
-              title="Incidents (All)"
-              value={data.summary.incidents.totalInRange}
-              icon={<AlertCircle className="w-5 h-5 text-red-600" />}
-              iconBg="bg-red-50"
-              extra={
-                <>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />
-                    <span className="text-orange-600 font-semibold">{data.summary.incidents.openNow} Open Now</span>
-                  </div>
-                  {Object.entries(data.summary.incidents.byStatus).map(([status, count]) => (
-                    <div key={status} className="flex justify-between items-center">
-                      <StatusBadge status={status} />
-                      <span className="font-semibold text-gray-700">{count}</span>
-                    </div>
-                  ))}
-                </>
-              }
+              title={`Tổng Đơn Hàng (${summaryRangeLabel})`}
+              value={summaryData.ordersInRange}
+              icon={<Package className="w-5 h-5 text-blue-600" />}
+              iconBg="bg-blue-50"
             />
 
             <SummaryCard
-              title={`Revenue (${rangeLabel})`}
-              value={new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(data.summary.revenue.totalInRange)}
+              title={`Tổng Doanh Thu (${summaryRangeLabel})`}
+              value={new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(summaryData.revenue.totalInRange)}
               icon={<TrendingUp className="w-5 h-5 text-purple-600" />}
               iconBg="bg-purple-50"
-              extra={(() => {
-                const points = data.charts.revenueTrend
-                if (points.length === 0) {
-                  return <p className="text-gray-500 mt-1">No revenue data in this range</p>
-                }
-                const latest = points[points.length - 1]
-                return (
-                  <>
-                    <p className="text-gray-500 mt-1">Latest point: {latest.label}</p>
-                  </>
-                )
-              })()}
             />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-base font-semibold text-gray-900 mb-5">Pod Status Realtime</h2>
-              {data.charts.podStatusRealtimeRates.length === 0 ? (
-                <p className="text-gray-400 text-sm text-center py-8">No pod status data available</p>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-base font-semibold text-gray-900">Doanh thu và Đơn hàng</h2>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowChartRangePicker((v) => !v)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
+                  >
+                    {chartRangeLabel}
+                    <ChevronDown className="w-4 h-4 text-gray-400" />
+                  </button>
+                  {showChartRangePicker && (
+                    <div className="absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded-lg shadow-lg z-10 overflow-hidden">
+                      {RANGE_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          onClick={() => {
+                            setChartRange(opt.value)
+                            setShowChartRangePicker(false)
+                          }}
+                          className={`w-full px-4 py-2 text-left text-xs hover:bg-gray-50 transition-colors ${chartRange === opt.value ? 'text-blue-600 font-semibold bg-blue-50' : 'text-gray-700'}`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {chartData.revenueTrend.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-8 my-auto">Không có dữ liệu trong thời gian này</p>
               ) : (
-                <DoughnutChart
-                  labels={data.charts.podStatusRealtimeRates.map((item) => item.status)}
-                  values={data.charts.podStatusRealtimeRates.map((item) => item.count)}
-                  colors={data.charts.podStatusRealtimeRates.map((item, index) => statusColor(item.status, index))}
-                />
+                <div className="flex-1">
+                  <BarChart
+                    labels={chartData.revenueTrend.map((point) => mapDateLabelToVietnamese(point.label, chartData.groupBy))}
+                    revenue={chartData.revenueTrend.map((point) => point.amount)}
+                    orders={chartData.revenueTrend.map((point) => point.orders ?? 0)}
+                  />
+                </div>
               )}
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-base font-semibold text-gray-900 mb-5">Booking Status</h2>
-              {data.charts.bookingStatusRates.length === 0 ? (
-                <p className="text-gray-400 text-sm text-center py-8">No booking data available</p>
+            <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h2 className="text-base font-semibold text-gray-900 mb-5">Trạng thái Booking</h2>
+              {chartData.bookingStatusRates.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-8">Không có dữ liệu booking</p>
               ) : (
                 <DoughnutChart
-                  labels={data.charts.bookingStatusRates.map((item) => item.status)}
-                  values={data.charts.bookingStatusRates.map((item) => item.count)}
-                  colors={data.charts.bookingStatusRates.map((item, index) => statusColor(item.status, index))}
+                  labels={chartData.bookingStatusRates.map((item) => item.status)}
+                  values={chartData.bookingStatusRates.map((item) => item.count)}
+                  colors={chartData.bookingStatusRates.map((item, index) => statusColor(item.status, index))}
                 />
               )}
             </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8">
-            <h2 className="text-base font-semibold text-gray-900 mb-5">Revenue Trend ({rangeLabel})</h2>
-            {data.charts.revenueTrend.length === 0 ? (
-              <p className="text-gray-400 text-sm text-center py-8">No revenue trend available</p>
-            ) : (
-              <LineChart
-                labels={data.charts.revenueTrend.map((point) => point.label)}
-                values={data.charts.revenueTrend.map((point) => point.amount)}
-              />
-            )}
+          <div className="mb-3">
+            <SectionTitle icon={<Package className="w-4 h-4" />}>Hoạt động gần đây</SectionTitle>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-100">
-                <h2 className="text-base font-semibold text-gray-900">Latest Bookings</h2>
+                <h2 className="text-base font-semibold text-gray-900">Booking Mới Nhất</h2>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Pod</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">User</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Time</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Khách hàng</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Trạng thái</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Bắt đầu lúc</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {data.lists.latestBookings.length > 0 ? data.lists.latestBookings.map((booking) => (
+                    {listData.latestBookings.length > 0 ? listData.latestBookings.map((booking) => (
                       <tr key={booking.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 text-gray-900">{booking.podCode}</td>
                         <td className="px-6 py-4 text-gray-600">{booking.userName}</td>
@@ -652,7 +691,7 @@ export const ManagerDashboard = () => {
                       </tr>
                     )) : (
                       <tr>
-                        <td colSpan={4} className="px-6 py-8 text-center text-gray-400">No bookings in this range</td>
+                        <td colSpan={4} className="px-6 py-8 text-center text-gray-400">Không có booking trong thời gian này</td>
                       </tr>
                     )}
                   </tbody>
@@ -662,20 +701,20 @@ export const ManagerDashboard = () => {
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-100">
-                <h2 className="text-base font-semibold text-gray-900">Latest Incidents</h2>
+                <h2 className="text-base font-semibold text-gray-900">Sự Cố Gần Nhất</h2>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Pod</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Severity</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Mức độ</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Trạng thái</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Ngày tạo</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {data.lists.latestIncidents.length > 0 ? data.lists.latestIncidents.map((incident) => (
+                    {listData.latestIncidents.length > 0 ? listData.latestIncidents.map((incident) => (
                       <tr key={incident.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 text-gray-900">{incident.podCode}</td>
                         <td className="px-6 py-4 text-gray-600">{incident.severity}</td>
@@ -684,7 +723,7 @@ export const ManagerDashboard = () => {
                       </tr>
                     )) : (
                       <tr>
-                        <td colSpan={4} className="px-6 py-8 text-center text-gray-400">No incidents in this range</td>
+                        <td colSpan={4} className="px-6 py-8 text-center text-gray-400">Không có sự cố trong thời gian này</td>
                       </tr>
                     )}
                   </tbody>

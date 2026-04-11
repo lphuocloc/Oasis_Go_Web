@@ -118,6 +118,7 @@ export interface AdminDashboardResponse {
       podsTotal: number
       clustersTotal?: number
       bookingsInRange: number
+      ordersInRange?: number
       incidentsTotal: number
       openIncidents?: number
       revenueInRange?: number
@@ -131,7 +132,7 @@ export interface AdminDashboardResponse {
       podStatusRealtime?: Array<{ status: string; count: number; rate: number }>
       revenueTrend?: {
         groupBy: string
-        points: Array<{ label: string; amount: number }>
+        points: Array<{ label: string; amount: number; orders?: number }>
       }
     }
     pods: {

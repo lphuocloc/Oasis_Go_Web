@@ -51,6 +51,30 @@ interface LocationDeleteResponse {
   message: string
 }
 
+export interface LocationPodOccupancyRate {
+  parentLocation: {
+    id: string
+    name: string
+    type: LocationType
+  }
+  childLocationCount: number
+  totalPods: number
+  availablePods: number
+  activePods: number
+  occupiedPods: number
+  activeRate: number
+  occupancyRate: number
+  primaryRate?: {
+    type: 'ACTIVE_RATE' | 'OCCUPANCY_RATE' | string
+    value: number
+  }
+}
+
+interface LocationPodOccupancyRateResponse {
+  success: boolean
+  data: LocationPodOccupancyRate
+}
+
 export interface LocationListFilters {
   type?: LocationType | 'all'
   parent_id?: string | 'null'
@@ -84,6 +108,10 @@ export const locationApi = {
   getById: (id: string) => api.get<LocationSingleResponse>(`/locations/${id}`).then((r) => r.data),
 
   getDescendants: (id: string) => api.get<LocationsListResponse>(`/locations/${id}/descendants`).then((r) => r.data),
+
+  getPodOccupancyRate: (id: string) => {
+    return api.get<LocationPodOccupancyRateResponse>(`/locations/${id}/pod-occupancy-rate`).then((r) => r.data)
+  },
 
   create: (payload: LocationPayload) => api.post<LocationSingleResponse>('/locations', payload).then((r) => r.data),
 

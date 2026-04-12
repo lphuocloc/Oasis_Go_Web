@@ -2,8 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  html {
-    font-size: 19px;
+@layer utilities {
+  .scrollbar-hidden {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none;
   }
 }

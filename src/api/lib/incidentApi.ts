@@ -78,6 +78,8 @@ export interface DamageReportItem {
   details: IncidentDetailLine[]
   pricing: IncidentPricing
   photo_urls: string[]
+  resolution_note?: string | null
+  escalation_note?: string | null
   created_at: string
   updated_at: string
 }
@@ -126,6 +128,8 @@ export interface IncidentListFilters {
 
 export interface IncidentStatusUpdatePayload {
   status: IncidentStatus
+  resolution_note?: string
+  escalation_note?: string
 }
 
 const buildParams = (filters?: IncidentListFilters): URLSearchParams => {

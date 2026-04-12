@@ -20,6 +20,7 @@ interface PodCreateFormState {
   code: string
   name: string
   description: string
+  type: 'STANDARD' | 'SERVICE'
   numRows: string
   numCols: string
   soundproof_level: string
@@ -32,6 +33,7 @@ interface PodCreateFormState {
 interface PodEditFormState {
   name: string
   description: string
+  type: 'STANDARD' | 'SERVICE'
   status: PodStatus
   maintenance_status: string
   soundproof_level: string
@@ -46,6 +48,7 @@ const DEFAULT_CREATE_FORM: PodCreateFormState = {
   code: '',
   name: '',
   description: '',
+  type: 'STANDARD',
   numRows: '1',
   numCols: '1',
   soundproof_level: '3',
@@ -58,6 +61,7 @@ const DEFAULT_CREATE_FORM: PodCreateFormState = {
 const toEditForm = (pod: PodItem): PodEditFormState => ({
   name: pod.name,
   description: pod.description ?? '',
+  type: pod.type ?? 'STANDARD',
   status: pod.status,
   maintenance_status: pod.maintenance_status ?? '',
   soundproof_level: String(pod.soundproof_level),
@@ -254,6 +258,7 @@ export const AdminPodManagement = () => {
         code: createForm.code.trim().toUpperCase(),
         name: createForm.name.trim(),
         description: createForm.description.trim(),
+        type: createForm.type,
         soundproof_level: Number(createForm.soundproof_level),
         ventilation_level: Number(createForm.ventilation_level),
         power_outlets: Number(createForm.power_outlets),
@@ -279,6 +284,7 @@ export const AdminPodManagement = () => {
         numCols,
         name: createForm.name.trim() || undefined,
         description: createForm.description.trim() || undefined,
+        type: createForm.type,
         soundproof_level: Number(createForm.soundproof_level),
         ventilation_level: Number(createForm.ventilation_level),
         power_outlets: Number(createForm.power_outlets),
@@ -330,6 +336,7 @@ export const AdminPodManagement = () => {
     const payload: UpdatePodPayload = {
       name: editForm.name.trim(),
       description: editForm.description.trim() || null,
+      type: editForm.type,
       status: editForm.status,
       maintenance_status: editForm.status === 'MAINTENANCE' ? editForm.maintenance_status.trim() : null,
       soundproof_level: Number(editForm.soundproof_level),
@@ -464,7 +471,7 @@ export const AdminPodManagement = () => {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pod</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cluster</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type / Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Specs</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Cleaned</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -489,9 +496,14 @@ export const AdminPodManagement = () => {
                     </td>
                     <td className="px-6 py-4 align-top text-gray-600">{clusterMap.get(pod.cluster_id)?.name ?? pod.cluster_id}</td>
                     <td className="px-6 py-4 align-top">
-                      <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${statusBadgeClass(pod.status)}`}>
-                        {pod.status}
-                      </span>
+                      <div className="flex flex-col gap-2 items-start">
+                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium border ${pod.type === 'SERVICE' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>
+                          {pod.type === 'SERVICE' ? 'Service Pod' : 'Standard Pod'}
+                        </span>
+                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${statusBadgeClass(pod.status)}`}>
+                          {pod.status}
+                        </span>
+                      </div>
                       {pod.maintenance_status && pod.status === 'MAINTENANCE' && (
                         <p className="text-xs text-rose-700 mt-2">{pod.maintenance_status}</p>
                       )}
@@ -605,6 +617,18 @@ export const AdminPodManagement = () => {
                 {clusters.map((cluster) => (
                   <option key={cluster.id} value={cluster.id}>{cluster.name}</option>
                 ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Pod Type</label>
+              <select
+                value={createForm.type}
+                onChange={(e) => updateCreateForm('type', e.target.value as 'STANDARD' | 'SERVICE')}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+              >
+                <option value="STANDARD">Standard Pod</option>
+                <option value="SERVICE">Service Pod (for staff/managers)</option>
               </select>
             </div>
 
@@ -744,6 +768,18 @@ export const AdminPodManagement = () => {
                   onChange={(e) => updateEditForm('name', e.target.value)}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Pod Type</label>
+                <select
+                  value={editForm.type}
+                  onChange={(e) => updateEditForm('type', e.target.value as 'STANDARD' | 'SERVICE')}
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                >
+                  <option value="STANDARD">Standard Pod</option>
+                  <option value="SERVICE">Service Pod (for staff/managers)</option>
+                </select>
               </div>
 
               <div>

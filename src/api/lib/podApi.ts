@@ -28,6 +28,7 @@ export interface PodItem {
   code: string
   name: string
   description?: string | null
+  type?: 'STANDARD' | 'SERVICE'
   status: PodStatus
   maintenance_status?: string | null
   soundproof_level: number
@@ -76,6 +77,7 @@ export interface PodGridCreatePayload {
   numCols: number
   name?: string
   description?: string
+  type?: 'STANDARD' | 'SERVICE'
   soundproof_level?: number
   ventilation_level?: number
   power_outlets?: number
@@ -88,6 +90,7 @@ export interface PodSingleCreatePayload {
   code: string
   name: string
   description?: string
+  type?: 'STANDARD' | 'SERVICE'
   soundproof_level?: number
   ventilation_level?: number
   power_outlets?: number
@@ -100,6 +103,7 @@ export type CreatePodsPayload = PodGridCreatePayload | PodSingleCreatePayload
 export interface UpdatePodPayload {
   name?: string
   description?: string | null
+  type?: 'STANDARD' | 'SERVICE'
   status?: PodStatus
   maintenance_status?: string | null
   soundproof_level?: number

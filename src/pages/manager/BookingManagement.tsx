@@ -6,9 +6,19 @@ import {
   RefreshCw,
   Search,
   Shield,
-  ShieldOff
+  ShieldOff,
+  SlidersHorizontal,
+  Check,
+  CheckCircle,
+  Clock,
+  X,
+  CreditCard,
+  Ban,
+  Boxes,
+  AlertCircle
 } from 'lucide-react'
-import { DatePicker } from 'antd'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
 import dayjs from 'dayjs'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
@@ -28,6 +38,7 @@ import {
 } from '../../api/lib/bookingOrderApi'
 import { podApi, type PodItem } from '../../api/lib/podApi'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
+import { PodGridSelector } from '../../components/common/PodGridSelector'
 
 type ActiveTab = 'bookings' | 'orders'
 
@@ -80,6 +91,27 @@ const orderStatusBadgeClass = (status: string) => {
   }
 }
 
+const bookingStatusBgColor = (status: string) => {
+  switch (status) {
+    case 'BOOKED': return 'bg-blue-500'
+    case 'IN_USE': return 'bg-emerald-500'
+    case 'COMPLETED': return 'bg-gray-500'
+    case 'CANCELLED': return 'bg-rose-500'
+    default: return 'bg-slate-500'
+  }
+}
+
+const orderStatusBgColor = (status: string) => {
+  switch (status) {
+    case 'PAID': return 'bg-emerald-500'
+    case 'PENDING': return 'bg-amber-500'
+    case 'PARTIAL_CANCEL': return 'bg-orange-500'
+    case 'FULLY_CANCELLED':
+    case 'CANCEL': return 'bg-rose-500'
+    default: return 'bg-slate-500'
+  }
+}
+
 export const BookingManagement = () => {
   const { clusters, isLoading: isScopeLoading, refreshScope } = useManagerScope()
 
@@ -114,6 +146,25 @@ export const BookingManagement = () => {
     pages: 1
   })
 
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false)
+  const [draftBookingFilters, setDraftBookingFilters] = useState<{
+    status: 'all' | BookingStatus
+    pod_id: string
+    dateRange: [Date | null, Date | null]
+  }>({
+    status: 'all',
+    pod_id: 'all',
+    dateRange: [null, null]
+  })
+  
+  const [draftOrderFilters, setDraftOrderFilters] = useState<{
+    status: 'all' | BookingOrderStatus
+    pod_id: string
+  }>({
+    status: 'all',
+    pod_id: 'all'
+  })
+
   const [isBookingDetailOpen, setIsBookingDetailOpen] = useState(false)
   const [isBookingDetailLoading, setIsBookingDetailLoading] = useState(false)
   const [selectedBooking, setSelectedBooking] = useState<BookingItem | null>(null)
@@ -136,10 +187,13 @@ export const BookingManagement = () => {
     return pods.filter((pod) => scopedClusterIds.has(pod.cluster_id))
   }, [pods, scopedClusterIds])
 
-  const podOptions = useMemo(
-    () => [...scopedPods].sort((a, b) => (a.code || '').localeCompare(b.code || '')),
-    [scopedPods]
-  )
+  const podOptions = useMemo(() => {
+    const uniqueMap = new Map()
+    for (const pod of scopedPods) {
+      if (!uniqueMap.has(pod.id)) uniqueMap.set(pod.id, pod)
+    }
+    return Array.from(uniqueMap.values()).sort((a, b) => (a.code || '').localeCompare(b.code || ''))
+  }, [scopedPods])
 
   const podMap = useMemo(
     () => new Map(podOptions.map((pod) => [pod.id, pod])),
@@ -328,25 +382,67 @@ export const BookingManagement = () => {
     }
   }
 
-  const bookingStats = useMemo(() => {
-    const byStatus = bookings.reduce<Record<string, number>>((acc, item) => {
+  const bookingCountsByStatus = useMemo(() => {
+    return bookings.reduce<Record<string, number>>((acc, item) => {
       acc[item.status] = (acc[item.status] ?? 0) + 1
       return acc
     }, {})
+  }, [bookings])
 
-    return {
-      total: bookingPagination.total_items,
-      inUse: byStatus.IN_USE ?? 0,
-      booked: byStatus.BOOKED ?? 0,
-      completed: byStatus.COMPLETED ?? 0
+  const orderCountsByStatus = useMemo(() => {
+    return orders.reduce<Record<string, number>>((acc, item) => {
+      acc[item.status] = (acc[item.status] ?? 0) + 1
+      return acc
+    }, {})
+  }, [orders])
+
+  const openFilterPanel = () => {
+    if (activeTab === 'bookings') {
+      setDraftBookingFilters({
+        status: bookingStatusFilter,
+        pod_id: bookingPodFilter,
+        dateRange: [
+          bookingStartFilter ? new Date(bookingStartFilter) : null,
+          bookingEndFilter ? new Date(bookingEndFilter) : null
+        ]
+      })
+    } else {
+      setDraftOrderFilters({
+        status: orderStatusFilter,
+        pod_id: orderPodFilter
+      })
     }
-  }, [bookings, bookingPagination.total_items])
+    setIsFilterPanelOpen(true)
+  }
+
+  const applyFilters = () => {
+    if (activeTab === 'bookings') {
+      setBookingStatusFilter(draftBookingFilters.status)
+      setBookingPodFilter(draftBookingFilters.pod_id)
+      setBookingStartFilter(draftBookingFilters.dateRange[0] ? dayjs(draftBookingFilters.dateRange[0]).format('YYYY-MM-DDTHH:mm') : '')
+      setBookingEndFilter(draftBookingFilters.dateRange[1] ? dayjs(draftBookingFilters.dateRange[1]).format('YYYY-MM-DDTHH:mm') : '')
+      setBookingPage(1)
+    } else {
+      setOrderStatusFilter(draftOrderFilters.status)
+      setOrderPodFilter(draftOrderFilters.pod_id)
+      setOrderPage(1)
+    }
+    setIsFilterPanelOpen(false)
+  }
+
+  const resetDraftFilters = () => {
+    if (activeTab === 'bookings') {
+      setDraftBookingFilters({ status: 'all', pod_id: 'all', dateRange: [null, null] })
+    } else {
+      setDraftOrderFilters({ status: 'all', pod_id: 'all' })
+    }
+  }
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-8">
+    <div className="p-6 lg:p-8 bg-gray-50 min-h-screen">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Booking Management</h1>
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Booking Management</h1>
           <p className="text-gray-500 mt-1">
             Monitor bookings and booking orders inside your assigned manager scope.
           </p>
@@ -362,22 +458,89 @@ export const BookingManagement = () => {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-          <p className="text-xs font-medium text-gray-500">Total Bookings</p>
-          <p className="text-2xl font-bold text-gray-900 mt-2">{bookingStats.total}</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-          <p className="text-xs font-medium text-gray-500">IN_USE</p>
-          <p className="text-2xl font-bold text-emerald-700 mt-2">{bookingStats.inUse}</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-          <p className="text-xs font-medium text-gray-500">BOOKED</p>
-          <p className="text-2xl font-bold text-blue-700 mt-2">{bookingStats.booked}</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-          <p className="text-xs font-medium text-gray-500">Booking Orders</p>
-          <p className="text-2xl font-bold text-gray-900 mt-2">{orderPagination.total}</p>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 px-5 py-5 mb-6">
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="min-w-[220px] pr-4 xl:border-r xl:border-gray-200">
+              <p className="text-xs uppercase font-semibold tracking-wide text-gray-500">
+                {activeTab === 'bookings' ? 'Total Bookings' : 'Total Orders'}
+              </p>
+              <p className="text-[34px] leading-tight font-bold text-gray-900 mt-1">
+                {activeTab === 'bookings' ? bookingPagination.total_items : orderPagination.total}
+              </p>
+            </div>
+
+            {activeTab === 'bookings' ? (
+              <div className="min-w-[500px] flex-1 py-1">
+                <p className="text-sm font-semibold text-gray-900 mb-1.5">{bookings.length} current page items</p>
+                <div className="flex h-2.5 rounded-full overflow-hidden bg-gray-100 mb-1.5">
+                  {BOOKING_STATUSES.map((status) => {
+                    const count = bookingCountsByStatus[status] || 0
+                    const percent = bookings.length > 0 ? (count / bookings.length) * 100 : 0
+                    return percent > 0 ? (
+                      <div key={status} className={bookingStatusBgColor(status)} style={{ width: `${percent}%` }} />
+                    ) : null
+                  })}
+                </div>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  {BOOKING_STATUSES.filter(s => bookingCountsByStatus[s]).map((status) => (
+                    <span key={status} className="inline-flex items-center gap-1 text-xs text-gray-600">
+                      <span className={`w-2 h-2 rounded-full ${bookingStatusBgColor(status)}`} />
+                      {status}: {bookingCountsByStatus[status]}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="min-w-[500px] flex-1 py-1">
+                <p className="text-sm font-semibold text-gray-900 mb-1.5">{orders.length} current page items</p>
+                <div className="flex h-2.5 rounded-full overflow-hidden bg-gray-100 mb-1.5">
+                  {BOOKING_ORDER_STATUSES.map((status) => {
+                    const count = orderCountsByStatus[status] || 0
+                    const percent = orders.length > 0 ? (count / orders.length) * 100 : 0
+                    return percent > 0 ? (
+                      <div key={status} className={orderStatusBgColor(status)} style={{ width: `${percent}%` }} />
+                    ) : null
+                  })}
+                </div>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  {BOOKING_ORDER_STATUSES.filter(s => orderCountsByStatus[s]).map((status) => (
+                    <span key={status} className="inline-flex items-center gap-1 text-xs text-gray-600">
+                      <span className={`w-2 h-2 rounded-full ${orderStatusBgColor(status)}`} />
+                      {status}: {orderCountsByStatus[status]}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <div className="relative flex-1 min-w-[240px]">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={bookingOrderFilter}
+                onChange={(e) => {
+                  if (activeTab === 'bookings') {
+                    setBookingPage(1); setBookingOrderFilter(e.target.value)
+                  }
+                }}
+                placeholder={activeTab === 'bookings' ? "Search order ID..." : "Search disable in orders"}
+                disabled={activeTab === 'orders'}
+                className="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white disabled:bg-gray-100"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={openFilterPanel}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              Filters
+            </button>
+          </div>
         </div>
       </div>
 
@@ -408,74 +571,7 @@ export const BookingManagement = () => {
 
       {activeTab === 'bookings' ? (
         <>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
-            <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr_0.8fr_1fr_1fr] gap-4">
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  value={bookingOrderFilter}
-                  onChange={(e) => {
-                    setBookingPage(1)
-                    setBookingOrderFilter(e.target.value)
-                  }}
-                  placeholder="Filter by order id..."
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
 
-              <select
-                value={bookingPodFilter}
-                onChange={(e) => {
-                  setBookingPage(1)
-                  setBookingPodFilter(e.target.value)
-                }}
-                disabled={isPodsLoading}
-                className="px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-              >
-                <option value="all">All scoped pods</option>
-                {podOptions.map((pod) => (
-                  <option key={pod.id} value={pod.id}>{pod.code} - {pod.name}</option>
-                ))}
-              </select>
-
-              <select
-                value={bookingStatusFilter}
-                onChange={(e) => {
-                  setBookingPage(1)
-                  setBookingStatusFilter(e.target.value as 'all' | BookingStatus)
-                }}
-                className="px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-              >
-                <option value="all">All statuses</option>
-                {BOOKING_STATUSES.map((status) => (
-                  <option key={status} value={status}>{status}</option>
-                ))}
-              </select>
-
-              <DatePicker
-                showTime={{ format: 'HH:mm' }}
-                format="YYYY-MM-DD HH:mm"
-                value={bookingStartFilter ? dayjs(bookingStartFilter) : null}
-                onChange={(value) => {
-                  setBookingPage(1)
-                  setBookingStartFilter(value ? value.format('YYYY-MM-DDTHH:mm') : '')
-                }}
-                className="w-full"
-              />
-
-              <DatePicker
-                showTime={{ format: 'HH:mm' }}
-                format="YYYY-MM-DD HH:mm"
-                value={bookingEndFilter ? dayjs(bookingEndFilter) : null}
-                onChange={(value) => {
-                  setBookingPage(1)
-                  setBookingEndFilter(value ? value.format('YYYY-MM-DDTHH:mm') : '')
-                }}
-                className="w-full"
-              />
-            </div>
-          </div>
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -615,42 +711,9 @@ export const BookingManagement = () => {
         </>
       ) : (
         <>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_0.5fr] gap-4">
-              <select
-                value={orderPodFilter}
-                onChange={(e) => {
-                  setOrderPage(1)
-                  setOrderPodFilter(e.target.value)
-                }}
-                disabled={isPodsLoading}
-                className="px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-              >
-                <option value="all">All pods in scope</option>
-                {podOptions.map((pod) => (
-                  <option key={pod.id} value={pod.id}>{pod.code} - {pod.name}</option>
-                ))}
-              </select>
-
-              <select
-                value={orderStatusFilter}
-                onChange={(e) => {
-                  setOrderPage(1)
-                  setOrderStatusFilter(e.target.value as 'all' | BookingOrderStatus)
-                }}
-                className="px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-              >
-                <option value="all">All statuses</option>
-                {BOOKING_ORDER_STATUSES.map((status) => (
-                  <option key={status} value={status}>{status}</option>
-                ))}
-              </select>
-
-              <div className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-amber-50 text-amber-700 text-sm font-medium">
-                <ShieldOff className="w-4 h-4" />
-                Owner actions blocked
-              </div>
-            </div>
+          <div className="bg-amber-50 rounded-xl shadow-sm border border-amber-100 p-3 mb-6 inline-flex items-center gap-2 text-amber-800 text-sm font-medium">
+            <ShieldOff className="w-4 h-4" />
+            Owner actions are blocked in manager view
           </div>
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -688,7 +751,10 @@ export const BookingManagement = () => {
                           <p className="font-semibold text-gray-900">{compactId(order.id)}</p>
                           <p className="text-xs text-gray-500 mt-1">{order.id}</p>
                         </td>
-                        <td className="px-6 py-4 align-top text-gray-700">{compactId(order.user_id)}</td>
+                        <td className="px-6 py-4 align-top">
+                          <p className="font-medium text-gray-800">{order.user?.name || 'Unknown User'}</p>
+                          <p className="text-xs text-gray-500 mt-1">{order.user?.email || '—'}</p>
+                        </td>
                         <td className="px-6 py-4 align-top">
                           <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${orderStatusBadgeClass(order.status)}`}>
                             {order.status}
@@ -743,69 +809,225 @@ export const BookingManagement = () => {
         </>
       )}
 
-      <Modal
-        isOpen={isBookingDetailOpen}
-        onClose={() => {
-          setIsBookingDetailOpen(false)
-          setSelectedBooking(null)
-          setIsBookingDetailLoading(false)
-        }}
-        title="Booking Detail"
-        size="xl"
-      >
-        {isBookingDetailLoading ? (
-          <div className="py-8 text-center text-gray-500">Loading booking detail...</div>
-        ) : !selectedBooking ? (
-          <div className="py-8 text-center text-gray-500">No booking data.</div>
-        ) : (
-          <div className="space-y-5 text-sm">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">Booking ID</p>
-                <p className="font-medium text-gray-900 break-all">{selectedBooking.id}</p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">Order ID</p>
-                <p className="font-medium text-gray-900 break-all">{selectedBooking.order_id}</p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">Pod ID</p>
-                <p className="font-medium text-gray-900 break-all">{selectedBooking.pod_id}</p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">Status</p>
-                <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${bookingStatusBadgeClass(selectedBooking.status)}`}>
-                  {selectedBooking.status}
-                </span>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">Start Time</p>
-                <p className="font-medium text-gray-900">{formatDateTime(selectedBooking.start_time)}</p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">End Time</p>
-                <p className="font-medium text-gray-900">{formatDateTime(selectedBooking.end_time)}</p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">Checkin State</p>
-                <p className="font-medium text-gray-900">{selectedBooking.checkin_state ?? '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">Cleaner Access</p>
-                <p className="font-medium text-gray-900">{selectedBooking.cleaner_access_allowed ? 'Allowed' : 'Disabled'}</p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">Base Price</p>
-                <p className="font-medium text-gray-900">{formatMoney(selectedBooking.base_price)}</p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">Total Price</p>
-                <p className="font-medium text-gray-900">{formatMoney(selectedBooking.total_price)}</p>
-              </div>
+      {/* Filter panel */}
+      <div className={`fixed inset-0 z-50 ${isFilterPanelOpen ? '' : 'pointer-events-none'}`} aria-hidden={!isFilterPanelOpen}>
+        <div className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${isFilterPanelOpen ? 'opacity-100' : 'opacity-0'}`} onClick={() => setIsFilterPanelOpen(false)} />
+        <div className={`absolute right-0 top-0 h-full w-full max-w-4xl overflow-hidden bg-white shadow-2xl border-l border-gray-200 transform transition-transform duration-300 lg:right-4 lg:top-4 lg:bottom-4 lg:h-auto lg:w-[calc(100%-2rem)] lg:border lg:rounded-xl flex flex-col ${isFilterPanelOpen ? 'translate-x-0' : 'translate-x-[110%]'}`} role="dialog" aria-modal="true">
+          <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
+              <p className="text-xs text-gray-500 mt-1">Filter {activeTab} by status and pod.</p>
+            </div>
+            <button type="button" onClick={() => setIsFilterPanelOpen(false)} className="text-gray-400 hover:text-gray-700 transition-colors">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-8">
+            {activeTab === 'bookings' ? (
+              <>
+                <div>
+                  <div className="flex items-center justify-between mb-3"><label className="block text-sm font-semibold text-gray-900">Status</label></div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => setDraftBookingFilters(prev => ({...prev, status: 'all'}))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftBookingFilters.status === 'all' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{draftBookingFilters.status === 'all' && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}All</button>
+                    {BOOKING_STATUSES.map(status => {
+                      const isSelected = draftBookingFilters.status === status
+                      return (
+                         <button key={status} type="button" onClick={() => setDraftBookingFilters(prev => ({...prev, status}))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}{status}</button>
+                      )
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-3"><label className="block text-sm font-semibold text-gray-900">Pod</label></div>
+                  <PodGridSelector
+                    pods={podOptions}
+                    selectedPodId={draftBookingFilters.pod_id}
+                    onSelect={(id) => setDraftBookingFilters(prev => ({...prev, pod_id: id}))}
+                    showAllOption={true}
+                    allOptionLabel="All scoped pods"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-3"><label className="block text-sm font-semibold text-gray-900">Date Range</label></div>
+                  <div className="border border-gray-200 rounded-xl shadow-sm bg-white overflow-hidden w-full custom-calendar max-w-[320px] mx-auto">
+                    <DatePicker
+                      selected={draftBookingFilters.dateRange[0]}
+                      onChange={(update: [Date | null, Date | null]) => setDraftBookingFilters(prev => ({ ...prev, dateRange: update }))}
+                      startDate={draftBookingFilters.dateRange[0] || undefined}
+                      endDate={draftBookingFilters.dateRange[1] || undefined}
+                      selectsRange
+                      inline
+                      monthsShown={1}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <div className="flex items-center justify-between mb-3"><label className="block text-sm font-semibold text-gray-900">Status</label></div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => setDraftOrderFilters(prev => ({...prev, status: 'all'}))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftOrderFilters.status === 'all' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{draftOrderFilters.status === 'all' && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}All</button>
+                    {BOOKING_ORDER_STATUSES.map(status => {
+                      const isSelected = draftOrderFilters.status === status
+                      return (
+                         <button key={status} type="button" onClick={() => setDraftOrderFilters(prev => ({...prev, status}))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}{status}</button>
+                      )
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-3"><label className="block text-sm font-semibold text-gray-900">Pod</label></div>
+                  <PodGridSelector
+                    pods={podOptions}
+                    selectedPodId={draftOrderFilters.pod_id}
+                    onSelect={(id) => setDraftOrderFilters(prev => ({...prev, pod_id: id}))}
+                    showAllOption={true}
+                    allOptionLabel="All pods in scope"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+          <div className="px-6 py-5 border-t border-gray-100 bg-white flex items-center justify-between gap-3 lg:rounded-b-xl">
+            <button type="button" onClick={resetDraftFilters} className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50">Reset</button>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setIsFilterPanelOpen(false)} className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50">Cancel</button>
+              <button type="button" onClick={applyFilters} className="px-4 py-2.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700">Apply</button>
             </div>
           </div>
-        )}
-      </Modal>
+        </div>
+      </div>
+
+      <div className={`fixed inset-0 z-50 ${isBookingDetailOpen ? '' : 'pointer-events-none'}`} aria-hidden={!isBookingDetailOpen}>
+        <div
+          className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${isBookingDetailOpen ? 'opacity-100' : 'opacity-0'}`}
+          onClick={() => {
+            setIsBookingDetailOpen(false)
+            setSelectedBooking(null)
+            setIsBookingDetailLoading(false)
+          }}
+        />
+        <div
+          className={`absolute right-0 top-0 h-full w-full max-w-[960px] bg-white shadow-2xl border-l border-gray-200 transform transition-transform duration-300 lg:right-4 lg:top-4 lg:bottom-4 lg:h-auto lg:w-[calc(100%-2rem)] lg:border lg:rounded-xl flex flex-col ${isBookingDetailOpen ? 'translate-x-0' : 'translate-x-[110%]'}`}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Booking Detail</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setIsBookingDetailOpen(false)
+                setSelectedBooking(null)
+                setIsBookingDetailLoading(false)
+              }}
+              className="text-gray-400 hover:text-gray-700 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-6 py-6">
+            {isBookingDetailLoading ? (
+              <div className="py-8 text-center text-gray-500">Loading booking detail...</div>
+            ) : !selectedBooking ? (
+              <div className="py-8 text-center text-gray-500">No booking data.</div>
+            ) : (
+              <div className="space-y-6">
+                {(() => {
+                  let bg = '', iconBg = '', title = '', desc = '', Icon = null;
+                  if (selectedBooking.status === 'IN_USE') {
+                    bg = 'from-emerald-50/80 to-white border-emerald-100';
+                    iconBg = 'bg-white text-emerald-500 shadow-sm border border-emerald-50';
+                    title = 'In Use'; desc = 'Booking is currently active.'; Icon = <Clock className="w-6 h-6" />;
+                  } else if (selectedBooking.status === 'BOOKED') {
+                    bg = 'from-blue-50/80 to-white border-blue-100';
+                    iconBg = 'bg-white text-blue-500 shadow-sm border border-blue-50';
+                    title = 'Booked'; desc = 'Booking is confirmed and upcoming.'; Icon = <CalendarClock className="w-6 h-6" />;
+                  } else if (selectedBooking.status === 'COMPLETED') {
+                    bg = 'from-gray-50/80 to-white border-gray-100';
+                    iconBg = 'bg-white text-gray-500 shadow-sm border border-gray-50';
+                    title = 'Completed'; desc = 'Booking has been fulfilled.'; Icon = <CheckCircle className="w-6 h-6" />;
+                  } else if (selectedBooking.status === 'CANCELLED') {
+                    bg = 'from-rose-50/80 to-white border-rose-100';
+                    iconBg = 'bg-white text-rose-500 shadow-sm border border-rose-50';
+                    title = 'Cancelled'; desc = 'Booking has been cancelled.'; Icon = <Ban className="w-6 h-6" />;
+                  } else {
+                    bg = 'from-gray-50/80 to-white border-gray-100';
+                    iconBg = 'bg-white text-gray-500 shadow-sm border border-gray-50';
+                    title = selectedBooking.status; desc = 'Booking status pending.'; Icon = <Boxes className="w-6 h-6" />;
+                  }
+
+                  return (
+                    <div className={`rounded-2xl p-8 flex flex-col items-center text-center bg-gradient-to-b border shadow-sm ${bg}`}>
+                      <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-4 ${iconBg}`}>
+                        {Icon}
+                      </div>
+                      <h3 className="text-xl font-bold text-gray-900 mb-2">{title}</h3>
+                      <p className="text-sm text-gray-600 max-w-sm">{desc}</p>
+                    </div>
+                  )
+                })()}
+
+                {selectedBooking.status === 'COMPLETED' && (
+                  <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shrink-0 border border-gray-200">
+                      <X className="w-4 h-4 text-gray-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Booking đã hoàn tất, không thể tiếp tục tiếp nhận hành động</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Mọi thao tác quản lý đã bị vô hiệu hóa.</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-col text-sm">
+                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
+                    <span className="text-gray-500">Booking ID</span>
+                    <span className="font-medium text-gray-900 break-all">{selectedBooking.id}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
+                    <span className="text-gray-500">Order ID</span>
+                    <span className="font-medium text-gray-900 break-all">{selectedBooking.order_id}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
+                    <span className="text-gray-500">Pod ID</span>
+                    <span className="font-medium text-gray-900 break-all">{selectedBooking.pod_id}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
+                    <span className="text-gray-500">Start Time</span>
+                    <span className="font-medium text-gray-900">{formatDateTime(selectedBooking.start_time)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
+                    <span className="text-gray-500">End Time</span>
+                    <span className="font-medium text-gray-900">{formatDateTime(selectedBooking.end_time)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
+                    <span className="text-gray-500">Checkin State</span>
+                    <span className="font-medium text-gray-900">{selectedBooking.checkin_state ?? '—'}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
+                    <span className="text-gray-500">Cleaner Access</span>
+                    <span className="font-medium text-gray-900">{selectedBooking.cleaner_access_allowed ? 'Allowed' : 'Disabled'}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
+                    <span className="text-gray-500">Base Price</span>
+                    <span className="font-medium text-gray-900">{formatMoney(selectedBooking.base_price)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
+                    <span className="text-gray-500">Total Price</span>
+                    <span className="font-medium text-gray-900">{formatMoney(selectedBooking.total_price)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       <Modal
         isOpen={isRelatedOpen}
@@ -862,105 +1084,147 @@ export const BookingManagement = () => {
         )}
       </Modal>
 
-      <Modal
-        isOpen={isOrderDetailOpen}
-        onClose={() => {
-          setIsOrderDetailOpen(false)
-          setSelectedOrderDetail(null)
-          setIsOrderDetailLoading(false)
-        }}
-        title="Booking Order Detail"
-        size="xl"
-      >
-        {isOrderDetailLoading ? (
-          <div className="py-8 text-center text-gray-500">Loading booking order detail...</div>
-        ) : !selectedOrderDetail ? (
-          <div className="py-8 text-center text-gray-500">No booking order data.</div>
-        ) : (
-          <div className="space-y-6">
-            <div className="p-4 rounded-lg bg-amber-50 border border-amber-100 text-amber-800 text-sm">
-              <div className="inline-flex items-center gap-2 font-semibold mb-1">
-                <ShieldOff className="w-4 h-4" />
-                Owner actions are blocked for manager view
-              </div>
-              <p>Cancel, checkout and repay are owner-only flows. This screen is for monitoring and detail tracking.</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">Order ID</p>
-                <p className="font-medium text-gray-900 break-all">{selectedOrderDetail.order.id}</p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">User ID</p>
-                <p className="font-medium text-gray-900 break-all">{selectedOrderDetail.order.user_id}</p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">Status</p>
-                <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${orderStatusBadgeClass(selectedOrderDetail.order.status)}`}>
-                  {selectedOrderDetail.order.status}
-                </span>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">Final Total</p>
-                <p className="font-medium text-gray-900">{formatMoney(selectedOrderDetail.order.final_total_price)}</p>
-              </div>
-            </div>
-
+      <div className={`fixed inset-0 z-50 ${isOrderDetailOpen ? '' : 'pointer-events-none'}`} aria-hidden={!isOrderDetailOpen}>
+        <div
+          className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${isOrderDetailOpen ? 'opacity-100' : 'opacity-0'}`}
+          onClick={() => {
+            setIsOrderDetailOpen(false)
+            setSelectedOrderDetail(null)
+            setIsOrderDetailLoading(false)
+          }}
+        />
+        <div
+          className={`absolute right-0 top-0 h-full w-full max-w-[960px] bg-white shadow-2xl border-l border-gray-200 transform transition-transform duration-300 lg:right-4 lg:top-4 lg:bottom-4 lg:h-auto lg:w-[calc(100%-2rem)] lg:border lg:rounded-xl flex flex-col ${isOrderDetailOpen ? 'translate-x-0' : 'translate-x-[110%]'}`}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
             <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">Bookings in this order</h3>
-              {selectedOrderDetail.bookings.length === 0 ? (
-                <p className="text-sm text-gray-500">No bookings visible in your manager scope.</p>
-              ) : (
-                <div className="space-y-3 max-h-[42vh] overflow-auto pr-1">
-                  {selectedOrderDetail.bookings.map((booking) => (
-                    <div key={booking.id} className="border border-gray-200 rounded-lg p-3 text-sm">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="font-medium text-gray-900">{compactId(booking.id)}</p>
-                        <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${bookingStatusBadgeClass(booking.status)}`}>
-                          {booking.status}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2 text-gray-600">
-                        <p>Pod: {booking.pod?.code ?? podMap.get(booking.pod_id)?.code ?? compactId(booking.pod_id)}</p>
-                        <p>Start: {formatDateTime(booking.start_time)}</p>
-                        <p>End: {formatDateTime(booking.end_time)}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <h2 className="text-lg font-semibold text-gray-900">Booking Order Detail</h2>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <button
-                type="button"
-                disabled
-                className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-400 bg-gray-50 cursor-not-allowed"
-                title="Only owner can cancel order"
-              >
-                Cancel (Owner only)
-              </button>
-              <button
-                type="button"
-                disabled
-                className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-400 bg-gray-50 cursor-not-allowed"
-                title="Only owner can checkout order"
-              >
-                Checkout (Owner only)
-              </button>
-              <button
-                type="button"
-                disabled
-                className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-400 bg-gray-50 cursor-not-allowed"
-                title="Only owner can repay order"
-              >
-                Repay (Owner only)
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setIsOrderDetailOpen(false)
+                setSelectedOrderDetail(null)
+                setIsOrderDetailLoading(false)
+              }}
+              className="text-gray-400 hover:text-gray-700 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
           </div>
-        )}
-      </Modal>
+
+          <div className="flex-1 overflow-y-auto px-6 py-6">
+            {isOrderDetailLoading ? (
+              <div className="py-8 text-center text-gray-500">Loading booking order detail...</div>
+            ) : !selectedOrderDetail ? (
+              <div className="py-8 text-center text-gray-500">No booking order data.</div>
+            ) : (
+              <div className="space-y-6">
+                {(() => {
+                  let bg = '', iconBg = '', title = '', desc = '', Icon = null;
+                  if (selectedOrderDetail.order.status === 'PAID') {
+                    bg = 'from-emerald-50/80 to-white border-emerald-100';
+                    iconBg = 'bg-white text-emerald-500 shadow-sm border border-emerald-50';
+                    title = 'Order Paid'; desc = 'Payment successful.'; Icon = <CheckCircle className="w-6 h-6" />;
+                  } else if (selectedOrderDetail.order.status === 'PENDING') {
+                    bg = 'from-amber-50/80 to-white border-amber-100';
+                    iconBg = 'bg-white text-amber-500 shadow-sm border border-amber-50';
+                    title = 'Payment Pending'; desc = 'Awaiting customer payment.'; Icon = <Clock className="w-6 h-6" />;
+                  } else if (selectedOrderDetail.order.status === 'CANCEL' || selectedOrderDetail.order.status === 'FULLY_CANCELLED') {
+                    bg = 'from-rose-50/80 to-white border-rose-100';
+                    iconBg = 'bg-white text-rose-500 shadow-sm border border-rose-50';
+                    title = 'Order Cancelled'; desc = 'The order has been cancelled.'; Icon = <Ban className="w-6 h-6" />;
+                  } else {
+                    bg = 'from-gray-50/80 to-white border-gray-100';
+                    iconBg = 'bg-white text-gray-500 shadow-sm border border-gray-50';
+                    title = selectedOrderDetail.order.status; desc = 'Order status details.'; Icon = <CreditCard className="w-6 h-6" />;
+                  }
+
+                  return (
+                    <div className={`rounded-2xl p-8 flex flex-col items-center text-center bg-gradient-to-b border shadow-sm ${bg}`}>
+                      <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-4 ${iconBg}`}>
+                        {Icon}
+                      </div>
+                      <h3 className="text-xl font-bold text-gray-900 mb-2">{title}</h3>
+                      <p className="text-sm text-gray-600 max-w-sm">{desc}</p>
+                    </div>
+                  )
+                })()}
+
+                <div className="p-4 rounded-xl bg-amber-50 border border-amber-100 text-amber-800 text-sm flex gap-3">
+                  <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shrink-0 border border-amber-200">
+                    <ShieldOff className="w-4 h-4 text-amber-500" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold mb-1">Owner actions are blocked for manager view</h4>
+                    <p className="text-amber-700/80">Cancel, checkout and repay are owner-only flows. This screen is for monitoring and detail tracking.</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col text-sm">
+                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
+                    <span className="text-gray-500">Order ID</span>
+                    <span className="font-medium text-gray-900 break-all">{selectedOrderDetail.order.id}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
+                    <span className="text-gray-500">User Name</span>
+                    <span className="font-medium text-gray-900">{selectedOrderDetail.order.user?.name || 'Unknown User'}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
+                    <span className="text-gray-500">User Email</span>
+                    <span className="font-medium text-gray-900">{selectedOrderDetail.order.user?.email || '—'}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
+                    <span className="text-gray-500">Final Total</span>
+                    <span className="font-medium text-gray-900">{formatMoney(selectedOrderDetail.order.final_total_price)}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Bookings in this order</h3>
+                  {selectedOrderDetail.bookings.length === 0 ? (
+                    <p className="text-sm text-gray-500">No bookings visible in your manager scope.</p>
+                  ) : (
+                    <div className="space-y-3 max-h-[42vh] overflow-auto pr-1">
+                      {selectedOrderDetail.bookings.map((booking) => (
+                        <div key={booking.id} className="border border-gray-200 rounded-lg p-3 text-sm flex items-center justify-between">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1">
+                            <div>
+                               <p className="text-xs text-gray-500 uppercase">Pod</p>
+                               <p className="font-medium text-gray-900">{booking.pod?.code ?? podMap.get(booking.pod_id)?.code ?? compactId(booking.pod_id)}</p>
+                            </div>
+                            <div>
+                               <p className="text-xs text-gray-500 uppercase">Start Time</p>
+                               <p className="font-medium text-gray-900">{formatDateTime(booking.start_time)}</p>
+                            </div>
+                            <div>
+                               <p className="text-xs text-gray-500 uppercase">End Time</p>
+                               <p className="font-medium text-gray-900">{formatDateTime(booking.end_time)}</p>
+                            </div>
+                          </div>
+                          <div className="ml-4 flex items-center justify-center">
+                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${bookingStatusBadgeClass(booking.status)}`}>
+                              {booking.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <button type="button" disabled className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-400 bg-gray-50 cursor-not-allowed">Cancel (Owner only)</button>
+                  <button type="button" disabled className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-400 bg-gray-50 cursor-not-allowed">Checkout (Owner only)</button>
+                  <button type="button" disabled className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-400 bg-gray-50 cursor-not-allowed">Repay (Owner only)</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

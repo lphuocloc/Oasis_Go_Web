@@ -509,6 +509,8 @@ export const IncidentManagement = () => {
               </div>
             </div>
 
+            {/* escalation_note và resolution_note không tồn tại trên backend nên đã loại bỏ hiển thị ở đây */}
+
             {detailPhotos.length > 0 && (
               <div>
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Evidence Photos ({detailPhotos.length})</p>

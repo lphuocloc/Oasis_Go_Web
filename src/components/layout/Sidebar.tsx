@@ -24,7 +24,7 @@ const Sidebar: React.FC<SidebarProps> = ({ navItems }) => {
   const isActive = (path: string) => location.pathname === path
 
   return (
-    <div className={`flex flex-col h-screen bg-gray-900 transition-all duration-300 ${collapsed ? 'w-auto' : 'w-64'} border-r border-gray-800`}>
+    <div className={`flex flex-col h-screen bg-gray-900 transition-all duration-300 ${collapsed ? 'w-auto' : 'w-72'} border-r border-gray-800`}>
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-800 h-20">
         {!collapsed && (

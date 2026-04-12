@@ -19,6 +19,10 @@ export interface BookingOrderItem {
   final_total_price?: number
   status: BookingOrderStatus
   bookings_count?: number
+  user?: {
+    name?: string
+    email?: string
+  }
   createdAt?: string
   updatedAt?: string
 }

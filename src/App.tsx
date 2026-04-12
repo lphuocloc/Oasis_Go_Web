@@ -7,6 +7,7 @@ import { PodClusterManagement } from './pages/admin/PodClusterManagement'
 import { AdminPodManagement } from './pages/admin/PodManagement'
 import { InventoryWarehouseManagement } from './pages/admin/InventoryWarehouseManagement'
 import { AdminProfile } from './pages/admin/Profile'
+import { AdminShiftManagement } from './pages/admin/ShiftManagement'
 import { ManagerDashboard } from './pages/manager/ManagerDashboard'
 import { ManagerProfile } from './pages/manager/Profile'
 import { Login } from './pages/Login'
@@ -17,6 +18,7 @@ import { CleaningManagement } from './pages/manager/CleaningManagement'
 import { IncidentManagement } from './pages/manager/IncidentManagement'
 import { ShiftManagement } from './pages/manager/ShiftManagement'
 import { LostAndFoundManagement } from './pages/manager/LostAndFoundManagement'
+import { SupportManagement } from './pages/manager/SupportManagement'
 import { AdminLayout } from './layouts/AdminLayout'
 import { ManagerLayout } from './layouts/ManagerLayout'
 import { AuthProvider } from './contexts/AuthContext'
@@ -70,6 +72,10 @@ export const router = createBrowserRouter([
             element: <CleaningTaskManagement />
           },
           {
+            path: 'shifts',
+            element: <AdminShiftManagement />
+          },
+          {
             path: "profile",
             element: <AdminProfile />
           }
@@ -116,6 +122,10 @@ export const router = createBrowserRouter([
           {
             path: "lost-found",
             element: <LostAndFoundManagement />
+          },
+          {
+            path: 'support',
+            element: <SupportManagement />
           },
           {
             path: "profile",

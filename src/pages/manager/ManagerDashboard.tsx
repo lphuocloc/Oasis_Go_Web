@@ -418,6 +418,7 @@ export const ManagerDashboard = () => {
     }, {})
 
     const podMap = new Map<string, DashboardPod>(scopedPods.map((pod) => [pod.id, pod]))
+    const clusterMap = new Map<string, string>(scopedClusters.map((c) => [c.id, c.name]))
 
     return {
       summaryData: {
@@ -434,27 +435,38 @@ export const ManagerDashboard = () => {
         latestBookings: [...scopedBookings]
           .sort((a, b) => new Date(b.start_time ?? 0).getTime() - new Date(a.start_time ?? 0).getTime())
           .slice(0, 5)
-          .map((booking) => ({
-            id: booking.id,
-            podCode: podMap.get(booking.pod_id ?? '')?.code ?? booking.pod_id ?? '-',
-            userName: (booking.user as { name?: string } | undefined)?.name ?? '-',
-            startTime: booking.start_time ?? '',
-            endTime: booking.end_time ?? '',
-            status: booking.status
-          })),
+          .map((booking) => {
+            const pod = podMap.get(booking.pod_id ?? '')
+            const clusterName = pod?.cluster_id ? clusterMap.get(String(pod.cluster_id)) : '-'
+
+            return {
+              id: booking.id,
+              podCode: pod?.code ?? booking.pod_id ?? '-',
+              clusterName: clusterName ?? '-',
+              userName: (booking.user as { name?: string } | undefined)?.name ?? '-',
+              startTime: booking.start_time ?? '',
+              endTime: booking.end_time ?? '',
+              status: booking.status
+            }
+          }),
         latestIncidents: [...scopedIncidents]
           .sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())
           .slice(0, 5)
-          .map((incident) => ({
-            id: incident.id,
-            podCode: podMap.get(incident.pod_id ?? '')?.code ?? incident.pod_id ?? '-',
-            severity: incident.severity ?? '-',
-            status: incident.status,
-            created_at: incident.created_at ?? ''
-          }))
+          .map((incident) => {
+            const pod = podMap.get(incident.pod_id ?? '')
+            const clusterName = pod?.cluster_id ? clusterMap.get(String(pod.cluster_id)) : '-'
+            return {
+              id: incident.id,
+              podCode: pod?.code ?? incident.pod_id ?? '-',
+              clusterName: clusterName ?? '-',
+              severity: incident.severity ?? '-',
+              status: incident.status,
+              created_at: incident.created_at ?? ''
+            }
+          })
       }
     }
-  }, [summaryRawData, scopedClusterIds])
+  }, [summaryRawData, scopedClusterIds, scopedClusters])
 
   const chartData = useMemo(() => {
     if (!chartRawData) return null
@@ -577,7 +589,7 @@ export const ManagerDashboard = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <SummaryCard
-              title={`Tổng Booking (${summaryRangeLabel})`}
+              title={`Tổng Booking`}
               value={summaryData.bookings.totalInRange}
               icon={<Calendar className="w-5 h-5 text-green-600" />}
               iconBg="bg-green-50"
@@ -590,14 +602,14 @@ export const ManagerDashboard = () => {
             />
 
             <SummaryCard
-              title={`Tổng Đơn Hàng (${summaryRangeLabel})`}
+              title={`Tổng Đơn Hàng`}
               value={summaryData.ordersInRange}
               icon={<Package className="w-5 h-5 text-blue-600" />}
               iconBg="bg-blue-50"
             />
 
             <SummaryCard
-              title={`Tổng Doanh Thu (${summaryRangeLabel})`}
+              title={`Tổng Doanh Thu`}
               value={new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(summaryData.revenue.totalInRange)}
               icon={<TrendingUp className="w-5 h-5 text-purple-600" />}
               iconBg="bg-purple-50"
@@ -676,7 +688,7 @@ export const ManagerDashboard = () => {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Pod</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Khách hàng</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Cụm Pod (Cluster)</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Trạng thái</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Bắt đầu lúc</th>
                     </tr>
@@ -685,13 +697,13 @@ export const ManagerDashboard = () => {
                     {listData.latestBookings.length > 0 ? listData.latestBookings.map((booking) => (
                       <tr key={booking.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 text-gray-900">{booking.podCode}</td>
-                        <td className="px-6 py-4 text-gray-600">{booking.userName}</td>
+                        <td className="px-6 py-4 text-gray-600">{booking.clusterName}</td>
                         <td className="px-6 py-4"><StatusBadge status={booking.status} /></td>
                         <td className="px-6 py-4 text-gray-600">{booking.startTime ? new Date(booking.startTime).toLocaleTimeString() : '-'}</td>
                       </tr>
                     )) : (
                       <tr>
-                        <td colSpan={4} className="px-6 py-8 text-center text-gray-400">Không có booking trong thời gian này</td>
+                        <td colSpan={5} className="px-6 py-8 text-center text-gray-400">Không có booking trong thời gian này</td>
                       </tr>
                     )}
                   </tbody>
@@ -708,6 +720,7 @@ export const ManagerDashboard = () => {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Pod</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Cụm Pod (Cluster)</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Mức độ</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Trạng thái</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Ngày tạo</th>
@@ -717,13 +730,14 @@ export const ManagerDashboard = () => {
                     {listData.latestIncidents.length > 0 ? listData.latestIncidents.map((incident) => (
                       <tr key={incident.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 text-gray-900">{incident.podCode}</td>
+                        <td className="px-6 py-4 text-gray-600">{incident.clusterName}</td>
                         <td className="px-6 py-4 text-gray-600">{incident.severity}</td>
                         <td className="px-6 py-4"><StatusBadge status={incident.status} /></td>
                         <td className="px-6 py-4 text-gray-600">{incident.created_at ? new Date(incident.created_at).toLocaleDateString() : '-'}</td>
                       </tr>
                     )) : (
                       <tr>
-                        <td colSpan={4} className="px-6 py-8 text-center text-gray-400">Không có sự cố trong thời gian này</td>
+                        <td colSpan={5} className="px-6 py-8 text-center text-gray-400">Không có sự cố trong thời gian này</td>
                       </tr>
                     )}
                   </tbody>

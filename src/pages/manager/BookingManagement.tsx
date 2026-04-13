@@ -122,8 +122,8 @@ export const BookingManagement = () => {
   const [bookings, setBookings] = useState<BookingItem[]>([])
   const [isBookingsLoading, setIsBookingsLoading] = useState(true)
   const [bookingPage, setBookingPage] = useState(1)
-  const [bookingStatusFilter, setBookingStatusFilter] = useState<'all' | BookingStatus>('all')
-  const [bookingPodFilter, setBookingPodFilter] = useState('all')
+  const [bookingStatusFilter, setBookingStatusFilter] = useState<BookingStatus[]>([])
+  const [bookingPodFilter, setBookingPodFilter] = useState<string[]>([])
   const [bookingOrderFilter, setBookingOrderFilter] = useState('')
   const [bookingStartFilter, setBookingStartFilter] = useState('')
   const [bookingEndFilter, setBookingEndFilter] = useState('')
@@ -137,8 +137,10 @@ export const BookingManagement = () => {
   const [orders, setOrders] = useState<BookingOrderItem[]>([])
   const [isOrdersLoading, setIsOrdersLoading] = useState(true)
   const [orderPage, setOrderPage] = useState(1)
-  const [orderStatusFilter, setOrderStatusFilter] = useState<'all' | BookingOrderStatus>('all')
-  const [orderPodFilter, setOrderPodFilter] = useState('all')
+  const [orderStatusFilter, setOrderStatusFilter] = useState<BookingOrderStatus[]>([])
+  const [orderPodFilter, setOrderPodFilter] = useState<string[]>([])
+  const [orderStartFilter, setOrderStartFilter] = useState('')
+  const [orderEndFilter, setOrderEndFilter] = useState('')
   const [orderPagination, setOrderPagination] = useState<BookingOrderPagination>({
     total: 0,
     page: 1,
@@ -148,21 +150,23 @@ export const BookingManagement = () => {
 
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false)
   const [draftBookingFilters, setDraftBookingFilters] = useState<{
-    status: 'all' | BookingStatus
-    pod_id: string
+    status: BookingStatus[]
+    pod_id: string[]
     dateRange: [Date | null, Date | null]
   }>({
-    status: 'all',
-    pod_id: 'all',
+    status: [],
+    pod_id: [],
     dateRange: [null, null]
   })
-  
+
   const [draftOrderFilters, setDraftOrderFilters] = useState<{
-    status: 'all' | BookingOrderStatus
-    pod_id: string
+    status: BookingOrderStatus[]
+    pod_id: string[]
+    dateRange: [Date | null, Date | null]
   }>({
-    status: 'all',
-    pod_id: 'all'
+    status: [],
+    pod_id: [],
+    dateRange: [null, null]
   })
 
   const [isBookingDetailOpen, setIsBookingDetailOpen] = useState(false)
@@ -222,9 +226,9 @@ export const BookingManagement = () => {
 
       const response = await bookingApi.getAll({
         page,
-        limit: 20,
-        status: bookingStatusFilter === 'all' ? undefined : bookingStatusFilter,
-        pod_id: bookingPodFilter === 'all' ? undefined : bookingPodFilter,
+        limit: bookingPagination.items_per_page,
+        status: bookingStatusFilter.length > 0 ? bookingStatusFilter.join(',') : undefined,
+        pod_id: bookingPodFilter.length > 0 ? bookingPodFilter.join(',') : undefined,
         order_id: bookingOrderFilter.trim() || undefined,
         start_date: startDate ? startDate.toISOString() : undefined,
         end_date: endDate ? endDate.toISOString() : undefined
@@ -251,11 +255,17 @@ export const BookingManagement = () => {
   const fetchOrders = async (page: number) => {
     try {
       setIsOrdersLoading(true)
+
+      const startDate = orderStartFilter ? new Date(orderStartFilter) : null
+      const endDate = orderEndFilter ? new Date(orderEndFilter) : null
+
       const response = await bookingOrderApi.getAll({
         page,
-        limit: 20,
-        status: orderStatusFilter === 'all' ? undefined : orderStatusFilter,
-        pod_ids: orderPodFilter === 'all' ? undefined : orderPodFilter
+        limit: orderPagination.limit,
+        status: orderStatusFilter.length > 0 ? orderStatusFilter.join(',') : undefined,
+        pod_ids: orderPodFilter.length > 0 ? orderPodFilter.join(',') : undefined,
+        start_date: startDate ? startDate.toISOString() : undefined,
+        end_date: endDate ? endDate.toISOString() : undefined
       })
 
       setOrders(response.orders)
@@ -283,7 +293,7 @@ export const BookingManagement = () => {
   useEffect(() => {
     fetchOrders(orderPage)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderPage, orderStatusFilter, orderPodFilter])
+  }, [orderPage, orderStatusFilter, orderPodFilter, orderStartFilter, orderEndFilter])
 
   const handleRefresh = async () => {
     try {
@@ -409,7 +419,11 @@ export const BookingManagement = () => {
     } else {
       setDraftOrderFilters({
         status: orderStatusFilter,
-        pod_id: orderPodFilter
+        pod_id: orderPodFilter,
+        dateRange: [
+          orderStartFilter ? new Date(orderStartFilter) : null,
+          orderEndFilter ? new Date(orderEndFilter) : null
+        ]
       })
     }
     setIsFilterPanelOpen(true)
@@ -425,6 +439,8 @@ export const BookingManagement = () => {
     } else {
       setOrderStatusFilter(draftOrderFilters.status)
       setOrderPodFilter(draftOrderFilters.pod_id)
+      setOrderStartFilter(draftOrderFilters.dateRange[0] ? dayjs(draftOrderFilters.dateRange[0]).format('YYYY-MM-DDTHH:mm') : '')
+      setOrderEndFilter(draftOrderFilters.dateRange[1] ? dayjs(draftOrderFilters.dateRange[1]).format('YYYY-MM-DDTHH:mm') : '')
       setOrderPage(1)
     }
     setIsFilterPanelOpen(false)
@@ -432,10 +448,18 @@ export const BookingManagement = () => {
 
   const resetDraftFilters = () => {
     if (activeTab === 'bookings') {
-      setDraftBookingFilters({ status: 'all', pod_id: 'all', dateRange: [null, null] })
+      setDraftBookingFilters({ status: [], pod_id: [], dateRange: [null, null] })
     } else {
-      setDraftOrderFilters({ status: 'all', pod_id: 'all' })
+      setDraftOrderFilters({ status: [], pod_id: [], dateRange: [null, null] })
     }
+  }
+
+  const toggleArrayFilter = <T extends string>(current: T[], value: T | 'all', fullLength: number): T[] => {
+    if (value === 'all') return []
+    if (current.includes(value as T)) return current.filter(v => v !== value)
+    const nextArr = [...current, value as T]
+    if (nextArr.length === fullLength) return []
+    return nextArr
   }
 
   return (
@@ -546,9 +570,8 @@ export const BookingManagement = () => {
 
       <div className="bg-white rounded-xl border border-gray-100 p-1 mb-6 inline-flex">
         <button
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            activeTab === 'bookings' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
-          }`}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'bookings' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+            }`}
           onClick={() => setActiveTab('bookings')}
         >
           <span className="inline-flex items-center gap-2">
@@ -557,9 +580,8 @@ export const BookingManagement = () => {
           </span>
         </button>
         <button
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            activeTab === 'orders' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
-          }`}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'orders' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+            }`}
           onClick={() => setActiveTab('orders')}
         >
           <span className="inline-flex items-center gap-2">
@@ -629,9 +651,8 @@ export const BookingManagement = () => {
                           <td className="px-6 py-4 align-top">
                             <div className="flex items-center gap-2">
                               <span
-                                className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                                  booking.cleaner_access_allowed ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-700'
-                                }`}
+                                className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${booking.cleaner_access_allowed ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-700'
+                                  }`}
                               >
                                 {booking.cleaner_access_allowed ? 'Allowed' : 'Disabled'}
                               </span>
@@ -823,17 +844,35 @@ export const BookingManagement = () => {
             </button>
           </div>
 
+          <style>{`
+            .custom-calendar .react-datepicker { border: none; font-family: inherit; width: 100%; display: flex; flex-direction: column; }
+            .custom-calendar .react-datepicker__month-container { width: 100%; display: flex; flex-direction: column; }
+            .custom-calendar .react-datepicker__header { background: white; border-bottom: none; padding-top: 16px; width: 100%; }
+            .custom-calendar .react-datepicker__current-month { font-weight: 500; font-size: 16px; color: #111827; margin-bottom: 12px; }
+            .custom-calendar .react-datepicker__day-names { display: flex; justify-content: center; gap: 20px; margin-bottom: 8px; }
+            .custom-calendar .react-datepicker__week { display: flex; justify-content: center; gap: 25px; margin-bottom: 4px; }
+            .custom-calendar .react-datepicker__day-name { color: #6b7280; font-weight: 500; font-size: 13px; flex: 1; display: flex; align-items: center; justify-content: center; width: auto; max-width: 48px; }
+            .custom-calendar .react-datepicker__day { font-weight: 400; font-size: 14px; color: #374151; border-radius: 9999px; outline: none; margin: 0; flex: 1; display: flex; align-items: center; justify-content: center; aspect-ratio: 1/1; max-width: 48px; max-height: 48px; width: auto; }
+            .custom-calendar .react-datepicker__day:hover { background-color: #f3f4f6; border-radius: 9999px; }
+            .custom-calendar .react-datepicker__day--in-range, .custom-calendar .react-datepicker__day--in-selecting-range { background-color: #f3f4f6; color: #111827; border-radius: 0; }
+            .custom-calendar .react-datepicker__day--range-start,
+            .custom-calendar .react-datepicker__day--range-end,
+            .custom-calendar .react-datepicker__day--selecting-range-start,
+            .custom-calendar .react-datepicker__day--selecting-range-end { background-color: #111827 !important; color: #fff !important; border-radius: 9999px !important; font-weight: 500; }
+            .custom-calendar .react-datepicker__navigation { top: 16px; }
+            .custom-calendar .react-datepicker__navigation-icon::before { border-color: #6b7280; border-width: 2px 2px 0 0; height: 8px; width: 8px; top: 1px; }
+          `}</style>
           <div className="flex-1 overflow-y-auto px-6 py-5 space-y-8">
             {activeTab === 'bookings' ? (
               <>
                 <div>
                   <div className="flex items-center justify-between mb-3"><label className="block text-sm font-semibold text-gray-900">Status</label></div>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => setDraftBookingFilters(prev => ({...prev, status: 'all'}))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftBookingFilters.status === 'all' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{draftBookingFilters.status === 'all' && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}All</button>
+                    <button type="button" onClick={() => setDraftBookingFilters(prev => ({ ...prev, status: toggleArrayFilter(prev.status, 'all', BOOKING_STATUSES.length) }))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftBookingFilters.status.length === 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{draftBookingFilters.status.length === 0 && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}All</button>
                     {BOOKING_STATUSES.map(status => {
-                      const isSelected = draftBookingFilters.status === status
+                      const isSelected = draftBookingFilters.status.includes(status)
                       return (
-                         <button key={status} type="button" onClick={() => setDraftBookingFilters(prev => ({...prev, status}))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}{status}</button>
+                        <button key={status} type="button" onClick={() => setDraftBookingFilters(prev => ({ ...prev, status: toggleArrayFilter(prev.status, status, BOOKING_STATUSES.length) }))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}{status}</button>
                       )
                     })}
                   </div>
@@ -843,23 +882,41 @@ export const BookingManagement = () => {
                   <PodGridSelector
                     pods={podOptions}
                     selectedPodId={draftBookingFilters.pod_id}
-                    onSelect={(id) => setDraftBookingFilters(prev => ({...prev, pod_id: id}))}
+                    onSelect={(id) => setDraftBookingFilters(prev => ({ ...prev, pod_id: toggleArrayFilter(prev.pod_id, id, podOptions.length) }))}
                     showAllOption={true}
                     allOptionLabel="All scoped pods"
                   />
                 </div>
                 <div>
-                  <div className="flex items-center justify-between mb-3"><label className="block text-sm font-semibold text-gray-900">Date Range</label></div>
-                  <div className="border border-gray-200 rounded-xl shadow-sm bg-white overflow-hidden w-full custom-calendar max-w-[320px] mx-auto">
-                    <DatePicker
-                      selected={draftBookingFilters.dateRange[0]}
-                      onChange={(update: [Date | null, Date | null]) => setDraftBookingFilters(prev => ({ ...prev, dateRange: update }))}
-                      startDate={draftBookingFilters.dateRange[0] || undefined}
-                      endDate={draftBookingFilters.dateRange[1] || undefined}
-                      selectsRange
-                      inline
-                      monthsShown={1}
-                    />
+                  <div className="flex items-center justify-between mb-3"><label className="block text-sm font-semibold text-gray-900">Date Range (Booking Time)</label></div>
+                  <div className="border border-gray-200 rounded-xl shadow-sm bg-white custom-calendar w-full overflow-hidden">
+                    <div className="w-full p-4">
+                      <DatePicker
+                        selected={draftBookingFilters.dateRange[0]}
+                        onChange={(update: [Date | null, Date | null]) => setDraftBookingFilters(prev => ({ ...prev, dateRange: update }))}
+                        startDate={draftBookingFilters.dateRange[0] || undefined}
+                        endDate={draftBookingFilters.dateRange[1] || undefined}
+                        selectsRange
+                        inline
+                        monthsShown={1}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-white">
+                      <button
+                        type="button"
+                        onClick={() => setDraftBookingFilters(prev => ({ ...prev, dateRange: [null, null] }))}
+                        className="text-sm font-semibold text-gray-900 underline hover:text-gray-700 transition"
+                      >
+                        Clear
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyFilters()}
+                        className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-semibold transition hover:bg-gray-800"
+                      >
+                        Apply Date
+                      </button>
+                    </div>
                   </div>
                 </div>
               </>
@@ -868,11 +925,11 @@ export const BookingManagement = () => {
                 <div>
                   <div className="flex items-center justify-between mb-3"><label className="block text-sm font-semibold text-gray-900">Status</label></div>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => setDraftOrderFilters(prev => ({...prev, status: 'all'}))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftOrderFilters.status === 'all' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{draftOrderFilters.status === 'all' && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}All</button>
+                    <button type="button" onClick={() => setDraftOrderFilters(prev => ({ ...prev, status: toggleArrayFilter(prev.status, 'all', BOOKING_ORDER_STATUSES.length) }))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftOrderFilters.status.length === 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{draftOrderFilters.status.length === 0 && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}All</button>
                     {BOOKING_ORDER_STATUSES.map(status => {
-                      const isSelected = draftOrderFilters.status === status
+                      const isSelected = draftOrderFilters.status.includes(status)
                       return (
-                         <button key={status} type="button" onClick={() => setDraftOrderFilters(prev => ({...prev, status}))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}{status}</button>
+                        <button key={status} type="button" onClick={() => setDraftOrderFilters(prev => ({ ...prev, status: toggleArrayFilter(prev.status, status, BOOKING_ORDER_STATUSES.length) }))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}{status}</button>
                       )
                     })}
                   </div>
@@ -882,10 +939,42 @@ export const BookingManagement = () => {
                   <PodGridSelector
                     pods={podOptions}
                     selectedPodId={draftOrderFilters.pod_id}
-                    onSelect={(id) => setDraftOrderFilters(prev => ({...prev, pod_id: id}))}
+                    onSelect={(id) => setDraftOrderFilters(prev => ({ ...prev, pod_id: toggleArrayFilter(prev.pod_id, id, podOptions.length) }))}
                     showAllOption={true}
                     allOptionLabel="All pods in scope"
                   />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-3"><label className="block text-sm font-semibold text-gray-900">Date Range (Order Creation)</label></div>
+                  <div className="border border-gray-200 rounded-xl shadow-sm bg-white custom-calendar w-full overflow-hidden">
+                    <div className="w-full p-4">
+                      <DatePicker
+                        selected={draftOrderFilters.dateRange[0]}
+                        onChange={(update: [Date | null, Date | null]) => setDraftOrderFilters(prev => ({ ...prev, dateRange: update }))}
+                        startDate={draftOrderFilters.dateRange[0] || undefined}
+                        endDate={draftOrderFilters.dateRange[1] || undefined}
+                        selectsRange
+                        inline
+                        monthsShown={1}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-white">
+                      <button
+                        type="button"
+                        onClick={() => setDraftOrderFilters(prev => ({ ...prev, dateRange: [null, null] }))}
+                        className="text-sm font-semibold text-gray-900 underline hover:text-gray-700 transition"
+                      >
+                        Clear
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyFilters()}
+                        className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-semibold transition hover:bg-gray-800"
+                      >
+                        Apply Date
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </>
             )}
@@ -1192,16 +1281,16 @@ export const BookingManagement = () => {
                         <div key={booking.id} className="border border-gray-200 rounded-lg p-3 text-sm flex items-center justify-between">
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1">
                             <div>
-                               <p className="text-xs text-gray-500 uppercase">Pod</p>
-                               <p className="font-medium text-gray-900">{booking.pod?.code ?? podMap.get(booking.pod_id)?.code ?? compactId(booking.pod_id)}</p>
+                              <p className="text-xs text-gray-500 uppercase">Pod</p>
+                              <p className="font-medium text-gray-900">{booking.pod?.code ?? podMap.get(booking.pod_id)?.code ?? compactId(booking.pod_id)}</p>
                             </div>
                             <div>
-                               <p className="text-xs text-gray-500 uppercase">Start Time</p>
-                               <p className="font-medium text-gray-900">{formatDateTime(booking.start_time)}</p>
+                              <p className="text-xs text-gray-500 uppercase">Start Time</p>
+                              <p className="font-medium text-gray-900">{formatDateTime(booking.start_time)}</p>
                             </div>
                             <div>
-                               <p className="text-xs text-gray-500 uppercase">End Time</p>
-                               <p className="font-medium text-gray-900">{formatDateTime(booking.end_time)}</p>
+                              <p className="text-xs text-gray-500 uppercase">End Time</p>
+                              <p className="font-medium text-gray-900">{formatDateTime(booking.end_time)}</p>
                             </div>
                           </div>
                           <div className="ml-4 flex items-center justify-center">

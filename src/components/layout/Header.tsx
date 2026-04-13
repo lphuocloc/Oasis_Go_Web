@@ -1,5 +1,6 @@
 import React from 'react'
-import { Bell, Search, Menu } from 'lucide-react'
+import { Search, Menu } from 'lucide-react'
+import { NotificationDropdown } from '../common/NotificationDropdown'
 
 interface HeaderProps {
   userName?: string
@@ -30,17 +31,11 @@ const Header: React.FC<HeaderProps> = () => {
       </div>
 
       <div className="flex items-center gap-4">
-        <button
-          type="button"
-          className="relative rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-200"
-          aria-label="Notifications"
-        >
-          <Bell size={20} />
-          <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 border-2 border-white rounded-full"></span>
-        </button>
+        <NotificationDropdown />
       </div>
     </header>
   )
 }
 
 export default Header
+

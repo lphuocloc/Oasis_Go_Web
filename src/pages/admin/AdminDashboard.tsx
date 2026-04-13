@@ -21,8 +21,8 @@ import {
 import { adminStatsApi, type AdminStatsResponse } from '../../api/lib/statsApi'
 import {
   TrendingUp, AlertCircle, Calendar, Package,
-  RefreshCw, ChevronDown, DollarSign, Users,
-  Star, Tag, MapPin, ShieldCheck, ShieldOff, Clock
+  RefreshCw, ChevronDown, DollarSign,
+  Star, Tag, MapPin, ShieldCheck, Clock, ShoppingCart
 } from 'lucide-react'
 import { toast } from 'react-toastify'
 
@@ -39,17 +39,14 @@ ChartJS.register(
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-/** Statuses BE considers "open" for incidents — mirrors BE OPEN_INCIDENT_STATUSES */
-const OPEN_INCIDENT_STATUSES = ['PENDING', 'INVESTIGATING']
-
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type RangeOption = 'today' | 'week' | 'month'
 
 const RANGE_OPTIONS: { label: string; value: RangeOption }[] = [
-  { label: 'Today', value: 'today' },
-  { label: 'This Week', value: 'week' },
-  { label: 'This Month', value: 'month' }
+  { label: 'Hôm nay', value: 'today' },
+  { label: 'Tuần này', value: 'week' },
+  { label: 'Tháng này', value: 'month' }
 ]
 
 const getDateRange = (range: RangeOption): { from: Date; to: Date; groupBy: DashboardFilters['groupBy'] } => {
@@ -91,13 +88,6 @@ const STATUS_COLORS: Record<string, string> = {
   REFUND: 'bg-orange-100 text-orange-800',
   DISCOUNT: 'bg-purple-100 text-purple-800',
   PENALTY: 'bg-red-100 text-red-800',
-}
-
-const ROLE_COLORS: Record<string, string> = {
-  CUSTOMER: 'bg-sky-100 text-sky-800',
-  CLEANER: 'bg-teal-100 text-teal-800',
-  MANAGER: 'bg-violet-100 text-violet-800',
-  ADMIN: 'bg-rose-100 text-rose-800',
 }
 
 const TX_COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6']
@@ -157,62 +147,6 @@ const SectionTitle: React.FC<{ children: React.ReactNode; icon?: React.ReactNode
     <h2 className="text-base font-semibold text-gray-800">{children}</h2>
   </div>
 )
-
-const CurrencyBarChart: React.FC<{ labels: string[]; values: number[] }> = ({ labels, values }) => {
-  const chartRef = useRef<HTMLCanvasElement | null>(null)
-
-  useEffect(() => {
-    if (!chartRef.current) return
-
-    const data: ChartData<'bar'> = {
-      labels,
-      datasets: [
-        {
-          label: 'Amount',
-          data: values,
-          backgroundColor: labels.map((_, idx) => TX_COLORS[idx % TX_COLORS.length]),
-          borderRadius: 8,
-          borderSkipped: false
-        }
-      ]
-    }
-
-    const options: ChartOptions<'bar'> = {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => formatCurrency(Number(ctx.raw) || 0)
-          }
-        }
-      },
-      scales: {
-        x: {
-          grid: { display: false },
-          ticks: { color: '#64748b' }
-        },
-        y: {
-          grid: { color: '#e2e8f0' },
-          ticks: {
-            color: '#64748b',
-            callback: (tickValue) => new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 }).format(Number(tickValue))
-          }
-        }
-      }
-    }
-
-    const chart = new ChartJS(chartRef.current, { type: 'bar', data, options })
-    return () => chart.destroy()
-  }, [labels, values])
-
-  return (
-    <div className="h-72">
-      <canvas ref={chartRef} />
-    </div>
-  )
-}
 
 const DoughnutCountChart: React.FC<{ labels: string[]; values: number[] }> = ({ labels, values }) => {
   const chartRef = useRef<HTMLCanvasElement | null>(null)
@@ -274,16 +208,144 @@ const DoughnutCountChart: React.FC<{ labels: string[]; values: number[] }> = ({ 
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export const AdminDashboard = () => {
-  const [dashData, setDashData] = useState<AdminDashboardResponse['data'] | null>(null)
-  const [statsData, setStatsData] = useState<AdminStatsResponse['data'] | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [statsError, setStatsError] = useState(false)
-  const [range, setRange] = useState<RangeOption>('today')
-  const [showRangePicker, setShowRangePicker] = useState(false)
 
-  const fetchAll = async (selectedRange: RangeOption) => {
-    setIsLoading(true)
+const mapDateLabelToVietnamese = (label: string, groupBy: string) => {
+  if (groupBy === 'day') {
+    const date = new Date(label)
+    if (!Number.isNaN(date.getTime())) {
+      const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7']
+      return days[date.getDay()]
+    }
+  }
+  return label
+}
+
+const BarChart: React.FC<{
+  labels: string[]
+  revenue: number[]
+  orders: number[]
+}> = ({ labels, revenue, orders }) => {
+  const chartRef = useRef<HTMLCanvasElement | null>(null)
+
+  useEffect(() => {
+    if (!chartRef.current) return
+
+    const data: ChartData<'bar'> = {
+      labels,
+      datasets: [
+        {
+          label: 'Doanh thu',
+          data: revenue,
+          backgroundColor: '#10b981',
+          yAxisID: 'y',
+          borderRadius: 4,
+          barPercentage: 0.7,
+          categoryPercentage: 0.7
+        },
+        {
+          label: 'Đơn hàng',
+          data: orders,
+          backgroundColor: '#3b82f6',
+          yAxisID: 'y1',
+          borderRadius: 4,
+          barPercentage: 0.7,
+          categoryPercentage: 0.7
+        }
+      ]
+    }
+
+    const options: ChartOptions<'bar'> = {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false,
+      },
+      plugins: {
+        legend: {
+          position: 'top',
+          align: 'end',
+          labels: {
+            usePointStyle: true,
+            boxWidth: 8,
+            color: '#64748b'
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              if (ctx.datasetIndex === 0) {
+                const amount = Number(ctx.raw) || 0
+                return `Doanh thu: ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount)}`
+              } else {
+                return `Đơn hàng: ${ctx.raw}`
+              }
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: '#64748b', font: { size: 13, weight: 'bold' } }
+        },
+        y: {
+          type: 'linear',
+          display: true,
+          position: 'left',
+          beginAtZero: true,
+          grid: { color: '#f1f5f9' },
+          ticks: {
+            color: '#64748b',
+            font: { size: 13, weight: 'bold' },
+            callback: (tickValue) =>
+              new Intl.NumberFormat('vi-VN', {
+                notation: 'compact',
+                maximumFractionDigits: 1
+              }).format(Number(tickValue))
+          }
+        },
+        y1: {
+          type: 'linear',
+          display: true,
+          position: 'right',
+          beginAtZero: true,
+          grid: { drawOnChartArea: false },
+          ticks: { color: '#64748b', font: { size: 13, weight: 'bold' }, stepSize: 1 }
+        }
+      }
+    }
+
+    const chart = new ChartJS(chartRef.current, {
+      type: 'bar',
+      data,
+      options
+    })
+
+    return () => chart.destroy()
+  }, [labels, revenue, orders])
+
+  return (
+    <div className="h-72">
+      <canvas ref={chartRef} />
+    </div>
+  )
+}
+
+export const AdminDashboard = () => {
+  const [kpiDashData, setKpiDashData] = useState<AdminDashboardResponse['data'] | null>(null)
+  const [kpiStatsData, setKpiStatsData] = useState<AdminStatsResponse['data'] | null>(null)
+  const [analyticsDashData, setAnalyticsDashData] = useState<AdminDashboardResponse['data'] | null>(null)
+  const [analyticsStatsData, setAnalyticsStatsData] = useState<AdminStatsResponse['data'] | null>(null)
+  const [isKpiLoading, setIsKpiLoading] = useState(true)
+  const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(true)
+  const [kpiRange, setKpiRange] = useState<RangeOption>('month')
+  const [analyticsRange, setAnalyticsRange] = useState<RangeOption>('week')
+  const [showKpiRangePicker, setShowKpiRangePicker] = useState(false)
+  const [showAnalyticsRangePicker, setShowAnalyticsRangePicker] = useState(false)
+
+  const fetchKpiData = async (selectedRange: RangeOption) => {
+    setIsKpiLoading(true)
     const { from, to, groupBy } = getDateRange(selectedRange)
 
     const [dashResult, statsResult] = await Promise.allSettled([
@@ -292,103 +354,87 @@ export const AdminDashboard = () => {
     ])
 
     if (dashResult.status === 'fulfilled') {
-      setDashData(dashResult.value.data)
+      setKpiDashData(dashResult.value.data)
     } else {
       toast.error('Failed to load operations data')
     }
 
     if (statsResult.status === 'fulfilled') {
-      setStatsData(statsResult.value.data)
-      setStatsError(false)
-    } else {
-      setStatsError(true)
+      setKpiStatsData(statsResult.value.data)
     }
 
-    setIsLoading(false)
+    setIsKpiLoading(false)
+  }
+
+  const fetchAnalyticsData = async (selectedRange: RangeOption) => {
+    setIsAnalyticsLoading(true)
+    const { from, to, groupBy } = getDateRange(selectedRange)
+
+    const [dashResult, statsResult] = await Promise.allSettled([
+      adminDashboardApi.getDashboard({ from, to, groupBy }),
+      adminStatsApi.getStats({ from, to })
+    ])
+
+    if (dashResult.status === 'fulfilled') {
+      setAnalyticsDashData(dashResult.value.data)
+    } else {
+      toast.error('Failed to load analytics data')
+    }
+
+    if (statsResult.status === 'fulfilled') {
+      setAnalyticsStatsData(statsResult.value.data)
+    }
+
+    setIsAnalyticsLoading(false)
   }
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchAll(range)
-  }, [range])
+    fetchKpiData(kpiRange)
+  }, [kpiRange])
 
-  const rangeLabel = RANGE_OPTIONS.find(o => o.value === range)?.label ?? 'Today'
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchAnalyticsData(analyticsRange)
+  }, [analyticsRange])
 
-  const locations = useMemo(() => statsData?.locations ?? [], [statsData])
-  const usersByRole = useMemo(() => statsData?.users.byRole ?? [], [statsData])
-  const revenueByMethod = useMemo(() => statsData?.revenue.byMethod ?? [], [statsData])
-  const revenueByStatus = useMemo(() => statsData?.revenue.byStatus ?? [], [statsData])
-  const recentTransactions = useMemo(() => statsData?.revenue.recentTransactions ?? [], [statsData])
-  const latestReviews = useMemo(() => statsData?.reviews.latest ?? [], [statsData])
-  const topVouchers = useMemo(() => statsData?.vouchers.topVouchers ?? [], [statsData])
+  const isLoading = isKpiLoading || isAnalyticsLoading
 
-  const txAmountByType = useMemo(() => {
-    return recentTransactions.reduce<Record<string, number>>((acc, tx) => {
-      const key = tx.type || 'UNKNOWN'
-      const signedAmount = tx.type === 'REFUND' || tx.type === 'DISCOUNT' ? -Math.abs(tx.amount) : tx.amount
-      acc[key] = (acc[key] || 0) + signedAmount
-      return acc
-    }, {})
-  }, [recentTransactions])
+  const kpiRangeLabel = RANGE_OPTIONS.find(o => o.value === kpiRange)?.label ?? 'Tháng này'
+  const analyticsRangeLabel = RANGE_OPTIONS.find(o => o.value === analyticsRange)?.label ?? 'Tuần này'
 
-  const txStatusCount = useMemo(() => {
-    if (revenueByStatus.length) {
-      return revenueByStatus.reduce<Record<string, number>>((acc, item) => {
-        acc[item.status] = (acc[item.status] || 0) + item.count
-        return acc
-      }, {})
-    }
-
-    return recentTransactions.reduce<Record<string, number>>((acc, tx) => {
-      const key = tx.status || 'UNKNOWN'
-      acc[key] = (acc[key] || 0) + 1
-      return acc
-    }, {})
-  }, [revenueByStatus, recentTransactions])
-
-  const txAmountChartData = useMemo(
-    () => Object.entries(txAmountByType).map(([label, value]) => ({ label, value })),
-    [txAmountByType]
+  const locations = useMemo(() => analyticsStatsData?.locations ?? [], [analyticsStatsData])
+  const sortedLocations = useMemo(
+    () => [...locations].sort((a, b) => b.totalRevenue - a.totalRevenue),
+    [locations]
   )
-
-  const txStatusChartData = useMemo(
-    () => Object.entries(txStatusCount).map(([label, value]) => ({ label, value })),
-    [txStatusCount]
-  )
+  const revenueByMethod = useMemo(() => analyticsStatsData?.revenue.byMethod ?? [], [analyticsStatsData])
+  const recentTransactions = useMemo(() => analyticsStatsData?.revenue.recentTransactions ?? [], [analyticsStatsData])
+  const latestReviews = useMemo(() => analyticsStatsData?.reviews.latest ?? [], [analyticsStatsData])
+  const ratingDistribution = useMemo(() => analyticsStatsData?.reviews.ratingDistribution ?? [], [analyticsStatsData])
+  const topVouchers = useMemo(() => analyticsStatsData?.vouchers.topVouchers ?? [], [analyticsStatsData])
 
   // ── Derived values — computed FE-side from raw BE lists ───────────────────
   // BE /dashboard returns raw lists; byStatus, charts & latest entries are derived here.
 
-  const podsByStatus = useMemo(
-    () => dashData?.pods.list.reduce<Record<string, number>>((acc, p) => {
-      const k = p.status || 'UNKNOWN'; acc[k] = (acc[k] || 0) + 1; return acc
-    }, {}) ?? {},
-    [dashData]
-  )
-
   const bookingsByStatus = useMemo(
-    () => dashData?.bookings.list.reduce<Record<string, number>>((acc, b) => {
+    () => analyticsDashData?.bookings.list.reduce<Record<string, number>>((acc, b) => {
       const k = b.status || 'UNKNOWN'; acc[k] = (acc[k] || 0) + 1; return acc
     }, {}) ?? {},
-    [dashData]
+    [analyticsDashData]
   )
 
   const incidentsByStatus = useMemo(
-    () => dashData?.incidents.list.reduce<Record<string, number>>((acc, i) => {
+    () => analyticsDashData?.incidents.list.reduce<Record<string, number>>((acc, i) => {
       const k = i.status || 'UNKNOWN'; acc[k] = (acc[k] || 0) + 1; return acc
     }, {}) ?? {},
-    [dashData]
-  )
-
-  const openIncidentsNow = useMemo(
-    () => dashData?.incidents.list.filter(i => OPEN_INCIDENT_STATUSES.includes(i.status)).length ?? 0,
-    [dashData]
+    [analyticsDashData]
   )
 
   /** id → pod — used to resolve podCode in booking/incident rows */
   const podMap = useMemo(
-    () => new Map<string, DashboardPod>(dashData?.pods.list.map(p => [p.id, p]) ?? []),
-    [dashData]
+    () => new Map<string, DashboardPod>(analyticsDashData?.pods.list.map(p => [p.id, p]) ?? []),
+    [analyticsDashData]
   )
 
   const bookingsStatusPie = useMemo(
@@ -402,8 +448,8 @@ export const AdminDashboard = () => {
   )
 
   const latestBookings = useMemo(() => {
-    if (!dashData) return []
-    return [...dashData.bookings.list]
+    if (!analyticsDashData) return []
+    return [...analyticsDashData.bookings.list]
       .sort((a, b) => new Date(b.start_time ?? 0).getTime() - new Date(a.start_time ?? 0).getTime())
       .slice(0, 5)
       .map(b => ({
@@ -413,11 +459,15 @@ export const AdminDashboard = () => {
         startTime: b.start_time ?? '',
         status: b.status
       }))
-  }, [dashData, podMap])
+  }, [analyticsDashData, podMap])
+
+
+  const revenueTrend = useMemo(() => analyticsDashData?.charts?.revenueTrend?.points ?? [], [analyticsDashData])
+  const groupBy = analyticsDashData?.charts?.revenueTrend?.groupBy || 'hour'
 
   const latestIncidents = useMemo(() => {
-    if (!dashData) return []
-    return [...dashData.incidents.list]
+    if (!analyticsDashData) return []
+    return [...analyticsDashData.incidents.list]
       .sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())
       .slice(0, 5)
       .map(i => ({
@@ -427,7 +477,7 @@ export const AdminDashboard = () => {
         status: i.status,
         created_at: i.created_at ?? ''
       }))
-  }, [dashData, podMap])
+  }, [analyticsDashData, podMap])
 
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
@@ -435,39 +485,20 @@ export const AdminDashboard = () => {
       {/* ── Page Header ──────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-500 mt-1">System-wide overview of Oasis Go operations.</p>
+          <h1 className="text-3xl font-bold text-gray-900">Bảng Điều Khiển</h1>
+          <p className="text-gray-500 mt-1">Tổng quan hoạt động trên toàn hệ thống Oasis Go.</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="relative">
-            <button
-              onClick={() => setShowRangePicker(v => !v)}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
-            >
-              {rangeLabel}
-              <ChevronDown className="w-4 h-4 text-gray-400" />
-            </button>
-            {showRangePicker && (
-              <div className="absolute right-0 mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-10 overflow-hidden">
-                {RANGE_OPTIONS.map(opt => (
-                  <button
-                    key={opt.value}
-                    onClick={() => { setRange(opt.value); setShowRangePicker(false) }}
-                    className={`w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 transition-colors ${range === opt.value ? 'text-blue-600 font-semibold bg-blue-50' : 'text-gray-700'}`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
           <button
-            onClick={() => fetchAll(range)}
+            onClick={() => {
+              void fetchKpiData(kpiRange)
+              void fetchAnalyticsData(analyticsRange)
+            }}
             disabled={isLoading}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 shadow-sm transition-colors"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
+            Làm mới
           </button>
         </div>
       </div>
@@ -483,280 +514,169 @@ export const AdminDashboard = () => {
 
       {!isLoading && (
         <>
-          {/* ── Section 1: Operations KPIs ───────────────────────────────── */}
-          <div className="mb-3">
-            <SectionTitle icon={<Package className="w-4 h-4" />}>Operations Overview</SectionTitle>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <SummaryCard
-              title="Total Pods"
-              value={dashData?.summary.podsTotal ?? '—'}
-              icon={<Package className="w-5 h-5 text-blue-600" />}
-              iconBg="bg-blue-50"
-              extra={dashData && Object.entries(podsByStatus).map(([status, count]) => (
-                <div key={status} className="flex justify-between items-center">
-                  <StatusBadge status={status} />
-                  <span className="font-semibold text-gray-700">{count}</span>
-                </div>
-              ))}
-            />
-
-            <SummaryCard
-              title={`Bookings (${rangeLabel})`}
-              value={dashData?.summary.bookingsInRange ?? '—'}
-              icon={<Calendar className="w-5 h-5 text-green-600" />}
-              iconBg="bg-green-50"
-              extra={dashData && Object.entries(bookingsByStatus).map(([status, count]) => (
-                <div key={status} className="flex justify-between items-center">
-                  <StatusBadge status={status} />
-                  <span className="font-semibold text-gray-700">{count}</span>
-                </div>
-              ))}
-            />
-
-            <SummaryCard
-              title="Incidents (All)"
-              value={dashData?.summary.incidentsTotal ?? '—'}
-              icon={<AlertCircle className="w-5 h-5 text-red-600" />}
-              iconBg="bg-red-50"
-              extra={dashData && (
-                <>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />
-                    <span className="text-orange-600 font-semibold">{openIncidentsNow} Open Now</span>
-                  </div>
-                  {Object.entries(incidentsByStatus).map(([status, count]) => (
-                    <div key={status} className="flex justify-between items-center">
-                      <StatusBadge status={status} />
-                      <span className="font-semibold text-gray-700">{count}</span>
-                    </div>
+          {/* ── Section 1: Overview KPIs ───────────────────────────────── */}
+          <div className="flex items-center justify-between mb-3 mt-6">
+            <SectionTitle icon={<Package className="w-4 h-4" />}>Tổng Quan Hoạt Động {"&"} Doanh Thu</SectionTitle>
+            <div className="relative">
+              <button
+                onClick={() => setShowKpiRangePicker(v => !v)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
+              >
+                {kpiRangeLabel}
+                <ChevronDown className="w-4 h-4 text-gray-400" />
+              </button>
+              {showKpiRangePicker && (
+                <div className="absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded-lg shadow-lg z-10 overflow-hidden">
+                  {RANGE_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => { setKpiRange(opt.value); setShowKpiRangePicker(false) }}
+                      className={`w-full px-4 py-2 text-left text-xs hover:bg-gray-50 transition-colors ${kpiRange === opt.value ? 'text-blue-600 font-semibold bg-blue-50' : 'text-gray-700'}`}
+                    >
+                      {opt.label}
+                    </button>
                   ))}
-                </>
+                </div>
               )}
-            />
-
-            <SummaryCard
-              title="Pod Availability"
-              value={(() => {
-                const available = podsByStatus['AVAILABLE'] ?? 0
-                const total = dashData?.summary.podsTotal || 1
-                return `${Math.round((available / total) * 100)}%`
-              })()}
-              icon={<TrendingUp className="w-5 h-5 text-purple-600" />}
-              iconBg="bg-purple-50"
-              extra={(() => {
-                const available = podsByStatus['AVAILABLE'] ?? 0
-                const total = dashData?.summary.podsTotal || 1
-                const pct = Math.round((available / total) * 100)
-                return (
-                  <>
-                    <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                      <div className="bg-purple-500 h-2 rounded-full transition-all" style={{ width: `${pct}%` }} />
-                    </div>
-                    <p className="text-gray-500 mt-1">{available} of {total} pods available</p>
-                  </>
-                )
-              })()}
-            />
-          </div>
-
-          {/* ── Section 2: Admin KPIs (Revenue, Users, Rating, Reviews) ──── */}
-          <div className="mb-3">
-            <SectionTitle icon={<DollarSign className="w-4 h-4" />}>Business Overview</SectionTitle>
-          </div>
-          {statsError && (
-            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-sm">
-              Business stats are temporarily unavailable — operations data above is still live.
             </div>
-          )}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            {/* Revenue */}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             <SummaryCard
-              title={`Revenue (${rangeLabel})`}
-              value={statsData ? formatCurrency(statsData.revenue.periodRevenue) : '—'}
+              title={`Doanh thu`}
+              value={kpiStatsData ? formatCurrency(kpiStatsData.revenue.periodRevenue) : '—'}
               icon={<DollarSign className="w-5 h-5 text-emerald-600" />}
               iconBg="bg-emerald-50"
-              extra={statsData && (
-                <>
-                  <div className="flex justify-between text-gray-500">
-                    <span>Successful</span>
-                    <span className="font-semibold text-gray-700">{statsData.revenue.successfulPayments} txns</span>
-                  </div>
-                  {statsData.revenue.refundedAmount > 0 && (
-                    <div className="flex justify-between text-gray-500">
-                      <span>Refunded</span>
-                      <span className="font-semibold text-orange-600">-{formatCurrency(statsData.revenue.refundedAmount)}</span>
-                    </div>
-                  )}
-                </>
-              )}
             />
 
-            {/* Users */}
             <SummaryCard
-              title="Total Users"
-              value={statsData?.users.total ?? '—'}
-              icon={<Users className="w-5 h-5 text-sky-600" />}
+              title={`Tổng Booking`}
+              value={kpiDashData?.summary.bookingsInRange ?? '—'}
+              icon={<Calendar className="w-5 h-5 text-blue-600" />}
+              iconBg="bg-blue-50"
+            />
+
+            <SummaryCard
+              title="Tổng Order"
+              value={kpiDashData?.summary.ordersInRange ?? 0}
+              icon={<ShoppingCart className="w-5 h-5 text-sky-600" />}
               iconBg="bg-sky-50"
-              badge={statsData?.users.newInPeriod ? (
-                <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                  +{statsData.users.newInPeriod} new
-                </span>
-              ) : undefined}
-              extra={statsData && (
-                <div className="flex justify-between text-gray-500">
-                  <span>Active</span>
-                  <span className="font-semibold text-gray-700">{statsData.users.active}</span>
-                </div>
-              )}
             />
 
-            {/* Avg Rating */}
-            <SummaryCard
-              title="Average Rating"
-              value={statsData ? statsData.reviews.averageRating.toFixed(1) : '—'}
-              icon={<Star className="w-5 h-5 text-yellow-500" />}
-              iconBg="bg-yellow-50"
-              extra={statsData && (
-                <>
-                  <div className="mt-1">
-                    <StarRating rating={statsData.reviews.averageRating} />
-                  </div>
-                  <div className="flex justify-between text-gray-500 mt-1">
-                    <span>Total reviews</span>
-                    <span className="font-semibold text-gray-700">{statsData.reviews.total}</span>
-                  </div>
-                </>
-              )}
-            />
-
-            {/* Pending Reviews */}
-            <SummaryCard
-              title="Pending Moderation"
-              value={statsData?.reviews.pendingModeration ?? '—'}
-              icon={<ShieldOff className="w-5 h-5 text-rose-600" />}
-              iconBg="bg-rose-50"
-              extra={statsData && (
-                <>
-                  <div className="flex justify-between text-gray-500">
-                    <span>Vouchers active</span>
-                    <span className="font-semibold text-gray-700">{statsData.vouchers.totalActive}</span>
-                  </div>
-                  <div className="flex justify-between text-gray-500">
-                    <span>Used ({rangeLabel})</span>
-                    <span className="font-semibold text-gray-700">{statsData.vouchers.usedInPeriod}</span>
-                  </div>
-                </>
-              )}
-            />
           </div>
 
-          {/* ── Section 3: Four Charts ────────────────────────────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <SectionTitle icon={<TrendingUp className="w-4 h-4" />}>Biểu đồ Thống kê</SectionTitle>
+            <div className="relative">
+              <button
+                onClick={() => setShowAnalyticsRangePicker(v => !v)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
+              >
+                {analyticsRangeLabel}
+                <ChevronDown className="w-4 h-4 text-gray-400" />
+              </button>
+              {showAnalyticsRangePicker && (
+                <div className="absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded-lg shadow-lg z-10 overflow-hidden">
+                  {RANGE_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => { setAnalyticsRange(opt.value); setShowAnalyticsRangePicker(false) }}
+                      className={`w-full px-4 py-2 text-left text-xs hover:bg-gray-50 transition-colors ${analyticsRange === opt.value ? 'text-blue-600 font-semibold bg-blue-50' : 'text-gray-700'}`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            {/* Revenue Trend Chart - span 2 columns */}
+            <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-base font-semibold text-gray-900">Doanh thu và Đơn hàng ({analyticsRangeLabel})</h2>
+              </div>
+              {revenueTrend.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-8 my-auto">Không có dữ liệu trong thời gian này</p>
+              ) : (
+                <div className="flex-1">
+                  <BarChart
+                    labels={revenueTrend.map((point) => mapDateLabelToVietnamese(point.label, groupBy))}
+                    revenue={revenueTrend.map((point) => point.amount)}
+                    orders={revenueTrend.map((point) => point.orders ?? 0)}
+                  />
+                </div>
+              )}
+            </div>
+
             {/* Booking Status Distribution */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-base font-semibold text-gray-900 mb-5">Bookings Status Distribution</h2>
-              {!dashData || bookingsStatusPie.length === 0 ? (
-                <p className="text-gray-400 text-sm text-center py-8">No booking data available</p>
+            <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col">
+              <h2 className="text-base font-semibold text-gray-900 mb-5">Trạng thái Booking</h2>
+              {bookingsStatusPie.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-8 my-auto">Không có dữ liệu booking</p>
               ) : (
-                <div className="space-y-3">
-                  {bookingsStatusPie.map((item) => {
-                    const pct = Math.round((item.count / (dashData.summary.bookingsInRange || 1)) * 100)
-                    return (
-                      <div key={item.status} className="flex items-center gap-3">
-                        <div className="w-28 shrink-0"><StatusBadge status={item.status} /></div>
-                        <div className="flex-1 bg-gray-100 rounded-full h-2">
-                          <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${pct}%` }} />
-                        </div>
-                        <span className="text-sm font-semibold text-gray-700 w-10 text-right">{item.count}</span>
-                      </div>
-                    )
-                  })}
+                <div className="flex-1 max-h-72">
+                  <DoughnutCountChart
+                    labels={bookingsStatusPie.map(item => item.status)}
+                    values={bookingsStatusPie.map(item => item.count)}
+                  />
                 </div>
               )}
             </div>
 
-            {/* Incidents Status Distribution */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-base font-semibold text-gray-900 mb-5">Incidents Status Distribution</h2>
-              {!dashData || incidentsStatusPie.length === 0 ? (
-                <p className="text-gray-400 text-sm text-center py-8">No incident data available</p>
+            {/* Payment Method Distribution */}
+            <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col">
+              <h2 className="text-base font-semibold text-gray-900 mb-5">PT Thanh toán ({analyticsRangeLabel})</h2>
+              {revenueByMethod.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-8 my-auto">Không có dữ liệu thanh toán</p>
               ) : (
-                <div className="space-y-3">
-                  {incidentsStatusPie.map((item) => {
-                    const pct = Math.round((item.count / (dashData.summary.incidentsTotal || 1)) * 100)
-                    return (
-                      <div key={item.status} className="flex items-center gap-3">
-                        <div className="w-28 shrink-0"><StatusBadge status={item.status} /></div>
-                        <div className="flex-1 bg-gray-100 rounded-full h-2">
-                          <div className="bg-red-500 h-2 rounded-full" style={{ width: `${pct}%` }} />
-                        </div>
-                        <span className="text-sm font-semibold text-gray-700 w-10 text-right">{item.count}</span>
-                      </div>
-                    )
-                  })}
+                <div className="flex-1 max-h-72">
+                  <DoughnutCountChart
+                    labels={revenueByMethod.map(item => item.method)}
+                    values={revenueByMethod.map(item => item.count)}
+                  />
                 </div>
               )}
             </div>
 
-            {/* Revenue by Payment Method */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-base font-semibold text-gray-900 mb-5">Revenue by Payment Method</h2>
-              {!statsData || revenueByMethod.length === 0 ? (
-                <p className="text-gray-400 text-sm text-center py-8">No payment data available</p>
+            {/* Incident Status Distribution */}
+            <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col">
+              <h2 className="text-base font-semibold text-gray-900 mb-5">Trạng thái Sự cố</h2>
+              {incidentsStatusPie.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-8 my-auto">Không có dữ liệu sự cố</p>
               ) : (
-                <div className="space-y-3">
-                  {revenueByMethod.map((item) => {
-                    const maxAmount = Math.max(...revenueByMethod.map(m => m.amount), 1)
-                    const pct = Math.round((item.amount / maxAmount) * 100)
-                    return (
-                      <div key={item.method} className="flex items-center gap-3">
-                        <span className="w-20 shrink-0 text-sm text-gray-600 font-medium">{item.method}</span>
-                        <div className="flex-1 bg-gray-100 rounded-full h-2">
-                          <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${pct}%` }} />
-                        </div>
-                        <span className="text-xs text-gray-500 w-6 text-right">{item.count}</span>
-                        <span className="text-sm font-semibold text-gray-700 w-24 text-right">{formatCurrency(item.amount)}</span>
-                      </div>
-                    )
-                  })}
+                <div className="flex-1 max-h-72">
+                  <DoughnutCountChart
+                    labels={incidentsStatusPie.map(item => item.status)}
+                    values={incidentsStatusPie.map(item => item.count)}
+                  />
                 </div>
               )}
             </div>
 
-            {/* Users by Role */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-base font-semibold text-gray-900 mb-5">Users by Role</h2>
-              {!statsData || usersByRole.length === 0 ? (
-                <p className="text-gray-400 text-sm text-center py-8">No user data available</p>
+            <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col">
+              <h2 className="text-base font-semibold text-gray-900 mb-5">Phân bố Đánh giá</h2>
+              {ratingDistribution.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-8 my-auto">Không có dữ liệu đánh giá</p>
               ) : (
-                <div className="space-y-3">
-                  {usersByRole.map((item) => {
-                    const pct = Math.round((item.count / (statsData.users.total || 1)) * 100)
-                    return (
-                      <div key={item.role} className="flex items-center gap-3">
-                        <div className="w-24 shrink-0">
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${ROLE_COLORS[item.role] ?? 'bg-gray-100 text-gray-700'}`}>
-                            {item.role}
-                          </span>
-                        </div>
-                        <div className="flex-1 bg-gray-100 rounded-full h-2">
-                          <div className="bg-sky-500 h-2 rounded-full" style={{ width: `${pct}%` }} />
-                        </div>
-                        <span className="text-sm font-semibold text-gray-700 w-10 text-right">{item.count}</span>
-                      </div>
-                    )
-                  })}
+                <div className="flex-1 max-h-72">
+                  <DoughnutCountChart
+                    labels={ratingDistribution.map(item => `${item.rating} sao`)}
+                    values={ratingDistribution.map(item => item.count)}
+                  />
                 </div>
               )}
             </div>
+
           </div>
 
           {/* ── Section 4: Latest Bookings & Incidents ────────────────────── */}
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                <h2 className="text-base font-semibold text-gray-900">Latest Bookings</h2>
+                <h2 className="text-base font-semibold text-gray-900">Booking Mới Nhất</h2>
                 <Calendar className="w-4 h-4 text-gray-400" />
               </div>
               <div className="overflow-x-auto">
@@ -764,9 +684,9 @@ export const AdminDashboard = () => {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pod</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Người Dùng</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bắt đầu lúc</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -782,7 +702,7 @@ export const AdminDashboard = () => {
                         </tr>
                       ))
                     ) : (
-                      <tr><td colSpan={4} className="px-6 py-10 text-center text-gray-400">No bookings in this period</td></tr>
+                      <tr><td colSpan={4} className="px-6 py-10 text-center text-gray-400">Không có booking trong khoảng thời gian này</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -791,7 +711,7 @@ export const AdminDashboard = () => {
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                <h2 className="text-base font-semibold text-gray-900">Latest Incidents</h2>
+                <h2 className="text-base font-semibold text-gray-900">Sự Cố Gần Nhất</h2>
                 <AlertCircle className="w-4 h-4 text-gray-400" />
               </div>
               <div className="overflow-x-auto">
@@ -799,9 +719,9 @@ export const AdminDashboard = () => {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pod</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Severity</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mức độ</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày tạo</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -822,7 +742,7 @@ export const AdminDashboard = () => {
                         </tr>
                       ))
                     ) : (
-                      <tr><td colSpan={4} className="px-6 py-10 text-center text-gray-400">No incidents in this period</td></tr>
+                      <tr><td colSpan={4} className="px-6 py-10 text-center text-gray-400">Không có sự cố trong khoảng thời gian này</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -833,24 +753,24 @@ export const AdminDashboard = () => {
           {/* ── Section 5: Location Performance ──────────────────────────── */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-8">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-gray-900">Location Performance</h2>
+              <h2 className="text-base font-semibold text-gray-900">Hiệu suất hoạt động theo Khu vực</h2>
               <MapPin className="w-4 h-4 text-gray-400" />
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Pods</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Active Pods</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Bookings</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Khu vực</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng Pod</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Pod Hoạt động</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Lượt Booking</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Doanh thu</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {locations.length ? (
-                    locations.map(loc => (
+                  {sortedLocations.length ? (
+                    sortedLocations.map(loc => (
                       <tr key={loc.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-3 font-medium text-gray-900">{loc.name}</td>
                         <td className="px-6 py-3">
@@ -865,39 +785,10 @@ export const AdminDashboard = () => {
                       </tr>
                     ))
                   ) : (
-                    <tr><td colSpan={6} className="px-6 py-10 text-center text-gray-400">No location data available</td></tr>
+                    <tr><td colSpan={6} className="px-6 py-10 text-center text-gray-400">Không có dữ liệu khu vực</td></tr>
                   )}
                 </tbody>
               </table>
-            </div>
-          </div>
-
-          {/* ── Section 6: Transaction Charts ────────────────────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-base font-semibold text-gray-900 mb-2">Transaction Amount by Type</h2>
-              <p className="text-sm text-gray-500 mb-5">Signed amount by recent transaction type in {rangeLabel.toLowerCase()}.</p>
-              {txAmountChartData.length === 0 ? (
-                <p className="text-gray-400 text-sm text-center py-8">No transaction amount data available</p>
-              ) : (
-                <CurrencyBarChart
-                  labels={txAmountChartData.map(item => item.label)}
-                  values={txAmountChartData.map(item => item.value)}
-                />
-              )}
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-base font-semibold text-gray-900 mb-2">Transaction Status Distribution</h2>
-              <p className="text-sm text-gray-500 mb-5">Share of transaction processing states.</p>
-              {txStatusChartData.length === 0 ? (
-                <p className="text-gray-400 text-sm text-center py-8">No transaction status data available</p>
-              ) : (
-                <DoughnutCountChart
-                  labels={txStatusChartData.map(item => item.label)}
-                  values={txStatusChartData.map(item => item.value)}
-                />
-              )}
             </div>
           </div>
 
@@ -906,17 +797,17 @@ export const AdminDashboard = () => {
             {/* Recent Transactions */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                <h2 className="text-base font-semibold text-gray-900">Recent Transactions</h2>
+                <h2 className="text-base font-semibold text-gray-900">Giao dịch gần đây</h2>
                 <Clock className="w-4 h-4 text-gray-400" />
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Số tiền</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -934,7 +825,7 @@ export const AdminDashboard = () => {
                         </tr>
                       ))
                     ) : (
-                      <tr><td colSpan={4} className="px-6 py-10 text-center text-gray-400">No transactions in this period</td></tr>
+                      <tr><td colSpan={4} className="px-6 py-10 text-center text-gray-400">Không có giao dịch trong khoảng thời gian này</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -944,11 +835,11 @@ export const AdminDashboard = () => {
             {/* Reviews Moderation */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                <h2 className="text-base font-semibold text-gray-900">Pending Review Moderation</h2>
+                <h2 className="text-base font-semibold text-gray-900">Đánh giá chờ duyệt</h2>
                 <div className="flex items-center gap-2">
-                  {statsData && statsData.reviews.pendingModeration > 0 && (
+                  {analyticsStatsData && analyticsStatsData.reviews.pendingModeration > 0 && (
                     <span className="px-2 py-0.5 bg-rose-100 text-rose-700 rounded-full text-xs font-semibold">
-                      {statsData.reviews.pendingModeration} pending
+                      {analyticsStatsData.reviews.pendingModeration} pending
                     </span>
                   )}
                   <ShieldCheck className="w-4 h-4 text-gray-400" />
@@ -958,10 +849,10 @@ export const AdminDashboard = () => {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Người Dùng</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pod</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Comment</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Đánh giá</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bình luận</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -977,7 +868,7 @@ export const AdminDashboard = () => {
                         </tr>
                       ))
                     ) : (
-                      <tr><td colSpan={4} className="px-6 py-10 text-center text-gray-400">No reviews pending moderation</td></tr>
+                      <tr><td colSpan={4} className="px-6 py-10 text-center text-gray-400">Không có đánh giá nào chờ duyệt</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -986,21 +877,21 @@ export const AdminDashboard = () => {
           </div>
 
           {/* ── Section 8: Top Vouchers ───────────────────────────────────── */}
-          {statsData && topVouchers.length > 0 && (
+          {analyticsStatsData && topVouchers.length > 0 && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                <h2 className="text-base font-semibold text-gray-900">Top Vouchers Used</h2>
+                <h2 className="text-base font-semibold text-gray-900">Voucher sử dụng nhiều nhất</h2>
                 <Tag className="w-4 h-4 text-gray-400" />
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Uses</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Discount</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mô tả</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Số lượt dùng</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng giảm giá</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">

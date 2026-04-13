@@ -282,7 +282,7 @@ const BarChart: React.FC<{
       scales: {
         x: {
           grid: { display: false },
-          ticks: { color: '#64748b', font: { size: 13, weight: '500' } }
+          ticks: { color: '#64748b', font: { size: 13, weight: 'bold' } }
         },
         y: {
           type: 'linear',
@@ -292,7 +292,7 @@ const BarChart: React.FC<{
           grid: { color: '#f1f5f9' },
           ticks: {
             color: '#64748b',
-            font: { size: 13, weight: '500' },
+            font: { size: 13, weight: 'bold' },
             callback: (tickValue) =>
               new Intl.NumberFormat('vi-VN', {
                 notation: 'compact',
@@ -306,7 +306,7 @@ const BarChart: React.FC<{
           position: 'right',
           beginAtZero: true,
           grid: { drawOnChartArea: false },
-          ticks: { color: '#64748b', font: { size: 13, weight: '500' }, stepSize: 1 }
+          ticks: { color: '#64748b', font: { size: 13, weight: 'bold' }, stepSize: 1 }
         }
       }
     }

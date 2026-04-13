@@ -10,6 +10,9 @@ import {
   type ChartOptions,
   Legend,
   LinearScale,
+  PointElement,
+  LineController,
+  LineElement,
   Tooltip
 } from 'chart.js'
 import {
@@ -33,6 +36,9 @@ ChartJS.register(
   BarElement,
   CategoryScale,
   LinearScale,
+  PointElement,
+  LineController,
+  LineElement,
   Tooltip,
   Legend
 )
@@ -59,9 +65,9 @@ const getDateRange = (range: RangeOption): { from: Date; to: Date; groupBy: Dash
     const monday = new Date(now)
     monday.setDate(now.getDate() - (d === 0 ? 6 : d - 1))
     monday.setHours(0, 0, 0, 0)
-    return { from: monday, to: endOfDay, groupBy: 'week' }
+    return { from: monday, to: endOfDay, groupBy: 'day' }
   } else {
-    return { from: new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0), to: endOfDay, groupBy: 'month' }
+    return { from: new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0), to: endOfDay, groupBy: 'day' }
   }
 }
 
@@ -220,7 +226,7 @@ const mapDateLabelToVietnamese = (label: string, groupBy: string) => {
   return label
 }
 
-const BarChart: React.FC<{
+const LineChart: React.FC<{
   labels: string[]
   revenue: number[]
   orders: number[]
@@ -230,31 +236,33 @@ const BarChart: React.FC<{
   useEffect(() => {
     if (!chartRef.current) return
 
-    const data: ChartData<'bar'> = {
+    const data: ChartData<'line'> = {
       labels,
       datasets: [
         {
           label: 'Doanh thu',
           data: revenue,
+          borderColor: '#10b981',
           backgroundColor: '#10b981',
           yAxisID: 'y',
-          borderRadius: 4,
-          barPercentage: 0.7,
-          categoryPercentage: 0.7
+          tension: 0.4,
+          borderWidth: 2,
+          pointRadius: 3
         },
         {
           label: 'Đơn hàng',
           data: orders,
+          borderColor: '#3b82f6',
           backgroundColor: '#3b82f6',
           yAxisID: 'y1',
-          borderRadius: 4,
-          barPercentage: 0.7,
-          categoryPercentage: 0.7
+          tension: 0.4,
+          borderWidth: 2,
+          pointRadius: 3
         }
       ]
     }
 
-    const options: ChartOptions<'bar'> = {
+    const options: ChartOptions<'line'> = {
       responsive: true,
       maintainAspectRatio: false,
       interaction: {
@@ -317,7 +325,7 @@ const BarChart: React.FC<{
     }
 
     const chart = new ChartJS(chartRef.current, {
-      type: 'bar',
+      type: 'line',
       data,
       options
     })
@@ -601,7 +609,7 @@ export const AdminDashboard = () => {
                 <p className="text-gray-400 text-sm text-center py-8 my-auto">Không có dữ liệu trong thời gian này</p>
               ) : (
                 <div className="flex-1">
-                  <BarChart
+                  <LineChart
                     labels={revenueTrend.map((point) => mapDateLabelToVietnamese(point.label, groupBy))}
                     revenue={revenueTrend.map((point) => point.amount)}
                     orders={revenueTrend.map((point) => point.orders ?? 0)}

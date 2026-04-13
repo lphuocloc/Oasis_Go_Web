@@ -1,35 +1,33 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Search, RefreshCw, Eye, Wrench, FileWarning } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Eye, RefreshCw, Search, XCircle } from 'lucide-react'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
 import {
+  INCIDENT_SEVERITIES,
   INCIDENT_STATUSES,
   incidentApi,
+  type DamageReportItem,
   type IncidentItem,
-  type IncidentStatus
+  type IncidentSeverity,
+  type IncidentStatus,
 } from '../../api/lib/incidentApi'
-import { maintenanceTaskApi } from '../../api/lib/maintenanceTaskApi'
 import { podApi, type PodItem } from '../../api/lib/podApi'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
 
-const statusBadgeClass = (status: string) => {
+const statusBadgeClass = (status: IncidentStatus) => {
   switch (status) {
     case 'PENDING':
       return 'bg-amber-50 text-amber-700 border border-amber-200'
-    case 'INVESTIGATING':
-      return 'bg-blue-50 text-blue-700 border border-blue-200'
-    case 'ESCALATED':
-      return 'bg-rose-50 text-rose-700 border border-rose-200'
     case 'RESOLVED':
       return 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-    case 'CLOSED':
-      return 'bg-gray-100 text-gray-700 border border-gray-200'
+    case 'DISMISSED':
+      return 'bg-rose-50 text-rose-700 border border-rose-200'
     default:
-      return 'bg-gray-100 text-gray-700'
+      return 'bg-gray-100 text-gray-700 border border-gray-200'
   }
 }
 
-const severityBadgeClass = (severity: string) => {
+const severityBadgeClass = (severity: IncidentSeverity) => {
   switch (severity) {
     case 'LOW':
       return 'bg-slate-100 text-slate-700'
@@ -38,52 +36,77 @@ const severityBadgeClass = (severity: string) => {
     case 'HIGH':
       return 'bg-orange-100 text-orange-800'
     case 'CRITICAL':
-      return 'bg-rose-100 text-rose-800 font-bold'
+      return 'bg-rose-100 text-rose-800 font-semibold'
     default:
       return 'bg-gray-100 text-gray-700'
   }
 }
 
+const formatCurrency = (value?: number) =>
+  new Intl.NumberFormat('vi-VN', {
+    style: 'currency',
+    currency: 'VND',
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0))
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  return date.toLocaleString('vi-VN')
+}
+
 export const IncidentManagement = () => {
   const { clusters, isLoading: isScopeLoading, refreshScope } = useManagerScope()
-  const [incidents, setIncidents] = useState<IncidentItem[]>([])
+
+  const [reports, setReports] = useState<DamageReportItem[]>([])
   const [pods, setPods] = useState<PodItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
+
   const [search, setSearch] = useState('')
   const [clusterFilter, setClusterFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState<'all' | IncidentStatus>('all')
+  const [severityFilter, setSeverityFilter] = useState<'all' | IncidentSeverity>('all')
+  const [pendingOnly, setPendingOnly] = useState(true)
 
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
+  const [detailReport, setDetailReport] = useState<DamageReportItem | null>(null)
   const [detailIncident, setDetailIncident] = useState<IncidentItem | null>(null)
 
-  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false)
-  const [isStatusSaving, setIsStatusSaving] = useState(false)
-  const [statusIncident, setStatusIncident] = useState<IncidentItem | null>(null)
-  const [nextStatus, setNextStatus] = useState<IncidentStatus>('PENDING')
-  const [resolutionNote, setResolutionNote] = useState('')
-  const [escalationNote, setEscalationNote] = useState('')
-
-  const [isEscalateModalOpen, setIsEscalateModalOpen] = useState(false)
-  const [isEscalateSaving, setIsEscalateSaving] = useState(false)
-  const [escalateIncident, setEscalateIncident] = useState<IncidentItem | null>(null)
-  const [escalateDescription, setEscalateDescription] = useState('')
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false)
+  const [isReviewSaving, setIsReviewSaving] = useState(false)
+  const [reviewTarget, setReviewTarget] = useState<DamageReportItem | null>(null)
+  const [reviewStatus, setReviewStatus] = useState<'RESOLVED' | 'DISMISSED'>('RESOLVED')
 
   const fetchPrimaryData = async () => {
     try {
       setIsLoading(true)
-      const podsRes = await podApi.getAll({ cluster_id: clusterFilter === 'all' ? undefined : clusterFilter })
-      const podIdsParam = clusterFilter === 'all' ? undefined : podsRes.data.map(p => p.id).join(',')
-      
-      const incidentsRes = await incidentApi.getAll({
-        pod_ids: podIdsParam,
-        status: statusFilter === 'all' ? undefined : statusFilter
+
+      const podsResponse = await podApi.getAll({
+        cluster_id: clusterFilter === 'all' ? undefined : clusterFilter,
       })
-      setPods(podsRes.data)
-      setIncidents(incidentsRes.data)
+
+      const podIdsParam = podsResponse.data.map((pod) => pod.id).join(',')
+      const listFilters = {
+        pod_ids: podIdsParam || undefined,
+        status: pendingOnly ? undefined : statusFilter === 'all' ? undefined : statusFilter,
+        severity: severityFilter === 'all' ? undefined : severityFilter,
+      }
+
+      const reportsResponse = pendingOnly
+        ? await incidentApi.getMyPendingReviews({
+            pod_ids: listFilters.pod_ids,
+            severity: listFilters.severity,
+          })
+        : await incidentApi.getDamageReports(listFilters)
+
+      setPods(podsResponse.data)
+      setReports(reportsResponse.data)
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      toast.error(error?.response?.data?.message || 'Failed to load incidents data')
+      toast.error(error?.response?.data?.message || 'Failed to load damage reports')
+      setReports([])
     } finally {
       setIsLoading(false)
     }
@@ -92,48 +115,62 @@ export const IncidentManagement = () => {
   useEffect(() => {
     fetchPrimaryData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clusterFilter, statusFilter, clusters])
+  }, [clusterFilter, statusFilter, severityFilter, pendingOnly, clusters])
 
-  const podMap = useMemo(() => new Map(pods.map(p => [p.id, p])), [pods])
-  const clusterMap = useMemo(() => new Map(clusters.map(c => [c.id, c])), [clusters])
+  const podMap = useMemo(() => new Map(pods.map((pod) => [pod.id, pod])), [pods])
+  const clusterMap = useMemo(() => new Map(clusters.map((cluster) => [cluster.id, cluster])), [clusters])
 
-  const filteredIncidents = useMemo(() => {
+  const incidentStats = useMemo(() => {
+    return reports.reduce<Record<IncidentStatus, number>>(
+      (acc, report) => {
+        acc[report.status] = (acc[report.status] ?? 0) + 1
+        return acc
+      },
+      {
+        PENDING: 0,
+        RESOLVED: 0,
+        DISMISSED: 0,
+      }
+    )
+  }, [reports])
+
+  const filteredReports = useMemo(() => {
     const normalized = search.trim().toLowerCase()
-    if (!normalized) return incidents
+    if (!normalized) return reports
 
-    return incidents.filter((inc) => {
-      const pod = podMap.get(inc.pod_id)
+    return reports.filter((report) => {
+      const pod = report.context.pod_id ? podMap.get(report.context.pod_id) : null
       const clusterName = pod ? clusterMap.get(pod.cluster_id)?.name : ''
-      return [inc.id, inc.description, pod?.code, pod?.name, clusterName, inc.severity, inc.status]
+      return [
+        report.report_id,
+        report.description,
+        report.context.cleaner_name,
+        report.context.user_name,
+        report.context.pod_name,
+        pod?.code,
+        pod?.name,
+        clusterName,
+        report.severity,
+        report.status,
+      ]
         .join(' ')
         .toLowerCase()
         .includes(normalized)
     })
-  }, [incidents, search, podMap, clusterMap])
+  }, [reports, search, podMap, clusterMap])
 
-  const incidentStats = useMemo(
-    () => incidents.reduce<Record<string, number>>((acc, inc) => {
-      acc[inc.status] = (acc[inc.status] ?? 0) + 1
-      return acc
-    }, {}),
-    [incidents]
-  )
-
-  const handleRefresh = async () => {
-    await refreshScope()
-    fetchPrimaryData()
-  }
-
-  const openDetailModal = async (incident: IncidentItem) => {
+  const openDetailModal = async (report: DamageReportItem) => {
+    setDetailReport(report)
+    setDetailIncident(null)
     setIsDetailOpen(true)
     setIsDetailLoading(true)
-    setDetailIncident(incident)
+
     try {
-      const incRes = await incidentApi.getById(incident.id)
-      setDetailIncident(incRes.data)
+      const response = await incidentApi.getById(report.report_id)
+      setDetailIncident(response.data)
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      toast.error(error?.response?.data?.message || 'Failed to load details')
+      toast.error(error?.response?.data?.message || 'Failed to load incident details')
     } finally {
       setIsDetailLoading(false)
     }
@@ -141,217 +178,234 @@ export const IncidentManagement = () => {
 
   const closeDetailModal = () => {
     setIsDetailOpen(false)
+    setDetailReport(null)
     setDetailIncident(null)
   }
 
-  const openStatusModal = (incident: IncidentItem) => {
-    setStatusIncident(incident)
-    setNextStatus(incident.status)
-    setResolutionNote(incident.resolution_note || '')
-    setEscalationNote(incident.escalation_note || '')
-    setIsStatusModalOpen(true)
+  const openReviewModal = (report: DamageReportItem) => {
+    setReviewTarget(report)
+    setReviewStatus('RESOLVED')
+    setIsReviewModalOpen(true)
   }
 
-  const handleUpdateStatus = async () => {
-    if (!statusIncident) return
-
-    if (nextStatus === 'RESOLVED' && !resolutionNote.trim()) {
-      toast.error('Resolution note is required when resolving')
-      return
-    }
-    if (nextStatus === 'ESCALATED' && !escalationNote.trim()) {
-      toast.error('Escalation note is required when escalating')
-      return
-    }
+  const handleSubmitReview = async () => {
+    if (!reviewTarget) return
 
     try {
-      setIsStatusSaving(true)
-      await incidentApi.updateStatus(statusIncident.id, { 
-        status: nextStatus,
-        resolution_note: nextStatus === 'RESOLVED' ? resolutionNote.trim() : undefined,
-        escalation_note: nextStatus === 'ESCALATED' ? escalationNote.trim() : undefined,
-      })
-      toast.success('Incident status updated')
-      setIsStatusModalOpen(false)
-      fetchPrimaryData()
-      if (detailIncident?.id === statusIncident.id) {
-        const incRes = await incidentApi.getById(statusIncident.id)
-        setDetailIncident(incRes.data)
+      setIsReviewSaving(true)
+      await incidentApi.updateStatus(reviewTarget.report_id, { status: reviewStatus })
+      toast.success(reviewStatus === 'RESOLVED' ? 'Incident marked as RESOLVED' : 'Incident marked as DISMISSED')
+
+      setIsReviewModalOpen(false)
+      await fetchPrimaryData()
+
+      if (detailIncident?.id === reviewTarget.report_id) {
+        const refreshed = await incidentApi.getById(reviewTarget.report_id)
+        setDetailIncident(refreshed.data)
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      toast.error(error?.response?.data?.message || 'Failed to update status')
+      toast.error(error?.response?.data?.message || 'Failed to review incident')
     } finally {
-      setIsStatusSaving(false)
+      setIsReviewSaving(false)
     }
   }
 
-  const openEscalateModal = (incident: IncidentItem) => {
-    setEscalateIncident(incident)
-    setEscalateDescription(`Escalated from Incident: ${incident.description}`)
-    setIsEscalateModalOpen(true)
-  }
-
-  const handleEscalate = async () => {
-    if (!escalateIncident) return
-    try {
-      setIsEscalateSaving(true)
-      await maintenanceTaskApi.create({
-        pod_id: escalateIncident.pod_id,
-        incident_id: escalateIncident.id,
-        description: escalateDescription
-      })
-      toast.success('Maintenance task created successfully!')
-      setIsEscalateModalOpen(false)
-      
-      // Auto-update incident status to ESCALATED
-      if (escalateIncident.status === 'PENDING' || escalateIncident.status === 'INVESTIGATING') {
-        await incidentApi.updateStatus(escalateIncident.id, { 
-          status: 'ESCALATED',
-          escalation_note: escalateDescription
-        })
-        fetchPrimaryData()
-        if (detailIncident?.id === escalateIncident.id) {
-            setDetailIncident(prev => prev ? { ...prev, status: 'ESCALATED', escalation_note: escalateDescription } : null)
-        }
-      }
-    } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } }
-      toast.error(error?.response?.data?.message || 'Failed to escalate to maintenance')
-    } finally {
-      setIsEscalateSaving(false)
-    }
-  }
+  const detailStatus = detailIncident?.status ?? detailReport?.status ?? 'PENDING'
+  const detailSeverity = detailIncident?.severity ?? detailReport?.severity ?? 'MEDIUM'
+  const detailDescription = detailIncident?.description ?? detailReport?.description ?? '-'
+  const detailPhotos = detailIncident?.photo_urls ?? detailReport?.photo_urls ?? []
+  const detailLines = detailIncident?.details ?? detailReport?.details ?? []
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-8">
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Incident Management</h1>
-          <p className="text-gray-500 mt-1">Review damage reports and escalate issues to maintenance.</p>
+          <h1 className="text-3xl font-bold text-gray-900">Incident Review</h1>
+          <p className="mt-1 text-gray-500">Manager review flow for DAMAGE_REPORT incidents in your management scope.</p>
         </div>
 
         <button
-          onClick={handleRefresh}
+          onClick={async () => {
+            await refreshScope()
+            await fetchPrimaryData()
+          }}
           disabled={isLoading}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-60"
         >
-          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           Refresh
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 border-l-4 border-l-blue-500">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-gray-500">Total Incidents</p>
-            <FileWarning className="w-5 h-5 text-blue-500" />
-          </div>
-          <p className="text-2xl font-bold text-gray-900 mt-2">{incidents.length}</p>
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-xl border border-gray-100 border-l-4 border-l-amber-500 bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium text-gray-500">Total Reports</p>
+          <p className="mt-2 text-2xl font-bold text-gray-900">{reports.length}</p>
         </div>
         {INCIDENT_STATUSES.map((status) => (
-          <div key={status} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+          <div key={status} className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
             <p className="text-xs font-medium text-gray-500">{status}</p>
-            <p className="text-2xl font-bold text-gray-900 mt-2">{incidentStats[status] ?? 0}</p>
+            <p className="mt-2 text-2xl font-bold text-gray-900">{incidentStats[status]}</p>
           </div>
         ))}
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+      <div className="mb-6 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => {
+              setPendingOnly(true)
+              setStatusFilter('all')
+            }}
+            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              pendingOnly ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <AlertCircle className="h-4 w-4" />
+            My Pending Reviews
+          </button>
+          <button
+            onClick={() => setPendingOnly(false)}
+            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              !pendingOnly ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            All Damage Reports
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <div className="relative md:col-span-2">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search incidents..."
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search by report, pod, cleaner, status..."
+              className="w-full rounded-lg border border-gray-200 py-2.5 pl-10 pr-4 outline-none focus:border-transparent focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           <select
             value={clusterFilter}
-            onChange={(e) => setClusterFilter(e.target.value)}
+            onChange={(event) => setClusterFilter(event.target.value)}
             disabled={isScopeLoading}
-            className="px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+            className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 outline-none focus:border-transparent focus:ring-2 focus:ring-blue-500"
           >
             <option value="all">All clusters</option>
             {clusters.map((cluster) => (
-              <option key={cluster.id} value={cluster.id}>{cluster.name}</option>
+              <option key={cluster.id} value={cluster.id}>
+                {cluster.name}
+              </option>
             ))}
           </select>
 
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as 'all' | IncidentStatus)}
-            className="px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-          >
-            <option value="all">All statuses</option>
-            {INCIDENT_STATUSES.map((status) => (
-              <option key={status} value={status}>{status}</option>
-            ))}
-          </select>
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              value={pendingOnly ? 'all' : statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as 'all' | IncidentStatus)}
+              disabled={pendingOnly}
+              className="rounded-lg border border-gray-200 bg-white px-2 py-2.5 text-sm outline-none focus:border-transparent focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+            >
+              <option value="all">All status</option>
+              {INCIDENT_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={severityFilter}
+              onChange={(event) => setSeverityFilter(event.target.value as 'all' | IncidentSeverity)}
+              className="rounded-lg border border-gray-200 bg-white px-2 py-2.5 text-sm outline-none focus:border-transparent focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All severity</option>
+              {INCIDENT_SEVERITIES.map((severity) => (
+                <option key={severity} value={severity}>
+                  {severity}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
+            <thead className="border-b border-gray-100 bg-gray-50">
               <tr>
-                <th className="px-6 py-4 text-left font-medium text-gray-500">Incident Info</th>
-                <th className="px-6 py-4 text-left font-medium text-gray-500">Pod Details</th>
+                <th className="px-6 py-4 text-left font-medium text-gray-500">Report</th>
+                <th className="px-6 py-4 text-left font-medium text-gray-500">Pod</th>
+                <th className="px-6 py-4 text-left font-medium text-gray-500">Cleaner</th>
                 <th className="px-6 py-4 text-left font-medium text-gray-500">Severity</th>
                 <th className="px-6 py-4 text-left font-medium text-gray-500">Status</th>
-                <th className="px-6 py-4 text-left font-medium text-gray-500">Reported At</th>
+                <th className="px-6 py-4 text-left font-medium text-gray-500">Estimated Value</th>
+                <th className="px-6 py-4 text-left font-medium text-gray-500">Created At</th>
                 <th className="px-6 py-4 text-right font-medium text-gray-500">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {isLoading ? (
-                <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-400">Loading incidents...</td></tr>
-              ) : filteredIncidents.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-400">No incidents found</td></tr>
+                <tr>
+                  <td colSpan={8} className="px-6 py-12 text-center text-gray-400">
+                    Loading damage reports...
+                  </td>
+                </tr>
+              ) : filteredReports.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-12 text-center text-gray-400">
+                    No reports found
+                  </td>
+                </tr>
               ) : (
-                filteredIncidents.map((incident) => {
-                  const pod = podMap.get(incident.pod_id)
+                filteredReports.map((report) => {
+                  const pod = report.context.pod_id ? podMap.get(report.context.pod_id) : null
                   const cluster = pod ? clusterMap.get(pod.cluster_id) : null
+
                   return (
-                    <tr key={incident.id} className="hover:bg-gray-50/50 transition-colors">
+                    <tr key={report.report_id} className="transition-colors hover:bg-gray-50/70">
                       <td className="px-6 py-4 align-top">
-                        <p className="font-medium text-gray-900 line-clamp-2 max-w-xs">{incident.description}</p>
-                        <p className="text-xs text-gray-400 mt-1 font-mono">{incident.id.split('-')[0]}...</p>
-                        {incident.has_lost_found && (
-                          <span className="inline-block mt-2 px-2 py-0.5 bg-purple-50 text-purple-700 text-[10px] font-bold uppercase rounded-full border border-purple-200">Lost & Found</span>
-                        )}
+                        <p className="line-clamp-2 max-w-xs font-medium text-gray-900">{report.description}</p>
+                        <p className="mt-1 font-mono text-xs text-gray-400">{report.report_id.slice(0, 8)}...</p>
                       </td>
                       <td className="px-6 py-4 align-top">
-                        <p className="font-medium text-gray-900">{pod?.name || 'Unknown Pod'}</p>
-                        <p className="text-xs text-gray-500">{cluster?.name || 'Unknown Cluster'}</p>
+                        <p className="font-medium text-gray-900">{report.context.pod_name || pod?.name || '-'}</p>
+                        <p className="text-xs text-gray-500">{cluster?.name || '-'}</p>
                       </td>
+                      <td className="px-6 py-4 align-top text-gray-700">{report.context.cleaner_name || report.context.user_name || '-'}</td>
                       <td className="px-6 py-4 align-top">
-                        <span className={`inline-flex px-2 py-1 rounded-md text-[11px] uppercase tracking-wider ${severityBadgeClass(incident.severity)}`}>
-                          {incident.severity}
+                        <span className={`inline-flex rounded-md px-2 py-1 text-[11px] uppercase tracking-wider ${severityBadgeClass(report.severity)}`}>
+                          {report.severity}
                         </span>
                       </td>
                       <td className="px-6 py-4 align-top">
-                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${statusBadgeClass(incident.status)}`}>
-                          {incident.status}
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadgeClass(report.status)}`}>
+                          {report.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 align-top text-gray-500">
-                        {new Date(incident.created_at).toLocaleString()}
-                      </td>
+                      <td className="px-6 py-4 align-top font-medium text-gray-800">{formatCurrency(report.pricing.estimated_total_value)}</td>
+                      <td className="px-6 py-4 align-top text-gray-500">{formatDateTime(report.created_at)}</td>
                       <td className="px-6 py-4 align-top text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
-                            onClick={() => openDetailModal(incident)}
-                            className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors tooltip-trigger"
-                            title="View Details"
+                            onClick={() => openDetailModal(report)}
+                            className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                            title="View details"
                           >
-                            <Eye className="w-5 h-5" />
+                            <Eye className="h-5 w-5" />
                           </button>
+                          {report.status === 'PENDING' && (
+                            <button
+                              onClick={() => openReviewModal(report)}
+                              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
+                            >
+                              Review
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -363,181 +417,198 @@ export const IncidentManagement = () => {
         </div>
       </div>
 
-      {/* Detail Modal */}
-      <Modal isOpen={isDetailOpen} onClose={closeDetailModal} title="Incident Details" size="xl">
-        {isDetailLoading || !detailIncident ? (
-          <div className="py-12 flex justify-center"><RefreshCw className="w-6 h-6 animate-spin text-gray-400" /></div>
+      <Modal isOpen={isDetailOpen} onClose={closeDetailModal} title="Damage Report Details" size="xl">
+        {isDetailLoading || !detailReport ? (
+          <div className="flex justify-center py-12">
+            <RefreshCw className="h-6 w-6 animate-spin text-gray-400" />
+          </div>
         ) : (
           <div className="space-y-6">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-4">
               <div>
-                <h3 className="text-lg font-bold text-gray-900">Report Status</h3>
-                <div className="flex items-center gap-3 mt-2">
-                  <span className={`px-3 py-1 rounded-full text-sm font-semibold ${statusBadgeClass(detailIncident.status)}`}>
-                    {detailIncident.status}
-                  </span>
-                  <span className={`px-2 py-1 rounded-md text-xs font-bold ${severityBadgeClass(detailIncident.severity)}`}>
-                    {detailIncident.severity}
-                  </span>
-                </div>
+                <p className="font-mono text-xs text-gray-500">{detailReport.report_id}</p>
+                <h3 className="text-lg font-bold text-gray-900">{detailDescription}</h3>
               </div>
               <div className="flex items-center gap-2">
-                 <button
-                    onClick={() => { closeDetailModal(); openStatusModal(detailIncident); }}
-                    className="px-4 py-2 border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 rounded-lg text-sm font-medium transition-colors"
-                  >
-                    Update Status
-                 </button>
-                 {detailIncident.status !== 'CLOSED' && detailIncident.status !== 'RESOLVED' && detailIncident.status !== 'ESCALATED' && (
-                    <button
-                      onClick={() => { closeDetailModal(); openEscalateModal(detailIncident); }}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-rose-600 text-white hover:bg-rose-700 rounded-lg text-sm font-medium transition-colors shadow-sm"
-                    >
-                      <Wrench className="w-4 h-4" /> Escalate to Maintenance
-                    </button>
-                 )}
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusBadgeClass(detailStatus)}`}>{detailStatus}</span>
+                <span className={`rounded-md px-2 py-1 text-xs font-semibold ${severityBadgeClass(detailSeverity)}`}>{detailSeverity}</span>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-6 pb-4 border-b border-gray-100">
+            <div className="grid grid-cols-1 gap-4 rounded-xl border border-gray-100 bg-gray-50 p-4 md:grid-cols-2">
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Pod Information</p>
-                <p className="text-sm font-medium text-gray-900">{podMap.get(detailIncident.pod_id)?.name || detailIncident.pod_id}</p>
-                <p className="text-xs text-gray-500">{clusterMap.get(podMap.get(detailIncident.pod_id)?.cluster_id || '')?.name}</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Pod</p>
+                <p className="text-sm font-medium text-gray-900">{detailReport.context.pod_name || detailReport.context.pod_id || '-'}</p>
               </div>
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Reported By</p>
-                <p className="text-sm font-medium text-gray-900 font-mono break-all">{detailIncident.reported_by}</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Cleaner</p>
+                <p className="text-sm font-medium text-gray-900">{detailReport.context.cleaner_name || detailReport.context.user_name || '-'}</p>
               </div>
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Date Reported</p>
-                <p className="text-sm text-gray-900">{new Date(detailIncident.created_at).toLocaleString()}</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Booking</p>
+                <p className="font-mono text-xs text-gray-800">{detailReport.context.booking_id || '-'}</p>
               </div>
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Source Context</p>
-                {detailIncident.cleaning_task_id && <p className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded inline-block">Cleaning Task ID: {detailIncident.cleaning_task_id.split('-')[0]}</p>}
-                {detailIncident.booking_id && <p className="text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded inline-block mt-1">Booking ID: {detailIncident.booking_id.split('-')[0]}</p>}
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Cleaning Task</p>
+                <p className="font-mono text-xs text-gray-800">{detailReport.context.cleaning_task_id || '-'}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Created At</p>
+                <p className="text-sm text-gray-900">{formatDateTime(detailIncident?.created_at || detailReport.created_at)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Reported By</p>
+                <p className="font-mono text-xs text-gray-800">{detailReport.context.reported_by || detailIncident?.reported_by || '-'}</p>
               </div>
             </div>
 
             <div>
-               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Description</p>
-               <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 text-gray-800 text-sm whitespace-pre-wrap">
-                 {detailIncident.description}
-               </div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">Damage Details</p>
+              {detailLines.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-200 p-4 text-sm text-gray-500">No detail lines.</div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-gray-100">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Type</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Name</th>
+                        <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500">Qty</th>
+                        <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500">Unit</th>
+                        <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {detailLines.map((line, index) => (
+                        <tr key={`${line.type}-${index}`}>
+                          <td className="px-3 py-2 text-xs font-semibold text-gray-700">{line.type}</td>
+                          <td className="px-3 py-2 text-gray-800">{line.name_snapshot || line.item_id || line.service_catalog_id || '-'}</td>
+                          <td className="px-3 py-2 text-right text-gray-700">{line.quantity || 0}</td>
+                          <td className="px-3 py-2 text-right text-gray-700">{formatCurrency(line.unit_cost_snapshot)}</td>
+                          <td className="px-3 py-2 text-right font-medium text-gray-900">{formatCurrency(line.total_cost)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
-            {detailIncident.escalation_note && (
-               <div>
-                  <p className="text-xs font-semibold text-rose-500 uppercase tracking-wider mb-2">Escalation Note</p>
-                  <div className="p-4 bg-rose-50 rounded-xl border border-rose-100 text-rose-800 text-sm whitespace-pre-wrap">
-                    {detailIncident.escalation_note}
-                  </div>
-               </div>
-            )}
-
-            {detailIncident.resolution_note && (
-               <div>
-                  <p className="text-xs font-semibold text-emerald-500 uppercase tracking-wider mb-2">Resolution Note</p>
-                  <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 text-emerald-800 text-sm whitespace-pre-wrap">
-                    {detailIncident.resolution_note}
-                  </div>
-               </div>
-            )}
-
-            {detailIncident.photo_urls && detailIncident.photo_urls.length > 0 && (
+            <div className="grid grid-cols-1 gap-3 rounded-xl border border-gray-100 bg-white p-4 md:grid-cols-3">
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Attached Evidence ({detailIncident.photo_urls.length})</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {detailIncident.photo_urls.map((url, i) => (
-                    <a key={i} href={url} target="_blank" rel="noreferrer" className="block relative group aspect-video bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
-                      <img src={url} alt={`Evidence ${i+1}`} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Estimated Item Value</p>
+                <p className="text-sm font-semibold text-gray-900">{formatCurrency(detailReport.pricing.estimated_item_value)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Estimated Service Fee</p>
+                <p className="text-sm font-semibold text-gray-900">{formatCurrency(detailReport.pricing.estimated_service_fee)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Estimated Total</p>
+                <p className="text-sm font-semibold text-gray-900">{formatCurrency(detailReport.pricing.estimated_total_value)}</p>
+              </div>
+            </div>
+
+            {/* escalation_note và resolution_note không tồn tại trên backend nên đã loại bỏ hiển thị ở đây */}
+
+            {detailPhotos.length > 0 && (
+              <div>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Evidence Photos ({detailPhotos.length})</p>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {detailPhotos.map((url, index) => (
+                    <a
+                      key={url}
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="group relative block aspect-video overflow-hidden rounded-lg border border-gray-200 bg-gray-100"
+                    >
+                      <img src={url} alt={`Evidence ${index + 1}`} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
                     </a>
                   ))}
                 </div>
               </div>
             )}
-            
+
+            {detailStatus === 'PENDING' && (
+              <div className="flex justify-end border-t border-gray-100 pt-4">
+                <button
+                  onClick={() => {
+                    if (detailReport) openReviewModal(detailReport)
+                  }}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+                >
+                  Review This Report
+                </button>
+              </div>
+            )}
           </div>
         )}
       </Modal>
 
-      {/* Status Modal */}
-      <Modal isOpen={isStatusModalOpen} onClose={() => !isStatusSaving && setIsStatusModalOpen(false)} title="Update Incident Status" size="sm">
+      <Modal
+        isOpen={isReviewModalOpen}
+        onClose={() => {
+          if (!isReviewSaving) setIsReviewModalOpen(false)
+        }}
+        title="Review Incident"
+        size="sm"
+      >
         <div className="space-y-4">
-           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">New Status</label>
-             <select
-              value={nextStatus}
-              onChange={(e) => setNextStatus(e.target.value as IncidentStatus)}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+          <div className="rounded-lg border border-amber-100 bg-amber-50 p-3 text-sm text-amber-800">
+            Manager can only review incidents in PENDING status and set to RESOLVED or DISMISSED.
+          </div>
+
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">Selected Report</p>
+            <p className="font-mono text-xs text-gray-700">{reviewTarget?.report_id || '-'}</p>
+            <p className="mt-1 text-sm text-gray-800">{reviewTarget?.description || '-'}</p>
+          </div>
+
+          <div className="space-y-2">
+            <button
+              onClick={() => setReviewStatus('RESOLVED')}
+              className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                reviewStatus === 'RESOLVED'
+                  ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                  : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+              }`}
             >
-              {INCIDENT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-           </div>
-           
-           {nextStatus === 'RESOLVED' && (
-             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Resolution Note</label>
-              <textarea
-                value={resolutionNote}
-                onChange={(e) => setResolutionNote(e.target.value)}
-                placeholder="How was this incident resolved?"
-                rows={3}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              />
-             </div>
-           )}
+              <CheckCircle2 className="h-4 w-4" />
+              Mark as RESOLVED
+            </button>
 
-           {nextStatus === 'ESCALATED' && (
-             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Escalation Note</label>
-              <textarea
-                value={escalationNote}
-                onChange={(e) => setEscalationNote(e.target.value)}
-                placeholder="Why is it escalated?"
-                rows={3}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              />
-             </div>
-           )}
+            <button
+              onClick={() => setReviewStatus('DISMISSED')}
+              className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                reviewStatus === 'DISMISSED'
+                  ? 'border-rose-600 bg-rose-50 text-rose-700'
+                  : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <XCircle className="h-4 w-4" />
+              Mark as DISMISSED
+            </button>
+          </div>
 
-           <div className="flex gap-3 justify-end pt-4">
-             <button disabled={isStatusSaving} onClick={() => setIsStatusModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium">Cancel</button>
-             <button disabled={isStatusSaving} onClick={handleUpdateStatus} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium">
-               {isStatusSaving ? 'Saving...' : 'Save Status'}
-             </button>
-           </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              disabled={isReviewSaving}
+              onClick={() => setIsReviewModalOpen(false)}
+              className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100"
+            >
+              Cancel
+            </button>
+            <button
+              disabled={isReviewSaving}
+              onClick={handleSubmitReview}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-60"
+            >
+              {isReviewSaving ? 'Saving...' : 'Confirm Review'}
+            </button>
+          </div>
         </div>
       </Modal>
-
-      {/* Escalate Modal */}
-      <Modal isOpen={isEscalateModalOpen} onClose={() => !isEscalateSaving && setIsEscalateModalOpen(false)} title="Escalate to Maintenance" size="md">
-        <div className="space-y-4">
-           <div className="p-4 bg-rose-50 border border-rose-100 rounded-lg flex gap-3 text-rose-800 text-sm">
-             <AlertTriangle className="w-5 h-5 flex-shrink-0" />
-             <p>Escalating will create a new Maintenance Task for the Admins. The incident status will be automatically set to <b>INVESTIGATING</b>.</p>
-           </div>
-           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Maintenance Note (Description)</label>
-            <textarea
-              value={escalateDescription}
-              onChange={(e) => setEscalateDescription(e.target.value)}
-              rows={4}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-rose-500 resize-none"
-            />
-           </div>
-           <div className="flex gap-3 justify-end pt-4">
-             <button disabled={isEscalateSaving} onClick={() => setIsEscalateModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium">Cancel</button>
-             <button disabled={isEscalateSaving} onClick={handleEscalate} className="inline-flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors font-medium shadow-sm">
-               {isEscalateSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Wrench className="w-4 h-4" />}
-               Confirm Escalation
-             </button>
-           </div>
-        </div>
-      </Modal>
-
     </div>
   )
 }

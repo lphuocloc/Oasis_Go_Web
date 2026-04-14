@@ -3,6 +3,7 @@ import { Boxes, Eye, ImagePlus, MapPin, RefreshCw, Search, SlidersHorizontal, Ch
 import { toast } from 'react-toastify'
 import { podClusterApi, type PodClusterItem } from '../../api/lib/podClusterApi'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
+import { ClusterPodItemBulkAssign } from '../../components/common/ClusterPodItemBulkAssign'
 
 const formatMoneyModifier = (value?: number | null) => {
   if (value == null) return '—'
@@ -102,6 +103,8 @@ export const ClusterManagement = () => {
 
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
+      <ClusterPodItemBulkAssign clusters={scopedClusters} isLoadingClusters={isScopeLoading} />
+
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Pod Cluster Management</h1>

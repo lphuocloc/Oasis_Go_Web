@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import {
   Boxes,
+  ClipboardCheck,
   Edit2,
   ImagePlus,
   MapPin,
@@ -18,6 +19,7 @@ import {
   type PodClusterItem,
   type PodClusterPayload
 } from '../../api/lib/podClusterApi'
+import { ClusterPodItemBulkAssign } from '../../components/common/ClusterPodItemBulkAssign'
 
 interface PodClusterFormState {
   location_id: string
@@ -66,6 +68,7 @@ export const PodClusterManagement = () => {
   const [search, setSearch] = useState('')
   const [locationFilter, setLocationFilter] = useState('all')
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false)
   const [editingCluster, setEditingCluster] = useState<PodClusterItem | null>(null)
   const [form, setForm] = useState<PodClusterFormState>(createEmptyForm())
 
@@ -163,6 +166,14 @@ export const PodClusterManagement = () => {
     setEditingCluster(null)
     setImages([])
     setForm(createEmptyForm())
+  }
+
+  const openAssignModal = () => {
+    setIsAssignModalOpen(true)
+  }
+
+  const closeAssignModal = () => {
+    setIsAssignModalOpen(false)
   }
 
   const updateForm = <K extends keyof PodClusterFormState>(key: K, value: PodClusterFormState[K]) => {
@@ -277,6 +288,13 @@ export const PodClusterManagement = () => {
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
+          </button>
+          <button
+            onClick={openAssignModal}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+          >
+            <ClipboardCheck className="w-4 h-4" />
+            Assign Items By Pod Cluster
           </button>
           <button
             onClick={openCreateModal}
@@ -538,6 +556,15 @@ export const PodClusterManagement = () => {
             </div>
           )}
         </form>
+      </Modal>
+
+      <Modal
+        isOpen={isAssignModalOpen}
+        onClose={closeAssignModal}
+        title="Assign Items By Pod Cluster"
+        size="xl"
+      >
+        <ClusterPodItemBulkAssign clusters={clusters} isLoadingClusters={isLoading} />
       </Modal>
     </div>
   )

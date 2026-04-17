@@ -14,9 +14,26 @@ export interface PodClusterItem {
   description?: string | null
   base_price_modifier?: number | null
   slot_duration_minutes?: number | null
+  pricing_summary?: PodClusterPricingSummary | null
   images?: PodClusterImage[]
   createdAt?: string
   updatedAt?: string
+}
+
+export interface PodClusterPricingRule {
+  id: string
+  scope: string
+  multiplier: number
+  applied_modifier: number
+  start_time: string
+  end_time: string
+  days_of_week: string[]
+}
+
+export interface PodClusterPricingSummary {
+  queried_at_utc: string
+  has_location_rule: boolean
+  effective_rule: PodClusterPricingRule | null
 }
 
 export interface PodClusterImage {
@@ -31,6 +48,7 @@ export interface PodClusterPayload {
   name: string
   description?: string | null
   base_price_modifier?: number | null
+  slot_duration_minutes?: number | null
   images?: File[]
 }
 
@@ -68,6 +86,10 @@ const toFormData = (payload: PodClusterPayload): FormData => {
 
   if (payload.base_price_modifier != null) {
     formData.append('base_price_modifier', String(payload.base_price_modifier))
+  }
+
+  if (payload.slot_duration_minutes != null) {
+    formData.append('slot_duration_minutes', String(payload.slot_duration_minutes))
   }
 
   payload.images?.forEach((file) => {

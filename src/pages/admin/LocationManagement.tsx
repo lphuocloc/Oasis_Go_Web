@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ChevronLeft,
   ArrowRight,
@@ -8,7 +8,21 @@ import {
   Edit2
 } from 'lucide-react'
 import { toast } from 'react-toastify'
-import Modal from '../../components/common/Modal'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '../../components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '../../components/ui/select'
 import {
   Table,
   TableBody,
@@ -32,7 +46,7 @@ import {
   selectLocationsError,
   selectLocationsLoading
 } from '../../store/slices/locationsSlice'
-import { fetchLocations } from '../../store/thunks/locationsThunks'
+import { fetchLocations, updateLocation } from '../../store/thunks/locationsThunks'
 
 interface LocationFormState {
   name: string
@@ -52,6 +66,17 @@ const LOCATION_TYPE_LABELS: Record<LocationType, string> = {
   bus_station: 'Bus Station',
   waiting_lounge: 'Waiting Lounge'
 }
+
+const ALLOWED_CHILD_TYPE_BY_PARENT: Record<LocationType, LocationType | null> = {
+  airport: 'terminal',
+  terminal: null,
+  floor: null,
+  mall: 'floor',
+  bus_station: 'waiting_lounge',
+  waiting_lounge: null
+}
+
+const ROOT_PARENT_VALUE = '__ROOT__'
 
 const createEmptyForm = (): LocationFormState => ({
   name: '',
@@ -102,6 +127,16 @@ const getErrorMessage = (error: unknown, fallback: string) => {
   return fallback
 }
 
+const TableRowSkeleton = ({ columns = 6 }: { columns?: number }) => (
+  <TableRow className="animate-pulse">
+    {Array.from({ length: columns }).map((_, index) => (
+      <TableCell key={index} className="px-6 py-4">
+        <div className="h-4 w-full max-w-[12rem] rounded bg-slate-200" />
+      </TableCell>
+    ))}
+  </TableRow>
+)
+
 export const LocationManagement = () => {
   const dispatch = useAppDispatch()
   const locations = useAppSelector(selectLocations)
@@ -115,6 +150,52 @@ export const LocationManagement = () => {
   const [childLocations, setChildLocations] = useState<LocationItem[]>([])
   const [occupancyRateByLocation, setOccupancyRateByLocation] = useState<Record<string, LocationPodOccupancyRate>>({})
   const [form, setForm] = useState<LocationFormState>(createEmptyForm())
+  const [showMainSkeleton, setShowMainSkeleton] = useState(false)
+  const [showChildSkeleton, setShowChildSkeleton] = useState(false)
+  const mainLoadingStartedAtRef = useRef<number | null>(null)
+  const childLoadingStartedAtRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (isLoading) {
+      mainLoadingStartedAtRef.current = Date.now()
+      setShowMainSkeleton(true)
+      return
+    }
+
+    if (!showMainSkeleton || mainLoadingStartedAtRef.current == null) return
+
+    const elapsed = Date.now() - mainLoadingStartedAtRef.current
+    const remaining = Math.max(0, 500 - elapsed)
+    const timer = window.setTimeout(() => {
+      setShowMainSkeleton(false)
+      mainLoadingStartedAtRef.current = null
+    }, remaining)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [isLoading, showMainSkeleton])
+
+  useEffect(() => {
+    if (isLoadingChildren) {
+      childLoadingStartedAtRef.current = Date.now()
+      setShowChildSkeleton(true)
+      return
+    }
+
+    if (!showChildSkeleton || childLoadingStartedAtRef.current == null) return
+
+    const elapsed = Date.now() - childLoadingStartedAtRef.current
+    const remaining = Math.max(0, 500 - elapsed)
+    const timer = window.setTimeout(() => {
+      setShowChildSkeleton(false)
+      childLoadingStartedAtRef.current = null
+    }, remaining)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [isLoadingChildren, showChildSkeleton])
 
   useEffect(() => {
     dispatch(fetchLocations())
@@ -133,8 +214,28 @@ export const LocationManagement = () => {
   )
 
   const parentOptions = useMemo(() => {
-    return locations.filter((location) => location.id !== editingLocation?.id)
+    return locations.filter((location) => {
+      if (location.id === editingLocation?.id) return false
+      if (location.lat == null || location.lng == null) return false
+      return Number.isFinite(location.lat) && Number.isFinite(location.lng)
+    })
   }, [editingLocation?.id, locations])
+
+  const selectedParent = useMemo(() => {
+    if (!form.parent_id) return null
+    return locationMap.get(form.parent_id) ?? null
+  }, [form.parent_id, locationMap])
+
+  const enforcedChildType = useMemo(() => {
+    if (!selectedParent) return null
+    return ALLOWED_CHILD_TYPE_BY_PARENT[selectedParent.type]
+  }, [selectedParent])
+
+  const availableTypeOptions = useMemo(() => {
+    if (!selectedParent) return LOCATION_TYPES
+    if (!enforcedChildType) return []
+    return LOCATION_TYPES.filter((type) => type === enforcedChildType)
+  }, [enforcedChildType, selectedParent])
 
   const visibleLocations = useMemo(() => {
     return locations.filter((location) => {
@@ -142,6 +243,33 @@ export const LocationManagement = () => {
       return Number.isFinite(location.lat) && Number.isFinite(location.lng)
     })
   }, [locations])
+
+  const childCountByParentId = useMemo(() => {
+    return locations.reduce<Record<string, number>>((acc, location) => {
+      if (!location.parent_id) return acc
+
+      acc[location.parent_id] = (acc[location.parent_id] ?? 0) + 1
+      return acc
+    }, {})
+  }, [locations])
+
+  useEffect(() => {
+    if (!selectedLocation) return
+
+    const latestSelectedLocation = locationMap.get(selectedLocation.id)
+
+    if (!latestSelectedLocation) {
+      setSelectedLocation(null)
+      setChildLocations([])
+      return
+    }
+
+    if (latestSelectedLocation !== selectedLocation) {
+      setSelectedLocation(latestSelectedLocation)
+    }
+
+    setChildLocations((prev) => prev.map((child) => locationMap.get(child.id) ?? child))
+  }, [locationMap, selectedLocation])
 
   useEffect(() => {
     const missingIds = visibleLocations
@@ -244,6 +372,29 @@ export const LocationManagement = () => {
     }))
   }
 
+  const handleParentChange = (value: string) => {
+    const parentId = value === ROOT_PARENT_VALUE ? '' : value
+    const nextParent = parentId ? locationMap.get(parentId) ?? null : null
+    const allowedChildType = nextParent
+      ? ALLOWED_CHILD_TYPE_BY_PARENT[nextParent.type]
+      : null
+
+    setForm((prev) => {
+      if (!nextParent || !allowedChildType) {
+        return {
+          ...prev,
+          parent_id: parentId
+        }
+      }
+
+      return {
+        ...prev,
+        parent_id: parentId,
+        type: allowedChildType
+      }
+    })
+  }
+
   const validateForm = () => {
     if (!form.name.trim()) {
       toast.error('Location name is required')
@@ -271,6 +422,29 @@ export const LocationManagement = () => {
       return false
     }
 
+    if (!editingLocation && form.parent_id) {
+      const parent = locationMap.get(form.parent_id)
+
+      if (!parent) {
+        toast.error('Parent location not found')
+        return false
+      }
+
+      const allowedChildType = ALLOWED_CHILD_TYPE_BY_PARENT[parent.type]
+
+      if (!allowedChildType) {
+        toast.error(`${formatType(parent.type)} không được có vị trí con`)
+        return false
+      }
+
+      if (form.type !== allowedChildType) {
+        toast.error(
+          `${formatType(parent.type)} chỉ được có vị trí con loại ${formatType(allowedChildType)}`
+        )
+        return false
+      }
+    }
+
     return true
   }
 
@@ -284,15 +458,15 @@ export const LocationManagement = () => {
       const payload = toPayload(form)
 
       if (editingLocation) {
-        await locationApi.update(editingLocation.id, payload)
+        await dispatch(updateLocation({ id: editingLocation.id, payload })).unwrap()
         toast.success('Location updated successfully')
       } else {
         await locationApi.create(payload)
         toast.success('Location created successfully')
+        await dispatch(fetchLocations())
       }
 
       closeModal()
-      await dispatch(fetchLocations())
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, 'Failed to save location'))
     } finally {
@@ -389,12 +563,10 @@ export const LocationManagement = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-slate-100">
-                  {isLoadingChildren ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="px-6 py-12 text-center text-slate-400">
-                        Đang tải danh sách vị trí con...
-                      </TableCell>
-                    </TableRow>
+                  {showChildSkeleton ? (
+                    Array.from({ length: 4 }).map((_, index) => (
+                      <TableRowSkeleton key={`child-skeleton-${index}`} columns={4} />
+                    ))
                   ) : childLocations.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="px-6 py-12 text-center text-slate-400">
@@ -444,7 +616,7 @@ export const LocationManagement = () => {
 
             <button
               onClick={openCreateModal}
-              className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-100 transition-colors hover:bg-slate-700"
             >
               <Plus className="h-4 w-4" />
               Thêm vị trí
@@ -465,10 +637,10 @@ export const LocationManagement = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-slate-100">
-                  {isLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="px-6 py-12 text-center text-slate-400">Đang tải danh sách vị trí...</TableCell>
-                    </TableRow>
+                  {showMainSkeleton ? (
+                    Array.from({ length: 6 }).map((_, index) => (
+                      <TableRowSkeleton key={`location-skeleton-${index}`} columns={6} />
+                    ))
                   ) : visibleLocations.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="px-6 py-12 text-center text-slate-400">Không có vị trí nào có tọa độ.</TableCell>
@@ -476,6 +648,7 @@ export const LocationManagement = () => {
                   ) : (
                     visibleLocations.map((location) => {
                       const parent = location.parent_id ? locationMap.get(location.parent_id) : null
+                      const childCount = childCountByParentId[location.id] ?? 0
                       const details = location.description?.trim() ||
                         [
                           parent ? `Cha: ${parent.name}` : null,
@@ -498,7 +671,7 @@ export const LocationManagement = () => {
                               </div>
                               <div>
                                 <p className="font-bold text-slate-900">{location.name}</p>
-                                <p className="text-xs text-slate-500">ID: {location.id}</p>
+                                <p className="text-xs text-slate-500">{childCount} vị trí con</p>
                               </div>
                             </div>
                           </TableCell>
@@ -562,17 +735,131 @@ export const LocationManagement = () => {
         </>
       )}
 
-      <Modal
-        isOpen={isModalOpen}
-        onClose={closeModal}
-        title={editingLocation ? 'Chỉnh sửa vị trí' : 'Thêm vị trí'}
-        size="lg"
-        footer={(
-          <>
+      <Dialog
+        open={isModalOpen}
+        onOpenChange={(open: boolean) => {
+          if (!open) closeModal()
+        }}
+      >
+        <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{editingLocation ? 'Chỉnh sửa vị trí' : 'Thêm vị trí'}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Form để {editingLocation ? 'chỉnh sửa' : 'thêm'} vị trí.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form id="location-form" onSubmit={handleSubmit} className="space-y-5 px-6 pb-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">Tên vị trí</label>
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={(e) => updateForm('name', e.target.value)}
+                  placeholder="Nhập tên vị trí"
+                  className="w-full rounded-lg border border-gray-200 px-4 py-2.5 outline-none focus:border-transparent focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">Loại</label>
+                <Select
+                  value={form.type}
+                  onValueChange={(value) => updateForm('type', value as LocationType)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Chọn loại vị trí" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableTypeOptions.map((type) => (
+                      <SelectItem key={type} value={type}>{formatType(type)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedParent && !enforcedChildType && (
+                  <p className="mt-1 text-xs text-amber-600">
+                    Loại vị trí cha này không được phép tạo vị trí con.
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">Vĩ độ (Latitude)</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={form.lat}
+                  onChange={(e) => updateForm('lat', e.target.value)}
+                  placeholder="Ví dụ: 10.8185"
+                  className="w-full rounded-lg border border-gray-200 px-4 py-2.5 outline-none focus:border-transparent focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">Kinh độ (Longitude)</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={form.lng}
+                  onChange={(e) => updateForm('lng', e.target.value)}
+                  placeholder="Ví dụ: 106.6588"
+                  className="w-full rounded-lg border border-gray-200 px-4 py-2.5 outline-none focus:border-transparent focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">Vị trí cha</label>
+              <Select
+                value={form.parent_id || ROOT_PARENT_VALUE}
+                onValueChange={handleParentChange}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Chọn vị trí cha" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ROOT_PARENT_VALUE}>Không có vị trí cha (gốc)</SelectItem>
+                  {parentOptions.map((location) => (
+                    <SelectItem
+                      key={location.id}
+                      value={location.id}
+                      disabled={!ALLOWED_CHILD_TYPE_BY_PARENT[location.type]}
+                    >
+                      {location.name} ({formatType(location.type)})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">Mô tả</label>
+              <textarea
+                value={form.description}
+                onChange={(e) => updateForm('description', e.target.value)}
+                rows={4}
+                placeholder="Mô tả thêm cho vị trí này (không bắt buộc)"
+                className="w-full resize-none rounded-lg border border-gray-200 px-4 py-2.5 outline-none focus:border-transparent focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <label className="inline-flex items-center gap-3 text-sm font-medium text-gray-700">
+              <input
+                type="checkbox"
+                checked={form.isActive}
+                onChange={(e) => updateForm('isActive', e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              Vị trí đang hoạt động
+            </label>
+          </form>
+
+          <DialogFooter>
             <button
               onClick={closeModal}
               disabled={isSaving}
-              className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
+              className="rounded-lg border border-gray-200 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-60"
             >
               Hủy
             </button>
@@ -580,102 +867,13 @@ export const LocationManagement = () => {
               type="submit"
               form="location-form"
               disabled={isSaving}
-              className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-60"
+              className="rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700 disabled:opacity-60"
             >
               {isSaving ? 'Đang lưu...' : editingLocation ? 'Lưu thay đổi' : 'Tạo vị trí'}
             </button>
-          </>
-        )}
-      >
-        <form id="location-form" onSubmit={handleSubmit} className="space-y-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Tên vị trí</label>
-              <input
-                type="text"
-                value={form.name}
-                onChange={(e) => updateForm('name', e.target.value)}
-                placeholder="Nhập tên vị trí"
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Loại</label>
-              <select
-                value={form.type}
-                onChange={(e) => updateForm('type', e.target.value as LocationType)}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-              >
-                {LOCATION_TYPES.map((type) => (
-                  <option key={type} value={type}>{formatType(type)}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Vĩ độ (Latitude)</label>
-              <input
-                type="number"
-                step="any"
-                value={form.lat}
-                onChange={(e) => updateForm('lat', e.target.value)}
-                placeholder="Ví dụ: 10.8185"
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Kinh độ (Longitude)</label>
-              <input
-                type="number"
-                step="any"
-                value={form.lng}
-                onChange={(e) => updateForm('lng', e.target.value)}
-                placeholder="Ví dụ: 106.6588"
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Vị trí cha</label>
-            <select
-              value={form.parent_id}
-              onChange={(e) => updateForm('parent_id', e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-            >
-              <option value="">Không có vị trí cha (gốc)</option>
-              {parentOptions.map((location) => (
-                <option key={location.id} value={location.id}>
-                  {location.name} ({formatType(location.type)})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Mô tả</label>
-            <textarea
-              value={form.description}
-              onChange={(e) => updateForm('description', e.target.value)}
-              rows={4}
-              placeholder="Mô tả thêm cho vị trí này (không bắt buộc)"
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-            />
-          </div>
-
-          <label className="inline-flex items-center gap-3 text-sm font-medium text-gray-700">
-            <input
-              type="checkbox"
-              checked={form.isActive}
-              onChange={(e) => updateForm('isActive', e.target.checked)}
-              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            Vị trí đang hoạt động
-          </label>
-        </form>
-      </Modal>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

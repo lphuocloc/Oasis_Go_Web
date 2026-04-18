@@ -583,8 +583,6 @@ export const BookingManagement = () => {
         <button
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'orders' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
             }`}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'orders' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
-            }`}
           onClick={() => setActiveTab('orders')}
         >
           <span className="inline-flex items-center gap-2">
@@ -654,8 +652,6 @@ export const BookingManagement = () => {
                           <td className="px-6 py-4 align-top">
                             <div className="flex items-center gap-2">
                               <span
-                                className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${booking.cleaner_access_allowed ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-700'
-                                  }`}
                                 className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${booking.cleaner_access_allowed ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-700'
                                   }`}
                               >
@@ -873,12 +869,10 @@ export const BookingManagement = () => {
                 <div>
                   <div className="flex items-center justify-between mb-3"><label className="block text-sm font-semibold text-gray-900">Status</label></div>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => setDraftBookingFilters(prev => ({ ...prev, status: 'all' }))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftBookingFilters.status === 'all' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{draftBookingFilters.status === 'all' && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}All</button>
                     <button type="button" onClick={() => setDraftBookingFilters(prev => ({ ...prev, status: toggleArrayFilter(prev.status, 'all', BOOKING_STATUSES.length) }))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftBookingFilters.status.length === 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{draftBookingFilters.status.length === 0 && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}All</button>
                     {BOOKING_STATUSES.map(status => {
                       const isSelected = draftBookingFilters.status.includes(status)
                       return (
-                        <button key={status} type="button" onClick={() => setDraftBookingFilters(prev => ({ ...prev, status }))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}{status}</button>
                         <button key={status} type="button" onClick={() => setDraftBookingFilters(prev => ({ ...prev, status: toggleArrayFilter(prev.status, status, BOOKING_STATUSES.length) }))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}{status}</button>
                       )
                     })}
@@ -889,7 +883,6 @@ export const BookingManagement = () => {
                   <PodGridSelector
                     pods={podOptions}
                     selectedPodId={draftBookingFilters.pod_id}
-                    onSelect={(id) => setDraftBookingFilters(prev => ({ ...prev, pod_id: id }))}
                     onSelect={(id) => setDraftBookingFilters(prev => ({ ...prev, pod_id: toggleArrayFilter(prev.pod_id, id, podOptions.length) }))}
                     showAllOption={true}
                     allOptionLabel="All scoped pods"
@@ -933,12 +926,10 @@ export const BookingManagement = () => {
                 <div>
                   <div className="flex items-center justify-between mb-3"><label className="block text-sm font-semibold text-gray-900">Status</label></div>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => setDraftOrderFilters(prev => ({ ...prev, status: 'all' }))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftOrderFilters.status === 'all' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{draftOrderFilters.status === 'all' && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}All</button>
                     <button type="button" onClick={() => setDraftOrderFilters(prev => ({ ...prev, status: toggleArrayFilter(prev.status, 'all', BOOKING_ORDER_STATUSES.length) }))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftOrderFilters.status.length === 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{draftOrderFilters.status.length === 0 && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}All</button>
                     {BOOKING_ORDER_STATUSES.map(status => {
                       const isSelected = draftOrderFilters.status.includes(status)
                       return (
-                        <button key={status} type="button" onClick={() => setDraftOrderFilters(prev => ({ ...prev, status }))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}{status}</button>
                         <button key={status} type="button" onClick={() => setDraftOrderFilters(prev => ({ ...prev, status: toggleArrayFilter(prev.status, status, BOOKING_ORDER_STATUSES.length) }))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}{status}</button>
                       )
                     })}
@@ -949,7 +940,6 @@ export const BookingManagement = () => {
                   <PodGridSelector
                     pods={podOptions}
                     selectedPodId={draftOrderFilters.pod_id}
-                    onSelect={(id) => setDraftOrderFilters(prev => ({ ...prev, pod_id: id }))}
                     onSelect={(id) => setDraftOrderFilters(prev => ({ ...prev, pod_id: toggleArrayFilter(prev.pod_id, id, podOptions.length) }))}
                     showAllOption={true}
                     allOptionLabel="All pods in scope"

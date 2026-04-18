@@ -36,7 +36,7 @@ export interface BookingOrderPagination {
 
 export interface BookingOrderListFilters {
   user_id?: string
-  status?: BookingOrderStatus
+  status?: string
   start_date?: string
   end_date?: string
   pod_ids?: string

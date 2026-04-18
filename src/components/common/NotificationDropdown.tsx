@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, AlertTriangle, Info, MessageSquare, CheckCircle, X } from 'lucide-react';
+import { Bell, AlertTriangle, Info, MessageSquare, CheckCircle } from 'lucide-react';
 import { useNotifications } from '../../hooks/useNotifications';
 import type { NotificationPayload } from '../../api/notificationApi';
 import { useNavigate } from 'react-router-dom';
@@ -83,7 +83,7 @@ export const NotificationDropdown: React.FC = () => {
                         )}
                     </div>
 
-                    <div 
+                    <div
                         className="max-h-[28rem] overflow-y-auto overscroll-contain"
                         onScroll={handleScroll}
                     >

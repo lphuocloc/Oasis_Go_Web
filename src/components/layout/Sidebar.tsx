@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { Menu } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { Link, NavLink } from 'react-router-dom'
+import { PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react'
 
 export interface NavItem {
   label: string
@@ -15,61 +15,96 @@ interface SidebarProps {
   profilePath?: string
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ navItems }) => {
-  const [collapsed, setCollapsed] = useState(false)
-  const location = useLocation()
+const Sidebar: React.FC<SidebarProps> = ({
+  navItems,
+  userName = 'Alex Morgan',
+  userRole = 'Super Admin',
+  profilePath = '/admin/profile'
+}) => {
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.localStorage.getItem('oasis-sidebar-collapsed') === 'true'
+  })
 
   const defaultNavItems: NavItem[] = []
   const finalNavItems = navItems.length > 0 ? navItems : defaultNavItems
-  const isActive = (path: string) => location.pathname === path
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    window.localStorage.setItem('oasis-sidebar-collapsed', String(isCollapsed))
+    document.documentElement.style.setProperty('--app-sidebar-width', isCollapsed ? '5rem' : '16rem')
+  }, [isCollapsed])
 
   return (
-    <div className={`flex flex-col h-screen bg-gray-900 transition-all duration-300 ${collapsed ? 'w-auto' : 'w-72'} border-r border-gray-800`}>
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-800 h-20">
-        {!collapsed && (
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center ">
-              <span className="text-white font-bold">GO</span>
-            </div>
-            <span className="text-white font-bold text-lg">Oasis Go</span>
+    <aside className={`fixed left-0 top-0 z-20 flex h-screen flex-col border-r border-slate-800 bg-[#0b1730] text-slate-200 transition-[width] duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}>
+      <div className={`flex h-16 items-center border-b border-slate-800 ${isCollapsed ? 'px-3 justify-center' : 'px-5 justify-between'}`}>
+        <div className="flex items-center gap-2.5 text-white">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600">
+            <ShieldCheck size={18} className="text-white" />
           </div>
+          {!isCollapsed && <span className="text-xl font-bold tracking-tight leading-none">Oasis Go</span>}
+        </div>
+
+        {!isCollapsed && (
+          <button
+            type="button"
+            onClick={() => setIsCollapsed((prev) => !prev)}
+            className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
+            aria-label="Collapse sidebar"
+          >
+            <PanelLeftClose size={18} />
+          </button>
         )}
-        {/* {collapsed && (
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-bold text-sm">GO</span>
-          </div>
-        )} */}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="p-1 hover:bg-gray-800 rounded-lg transition-colors"
-        >
-          <Menu className="w-5 h-5 text-gray-400" />
-        </button>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 px-3 py-6 space-y-2 overflow-y-auto">
-        {finalNavItems.map((item) => {
-          const active = isActive(item.path)
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 group ${
-                active
-                  ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white'
-                  : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-              }`}
-              title={collapsed ? item.label : ''}
-            >
-              <span className="flex-shrink-0">{item.icon}</span>
-              {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
-            </Link>
-          )
-        })}
+      {isCollapsed && (
+        <button
+          type="button"
+          onClick={() => setIsCollapsed(false)}
+          className="mx-auto mt-3 inline-flex rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
+          aria-label="Expand sidebar"
+        >
+          <PanelLeftOpen size={18} />
+        </button>
+      )}
+
+      <nav className={`scrollbar-hidden flex-1 space-y-1 overflow-y-auto py-5 ${isCollapsed ? 'px-2' : 'px-1.5'}`}>
+        {finalNavItems.map((item) => (
+          <NavLink
+            key={item.path}
+            to={item.path}
+            end={item.path === '/admin' || item.path === '/manager' || item.path === '/'}
+            className={({ isActive }) =>
+              `mx-0.5 flex items-center rounded-xl py-2.5 text-sm font-medium transition-colors ${isCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} ${isActive
+                ? 'bg-indigo-600 text-white'
+                : 'text-slate-200/85 hover:bg-[#162447] hover:text-white'
+              }`
+            }
+            title={isCollapsed ? item.label : undefined}
+          >
+            <span className="flex shrink-0 items-center justify-center text-slate-300 [&>svg]:h-5 [&>svg]:w-5">{item.icon}</span>
+            {!isCollapsed && <span className="truncate">{item.label}</span>}
+          </NavLink>
+        ))}
       </nav>
-    </div>
+
+      <div className="border-t border-slate-800 p-4">
+        <Link to={profilePath} className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'}`}>
+          <img
+            src="https://picsum.photos/42/42"
+            alt="User avatar"
+            className="h-10 w-10 rounded-full ring-2 ring-slate-700"
+          />
+          {!isCollapsed && (
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-white">{userName}</p>
+              <p className="truncate text-sm text-slate-400">{userRole}</p>
+            </div>
+          )}
+        </Link>
+      </div>
+    </aside>
   )
 }
 

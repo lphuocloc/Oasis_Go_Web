@@ -32,8 +32,16 @@ export const CleaningManagement = () => {
   const [pods, setPods] = useState<PodItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [clusterFilter, setClusterFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState<'all' | MaintenanceTaskStatus>('all')
+  const [clusterFilter, setClusterFilter] = useState<string[]>([])
+  const [statusFilter, setStatusFilter] = useState<MaintenanceTaskStatus[]>([])
+
+  const toggleArrayFilter = <T extends string>(current: T[], value: T | 'all', fullLength: number): T[] => {
+    if (value === 'all') return []
+    if (current.includes(value as T)) return current.filter(v => v !== value)
+    const nextArr = [...current, value as T]
+    if (nextArr.length === fullLength) return []
+    return nextArr
+  }
 
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
@@ -48,12 +56,12 @@ export const CleaningManagement = () => {
     try {
       setIsLoading(true)
 
-      const podsRes = await podApi.getAll({ cluster_id: clusterFilter === 'all' ? undefined : clusterFilter })
-      const podIdsParam = clusterFilter === 'all' ? undefined : podsRes.data.map(p => p.id).join(',')
+      const podsRes = await podApi.getAll({ cluster_id: clusterFilter.length > 0 ? clusterFilter.join(',') : undefined })
+      const podIdsParam = clusterFilter.length > 0 ? podsRes.data.map(p => p.id).join(',') : undefined
 
       const tasksRes = await maintenanceTaskApi.getAll({
           pod_ids: podIdsParam,
-          status: statusFilter === 'all' ? undefined : statusFilter
+          status: statusFilter.length > 0 ? (statusFilter.join(',') as MaintenanceTaskStatus) : undefined
       })
       setPods(podsRes.data)
       setTasks(tasksRes.data)
@@ -180,41 +188,68 @@ export const CleaningManagement = () => {
         ))}
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search tasks..."
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6 flex flex-col gap-5">
+        <div className="relative w-full max-w-md">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search tasks..."
+            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+
+        <div>
+          <p className="text-sm font-semibold text-gray-900 mb-2.5">Status</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter.length === 0 ? [] : toggleArrayFilter(statusFilter, 'all', MAINTENANCE_TASK_STATUSES.length))}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${statusFilter.length === 0 ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+            >
+              All
+            </button>
+            {MAINTENANCE_TASK_STATUSES.map((status) => {
+              const isSelected = statusFilter.includes(status)
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => setStatusFilter(toggleArrayFilter(statusFilter, status, MAINTENANCE_TASK_STATUSES.length))}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                >
+                  {status}
+                </button>
+              )
+            })}
           </div>
+        </div>
 
-          <select
-            value={clusterFilter}
-            onChange={(e) => setClusterFilter(e.target.value)}
-            disabled={isScopeLoading}
-            className="px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-          >
-            <option value="all">All clusters</option>
-            {clusters.map((cluster) => (
-              <option key={cluster.id} value={cluster.id}>{cluster.name}</option>
-            ))}
-          </select>
-
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as 'all' | MaintenanceTaskStatus)}
-            className="px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-          >
-            <option value="all">All statuses</option>
-            {MAINTENANCE_TASK_STATUSES.map((status) => (
-              <option key={status} value={status}>{status}</option>
-            ))}
-          </select>
+        <div>
+          <p className="text-sm font-semibold text-gray-900 mb-2.5">Clusters</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setClusterFilter(clusterFilter.length === 0 ? [] : toggleArrayFilter(clusterFilter, 'all', clusters.length))}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${clusterFilter.length === 0 ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+            >
+              All Clusters
+            </button>
+            {clusters.map((cluster) => {
+              const isSelected = clusterFilter.includes(cluster.id)
+              return (
+                <button
+                  key={cluster.id}
+                  type="button"
+                  onClick={() => setClusterFilter(toggleArrayFilter(clusterFilter, cluster.id, clusters.length))}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                >
+                  {cluster.name}
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
 

@@ -46,13 +46,13 @@ export const PodManagement = () => {
   const [pods, setPods] = useState<PodItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [clusterFilter, setClusterFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState<'all' | PodStatus>('all')
+  const [clusterFilter, setClusterFilter] = useState<string[]>([])
+  const [statusFilter, setStatusFilter] = useState<PodStatus[]>([])
 
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false)
-  const [draftFilters, setDraftFilters] = useState<{cluster_id: string, status: 'all' | PodStatus}>({
-    cluster_id: 'all',
-    status: 'all'
+  const [draftFilters, setDraftFilters] = useState<{cluster_id: string[], status: PodStatus[]}>({
+    cluster_id: [],
+    status: []
   })
 
   const [isDetailOpen, setIsDetailOpen] = useState(false)
@@ -76,8 +76,8 @@ export const PodManagement = () => {
     try {
       setIsLoading(true)
       const response = await podApi.getAll({
-        cluster_id: clusterFilter === 'all' ? undefined : clusterFilter,
-        status: statusFilter === 'all' ? undefined : statusFilter
+        cluster_id: clusterFilter.length > 0 ? clusterFilter.join(',') : undefined,
+        status: statusFilter.length > 0 ? (statusFilter.join(',') as PodStatus) : undefined
       })
       setPods(response.data)
     } catch (error: any) {
@@ -93,9 +93,12 @@ export const PodManagement = () => {
   }, [clusterFilter, statusFilter])
 
   useEffect(() => {
-    if (clusterFilter === 'all') return
-    if (clusters.some((cluster) => cluster.id === clusterFilter)) return
-    setClusterFilter('all')
+    if (clusterFilter.length === 0) return
+    const validClusterIds = new Set(clusters.map(c => c.id))
+    const currentValidFilters = clusterFilter.filter(id => validClusterIds.has(id))
+    if (currentValidFilters.length !== clusterFilter.length) {
+      setClusterFilter(currentValidFilters)
+    }
   }, [clusterFilter, clusters])
 
   const clusterMap = useMemo(
@@ -258,7 +261,15 @@ export const PodManagement = () => {
   }
 
   const resetDraftFilters = () => {
-    setDraftFilters({ cluster_id: 'all', status: 'all' })
+    setDraftFilters({ cluster_id: [], status: [] })
+  }
+
+  const toggleArrayFilter = <T extends string>(current: T[], value: T | 'all', fullLength: number): T[] => {
+    if (value === 'all') return []
+    if (current.includes(value as T)) return current.filter(v => v !== value)
+    const nextArr = [...current, value as T]
+    if (nextArr.length === fullLength) return []
+    return nextArr
   }
 
   return (
@@ -461,19 +472,19 @@ export const PodManagement = () => {
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => setDraftFilters(prev => ({ ...prev, status: 'all' as 'all' }))}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftFilters.status === 'all' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                  onClick={() => setDraftFilters(prev => ({ ...prev, status: toggleArrayFilter(prev.status, 'all', POD_STATUSES.length) }))}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftFilters.status.length === 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
                 >
-                  {draftFilters.status === 'all' && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
+                  {draftFilters.status.length === 0 && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
                   All
                 </button>
                 {POD_STATUSES.map(status => {
-                  const isSelected = draftFilters.status === status
+                  const isSelected = draftFilters.status.includes(status)
                   return (
                     <button
                       key={status}
                       type="button"
-                      onClick={() => setDraftFilters(prev => ({ ...prev, status }))}
+                      onClick={() => setDraftFilters(prev => ({ ...prev, status: toggleArrayFilter(prev.status, status, POD_STATUSES.length) }))}
                       className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
                     >
                       {isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
@@ -491,19 +502,19 @@ export const PodManagement = () => {
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => setDraftFilters(prev => ({ ...prev, cluster_id: 'all' }))}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftFilters.cluster_id === 'all' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                  onClick={() => setDraftFilters(prev => ({ ...prev, cluster_id: toggleArrayFilter(prev.cluster_id, 'all', clusters.length) }))}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftFilters.cluster_id.length === 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
                 >
-                  {draftFilters.cluster_id === 'all' && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
+                  {draftFilters.cluster_id.length === 0 && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
                   All Clusters
                 </button>
                 {clusters.map(cluster => {
-                  const isSelected = draftFilters.cluster_id === cluster.id
+                  const isSelected = draftFilters.cluster_id.includes(cluster.id)
                   return (
                     <button
                       key={cluster.id}
                       type="button"
-                      onClick={() => setDraftFilters(prev => ({ ...prev, cluster_id: cluster.id }))}
+                      onClick={() => setDraftFilters(prev => ({ ...prev, cluster_id: toggleArrayFilter(prev.cluster_id, cluster.id, clusters.length) }))}
                       className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
                     >
                       {isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}

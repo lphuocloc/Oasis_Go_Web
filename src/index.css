@@ -4,6 +4,17 @@
 
 @layer base {
   html {
-    font-size: 19px;
+    font-size: 15px;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hidden {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none;
   }
 }

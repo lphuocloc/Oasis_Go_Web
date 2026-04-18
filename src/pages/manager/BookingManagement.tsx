@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from 'react'
 import {
   CalendarClock,
@@ -14,8 +15,7 @@ import {
   X,
   CreditCard,
   Ban,
-  Boxes,
-  AlertCircle
+  Boxes
 } from 'lucide-react'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -156,7 +156,7 @@ export const BookingManagement = () => {
     pod_id: 'all',
     dateRange: [null, null]
   })
-  
+
   const [draftOrderFilters, setDraftOrderFilters] = useState<{
     status: 'all' | BookingOrderStatus
     pod_id: string
@@ -546,9 +546,8 @@ export const BookingManagement = () => {
 
       <div className="bg-white rounded-xl border border-gray-100 p-1 mb-6 inline-flex">
         <button
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            activeTab === 'bookings' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
-          }`}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'bookings' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+            }`}
           onClick={() => setActiveTab('bookings')}
         >
           <span className="inline-flex items-center gap-2">
@@ -557,9 +556,8 @@ export const BookingManagement = () => {
           </span>
         </button>
         <button
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            activeTab === 'orders' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
-          }`}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'orders' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+            }`}
           onClick={() => setActiveTab('orders')}
         >
           <span className="inline-flex items-center gap-2">
@@ -629,9 +627,8 @@ export const BookingManagement = () => {
                           <td className="px-6 py-4 align-top">
                             <div className="flex items-center gap-2">
                               <span
-                                className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                                  booking.cleaner_access_allowed ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-700'
-                                }`}
+                                className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${booking.cleaner_access_allowed ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-700'
+                                  }`}
                               >
                                 {booking.cleaner_access_allowed ? 'Allowed' : 'Disabled'}
                               </span>
@@ -829,11 +826,11 @@ export const BookingManagement = () => {
                 <div>
                   <div className="flex items-center justify-between mb-3"><label className="block text-sm font-semibold text-gray-900">Status</label></div>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => setDraftBookingFilters(prev => ({...prev, status: 'all'}))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftBookingFilters.status === 'all' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{draftBookingFilters.status === 'all' && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}All</button>
+                    <button type="button" onClick={() => setDraftBookingFilters(prev => ({ ...prev, status: 'all' }))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftBookingFilters.status === 'all' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{draftBookingFilters.status === 'all' && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}All</button>
                     {BOOKING_STATUSES.map(status => {
                       const isSelected = draftBookingFilters.status === status
                       return (
-                         <button key={status} type="button" onClick={() => setDraftBookingFilters(prev => ({...prev, status}))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}{status}</button>
+                        <button key={status} type="button" onClick={() => setDraftBookingFilters(prev => ({ ...prev, status }))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}{status}</button>
                       )
                     })}
                   </div>
@@ -843,7 +840,7 @@ export const BookingManagement = () => {
                   <PodGridSelector
                     pods={podOptions}
                     selectedPodId={draftBookingFilters.pod_id}
-                    onSelect={(id) => setDraftBookingFilters(prev => ({...prev, pod_id: id}))}
+                    onSelect={(id) => setDraftBookingFilters(prev => ({ ...prev, pod_id: id }))}
                     showAllOption={true}
                     allOptionLabel="All scoped pods"
                   />
@@ -868,11 +865,11 @@ export const BookingManagement = () => {
                 <div>
                   <div className="flex items-center justify-between mb-3"><label className="block text-sm font-semibold text-gray-900">Status</label></div>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => setDraftOrderFilters(prev => ({...prev, status: 'all'}))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftOrderFilters.status === 'all' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{draftOrderFilters.status === 'all' && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}All</button>
+                    <button type="button" onClick={() => setDraftOrderFilters(prev => ({ ...prev, status: 'all' }))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftOrderFilters.status === 'all' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{draftOrderFilters.status === 'all' && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}All</button>
                     {BOOKING_ORDER_STATUSES.map(status => {
                       const isSelected = draftOrderFilters.status === status
                       return (
-                         <button key={status} type="button" onClick={() => setDraftOrderFilters(prev => ({...prev, status}))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}{status}</button>
+                        <button key={status} type="button" onClick={() => setDraftOrderFilters(prev => ({ ...prev, status }))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}{status}</button>
                       )
                     })}
                   </div>
@@ -882,7 +879,7 @@ export const BookingManagement = () => {
                   <PodGridSelector
                     pods={podOptions}
                     selectedPodId={draftOrderFilters.pod_id}
-                    onSelect={(id) => setDraftOrderFilters(prev => ({...prev, pod_id: id}))}
+                    onSelect={(id) => setDraftOrderFilters(prev => ({ ...prev, pod_id: id }))}
                     showAllOption={true}
                     allOptionLabel="All pods in scope"
                   />
@@ -1192,16 +1189,16 @@ export const BookingManagement = () => {
                         <div key={booking.id} className="border border-gray-200 rounded-lg p-3 text-sm flex items-center justify-between">
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1">
                             <div>
-                               <p className="text-xs text-gray-500 uppercase">Pod</p>
-                               <p className="font-medium text-gray-900">{booking.pod?.code ?? podMap.get(booking.pod_id)?.code ?? compactId(booking.pod_id)}</p>
+                              <p className="text-xs text-gray-500 uppercase">Pod</p>
+                              <p className="font-medium text-gray-900">{booking.pod?.code ?? podMap.get(booking.pod_id)?.code ?? compactId(booking.pod_id)}</p>
                             </div>
                             <div>
-                               <p className="text-xs text-gray-500 uppercase">Start Time</p>
-                               <p className="font-medium text-gray-900">{formatDateTime(booking.start_time)}</p>
+                              <p className="text-xs text-gray-500 uppercase">Start Time</p>
+                              <p className="font-medium text-gray-900">{formatDateTime(booking.start_time)}</p>
                             </div>
                             <div>
-                               <p className="text-xs text-gray-500 uppercase">End Time</p>
-                               <p className="font-medium text-gray-900">{formatDateTime(booking.end_time)}</p>
+                              <p className="text-xs text-gray-500 uppercase">End Time</p>
+                              <p className="font-medium text-gray-900">{formatDateTime(booking.end_time)}</p>
                             </div>
                           </div>
                           <div className="ml-4 flex items-center justify-center">

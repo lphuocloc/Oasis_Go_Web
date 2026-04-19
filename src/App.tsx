@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import './App.css'
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
@@ -8,6 +9,7 @@ import { AdminPodManagement } from './pages/admin/PodManagement'
 import { InventoryWarehouseManagement } from './pages/admin/InventoryWarehouseManagement'
 import { AdminProfile } from './pages/admin/Profile'
 import { AdminShiftManagement } from './pages/admin/ShiftManagement'
+import { WithdrawManagement } from './pages/admin/WithdrawManagement'
 import { ManagerDashboard } from './pages/manager/ManagerDashboard'
 import { ManagerProfile } from './pages/manager/Profile'
 import { Login } from './pages/Login'
@@ -74,6 +76,10 @@ export const router = createBrowserRouter([
           {
             path: 'shifts',
             element: <AdminShiftManagement />
+          },
+          {
+            path: 'withdraw',
+            element: <WithdrawManagement />
           },
           {
             path: "profile",

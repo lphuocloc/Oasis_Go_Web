@@ -9,6 +9,31 @@ npm install
 npm run dev
 ```
 
+## Firebase Web Push config (an toan khi day len GitHub)
+
+Project nay khong luu Firebase key that trong source control.
+
+- Commit template files:
+  - `src/config/firebase.template.ts`
+  - `public/firebase-messaging-sw.template.js`
+- Runtime files duoc generate tu env:
+  - `src/config/firebase.ts`
+  - `public/firebase-messaging-sw.js`
+
+Lenh generate:
+
+```bash
+npm run generate:firebase-config
+```
+
+Build production se tu dong chay che do strict:
+
+```bash
+npm run build
+```
+
+Neu thieu env Firebase, build se fail som de tranh deploy sai cau hinh.
+
 ## Build production
 
 ```bash
@@ -29,6 +54,15 @@ Tao bien tren Netlify Site settings > Environment variables:
 
 - `VITE_API_BASE_URL` = domain API production (vi du: `https://api.your-domain.com/api`)
 - `VITE_SOCKET_URL` = domain socket production (vi du: `https://api.your-domain.com`)
+- `FIREBASE_API_KEY`
+- `FIREBASE_AUTH_DOMAIN` (vi du: `oasisgo-auth-dev.firebaseapp.com`)
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_STORAGE_BUCKET` (vi du: `oasisgo-auth-dev.firebasestorage.app`)
+- `FIREBASE_MESSAGING_SENDER_ID`
+- `FIREBASE_APP_ID`
+- `FIREBASE_WEB_PUSH_VAPID_KEY`
+
+Netlify se dung cac bien tren de generate file Firebase runtime truoc khi build.
 
 Ban co the tham khao file mau: `.env.production.example`
 

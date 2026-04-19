@@ -11,7 +11,14 @@ createRoot(document.getElementById('root')!).render(
      <Provider store={store}>
           <>
                <App />
-               <ToastContainer />
+               <ToastContainer
+                    position="top-right"
+                    autoClose={3500}
+                    newestOnTop
+                    closeOnClick
+                    pauseOnHover
+                    theme="light"
+               />
           </>
      </Provider>
 )

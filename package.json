@@ -4,8 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "generate:firebase-config": "node scripts/generate-firebase-config.mjs",
+    "generate:firebase-config:strict": "node scripts/generate-firebase-config.mjs --strict",
+    "dev": "npm run generate:firebase-config && vite",
+    "build": "npm run generate:firebase-config:strict && tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "tw:init": "tailwindcss init -p"
@@ -21,6 +23,7 @@
     "date-fns": "^4.1.0",
     "dayjs": "^1.11.20",
     "dotenv": "^17.3.1",
+    "firebase": "^12.12.0",
     "lucide-react": "^0.577.0",
     "react": "^19.2.0",
     "react-datepicker": "^9.1.0",

@@ -12,17 +12,11 @@ api.interceptors.request.use((cfg) => {
   if (token) {
     cfg.headers = cfg.headers ?? {}
     cfg.headers.Authorization = `Bearer ${token}`
-    console.log('Request with token:', cfg.url)
-  } else {
-    console.log('Request without token:', cfg.url)
   }
   return cfg
 })
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    console.error('API Error:', error?.response?.status, error?.response?.data)
-    return Promise.reject(error)
-  }
+  (error) => Promise.reject(error)
 )

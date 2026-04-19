@@ -28,4 +28,7 @@ dist-ssr
 *.env.development.local
 *.env.test.local
 *.env.production.local
-*.md
+
+# Generated Firebase runtime config files
+src/config/firebase.ts
+public/firebase-messaging-sw.js

@@ -1,11 +1,11 @@
 import React from 'react'
 import type { NavItem } from './Sidebar'
 import Sidebar from './Sidebar'
-import { LayoutGrid, MapPin, Home, Calendar, DollarSign, Users, Star, AlertCircle, BarChart3, Settings, Boxes, Warehouse, ListChecks, Clock } from 'lucide-react'
+import { LayoutGrid, MapPin, Home, Calendar, DollarSign, Users, Star, AlertCircle, BarChart3, Settings, Boxes, Warehouse, Clock, Wallet } from 'lucide-react'
 
-const AdminSidebar: React.FC<{ userName?: string; userRole?: string }> = ({ 
-  userName = 'Admin User', 
-  userRole = 'Administrator' 
+const AdminSidebar: React.FC<{ userName?: string; userRole?: string }> = ({
+  userName = 'Admin User',
+  userRole = 'Administrator'
 }) => {
   const navItems: NavItem[] = [
     {
@@ -33,15 +33,20 @@ const AdminSidebar: React.FC<{ userName?: string; userRole?: string }> = ({
       path: '/admin/inventory-warehouse',
       icon: <Warehouse className="w-6 h-6" />
     },
-    {
-      label: 'Cleaning Tasks',
-      path: '/admin/cleaning-tasks',
-      icon: <ListChecks className="w-6 h-6" />
-    },
+    // {
+    //   label: 'Cleaning Tasks',
+    //   path: '/admin/cleaning-tasks',
+    //   icon: <ListChecks className="w-6 h-6" />
+    // },
     {
       label: 'Manager Shifts',
       path: '/admin/shifts',
       icon: <Clock className="w-6 h-6" />
+    },
+    {
+      label: 'Withdraw',
+      path: '/admin/withdraw',
+      icon: <Wallet className="w-6 h-6" />
     },
     {
       label: 'Bookings',
@@ -78,7 +83,7 @@ const AdminSidebar: React.FC<{ userName?: string; userRole?: string }> = ({
       path: '/admin/settings',
       icon: <Settings className="w-6 h-6" />
     }
-    
+
   ]
 
   return <Sidebar navItems={navItems} userName={userName} userRole={userRole} profilePath="/admin/profile" />

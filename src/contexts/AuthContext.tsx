@@ -1,13 +1,18 @@
-import React, { createContext, useContext, useState, useEffect, type ReactNode,  } from 'react'
+/* eslint-disable react-refresh/only-export-components */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import React, { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { toast } from 'react-toastify'
 import { authApi } from '../api/lib/authApi'
+import { notificationApi } from '../api/notificationApi'
+import { requestFcmToken, subscribeForegroundMessages } from '../lib/firebaseMessaging'
 
 export interface User {
   id: string
   email: string
   role: 'admin' | 'manager' | 'user'
   name: string
-    phone: string
-    avatar: string | null
+  phone: string
+  avatar: string | null
 }
 
 interface AuthContextType {
@@ -24,12 +29,14 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const foregroundUnsubscribeRef = useRef<(() => void) | null>(null)
+  const registeredTokenRef = useRef<string | null>(null)
 
   const checkAuth = async () => {
     try {
       setIsLoading(true)
       const token = localStorage.getItem('token')
-      
+
       if (!token) {
         console.log('No token found')
         localStorage.removeItem('user')
@@ -41,11 +48,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.log('Token found, fetching user info...')
       // Small delay to ensure interceptor is ready
       await new Promise(resolve => setTimeout(resolve, 100))
-      
+
       try {
         const userData = await authApi.me()
-        console.log('User data from /auth/me:', userData)
-        
+
         if (userData && userData.id) {
           localStorage.setItem('user', JSON.stringify(userData))
           setUser(userData)
@@ -68,7 +74,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
         throw apiError
       }
-      
+
       console.warn('Invalid user data')
       localStorage.removeItem('token')
       localStorage.removeItem('user')
@@ -90,23 +96,76 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Check auth status on mount
   useEffect(() => {
     checkAuth()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    let isCancelled = false
+
+    if (!user) {
+      registeredTokenRef.current = null
+      foregroundUnsubscribeRef.current?.()
+      foregroundUnsubscribeRef.current = null
+      return
+    }
+
+    const setupFirebaseMessaging = async () => {
+      try {
+        const token = await requestFcmToken()
+        if (!token || isCancelled) {
+          return
+        }
+
+        console.log('[FCM] Web token generated:', token)
+
+        if (registeredTokenRef.current !== token) {
+          console.log('[FCM] Sending token to backend /auth/update-fcm-token:', token)
+          const registerResult = await notificationApi.registerPushToken(token)
+          console.log('[FCM] Backend register token response:', registerResult)
+          registeredTokenRef.current = token
+        }
+      } catch (error) {
+        console.error('Failed to setup Firebase Messaging', error)
+      }
+
+      try {
+        const unsubscribe = await subscribeForegroundMessages((payload) => {
+          if (isCancelled) return
+
+          const title = payload.notification?.title || 'Thong bao moi'
+          const body = payload.notification?.body || ''
+          toast.info(body ? `${title}: ${body}` : title)
+        })
+
+        if (!isCancelled) {
+          foregroundUnsubscribeRef.current = unsubscribe
+        }
+      } catch (error) {
+        console.error('Failed to subscribe foreground notifications', error)
+      }
+    }
+
+    setupFirebaseMessaging()
+
+    return () => {
+      isCancelled = true
+      foregroundUnsubscribeRef.current?.()
+      foregroundUnsubscribeRef.current = null
+    }
+  }, [user])
 
   const login = async (email: string, password: string) => {
     try {
       const response = await authApi.login({ email, password })
-      console.log('Login response:', response)
-      
+
       // Handle nested data structure
       const tokenData = response.data || response
       const token = tokenData.token
       const userData = tokenData.user
-      
+
       if (!token || !userData) {
         throw new Error('Invalid login response: missing token or user data')
       }
-      
+
       console.log('Storing token and user...')
       localStorage.setItem('token', token)
       localStorage.setItem('user', JSON.stringify(userData))
@@ -119,6 +178,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }
 
   const logout = () => {
+    const token = localStorage.getItem('token')
+    if (token) {
+      notificationApi.resetPushToken(token).catch((error) => {
+        console.error('Failed to reset FCM token on logout', error)
+      })
+    }
+
+    foregroundUnsubscribeRef.current?.()
+    foregroundUnsubscribeRef.current = null
+    registeredTokenRef.current = null
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     setUser(null)

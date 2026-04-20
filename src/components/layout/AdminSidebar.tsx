@@ -38,11 +38,13 @@ const AdminSidebar: React.FC<{ userName?: string; userRole?: string }> = ({
       path: '/admin/cleaning-tasks',
       icon: <ListChecks className="w-6 h-6" />
     },
+    /*
     {
       label: 'Manager Shifts',
       path: '/admin/shifts',
       icon: <Clock className="w-6 h-6" />
     },
+    */
     {
       label: 'Bookings',
       path: '/admin/bookings',

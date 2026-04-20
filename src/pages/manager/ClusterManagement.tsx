@@ -3,6 +3,7 @@ import { Boxes, Eye, ImagePlus, MapPin, RefreshCw, Search, SlidersHorizontal, Ch
 import { toast } from 'react-toastify'
 import { podClusterApi, type PodClusterItem } from '../../api/lib/podClusterApi'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
+import { initUserSocket } from '../../lib/socket'
 
 const formatMoneyModifier = (value?: number | null) => {
   if (value == null) return '—'
@@ -35,6 +36,23 @@ export const ClusterManagement = () => {
     if (locationOptions.some((item) => item.id === locationFilter)) return
     setLocationFilter('all')
   }, [locationFilter, locationOptions])
+
+  useEffect(() => {
+    const socket = initUserSocket()
+    if (!socket) return
+
+    const handleNewData = () => {
+      refreshScope()
+    }
+
+    socket.on('user:notification', handleNewData)
+    socket.on('dashboard:refresh', handleNewData)
+
+    return () => {
+      socket.off('user:notification', handleNewData)
+      socket.off('dashboard:refresh', handleNewData)
+    }
+  }, [refreshScope])
 
   const filteredClusters = useMemo(() => {
     const normalized = search.trim().toLowerCase()

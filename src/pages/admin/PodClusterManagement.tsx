@@ -18,6 +18,7 @@ import {
   type PodClusterItem,
   type PodClusterPayload
 } from '../../api/lib/podClusterApi'
+import { initUserSocket } from '../../lib/socket'
 
 interface PodClusterFormState {
   location_id: string
@@ -68,6 +69,7 @@ export const PodClusterManagement = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCluster, setEditingCluster] = useState<PodClusterItem | null>(null)
   const [form, setForm] = useState<PodClusterFormState>(createEmptyForm())
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const fetchLocations = async () => {
     const response = await locationApi.getAll({ isActive: 'all', type: 'all' })
@@ -97,7 +99,24 @@ export const PodClusterManagement = () => {
 
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locationFilter])
+  }, [locationFilter, refreshTrigger])
+
+  useEffect(() => {
+    const socket = initUserSocket()
+    if (!socket) return
+
+    const handleNewData = () => {
+      setRefreshTrigger(prev => prev + 1)
+    }
+
+    socket.on('user:notification', handleNewData)
+    socket.on('dashboard:refresh', handleNewData)
+
+    return () => {
+      socket.off('user:notification', handleNewData)
+      socket.off('dashboard:refresh', handleNewData)
+    }
+  }, [])
 
   const locationMap = useMemo(
     () => new Map(locations.map((location) => [location.id, location])),

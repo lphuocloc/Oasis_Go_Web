@@ -36,6 +36,12 @@ export interface StaffShiftAssignmentUpdatePayload {
   status?: StaffShiftAssignmentStatus
 }
 
+export interface StaffShiftAssignmentGeneratePayload {
+  staff_id?: string
+  start_date: string
+  end_date: string
+}
+
 export interface StaffShiftAssignmentFilters {
   staff_id?: string
   location_shift_id?: string
@@ -174,6 +180,10 @@ export const staffShiftAssignmentApi = {
 
   create: (payload: StaffShiftAssignmentCreatePayload) => {
     return api.post<StaffShiftAssignmentSingleResponse>('/staff-shift-assignments', payload).then((r) => r.data)
+  },
+
+  generate: (payload: StaffShiftAssignmentGeneratePayload) => {
+    return api.post<{success: boolean, created: number, message: string}>('/staff-shift-assignments/generate', payload).then((r) => r.data)
   },
 
   getAll: (filters?: StaffShiftAssignmentFilters) => {

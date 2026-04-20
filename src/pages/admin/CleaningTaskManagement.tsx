@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { BookOpenCheck, Edit2, Plus, RefreshCw, Search, Trash2, WandSparkles, X } from 'lucide-react'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
@@ -16,6 +16,7 @@ import { podApi, type PodItem } from '../../api/lib/podApi'
 import { podClusterApi, type PodClusterItem } from '../../api/lib/podClusterApi'
 import { locationShiftApi, type WorkingStaffAssignment } from '../../api/lib/locationShiftApi'
 import { userApi, type UserListItem } from '../../api/lib/userApi'
+import { initUserSocket } from '../../lib/socket'
 
 type StatusFilter = CleaningTaskStatus | 'all'
 type SourceFilter = CleaningRequestSource | 'all'
@@ -167,6 +168,7 @@ export const CleaningTaskManagement = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isRunningBackfill, setIsRunningBackfill] = useState(false)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
@@ -270,7 +272,24 @@ export const CleaningTaskManagement = () => {
   useEffect(() => {
     fetchTasks()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, sourceFilter])
+  }, [statusFilter, sourceFilter, refreshTrigger])
+
+  useEffect(() => {
+    const socket = initUserSocket()
+    if (!socket) return
+
+    const handleNewData = () => {
+      setRefreshTrigger(prev => prev + 1)
+    }
+
+    socket.on('user:notification', handleNewData)
+    socket.on('dashboard:refresh', handleNewData)
+
+    return () => {
+      socket.off('user:notification', handleNewData)
+      socket.off('dashboard:refresh', handleNewData)
+    }
+  }, [])
 
   useEffect(() => {
     fetchBookingData()

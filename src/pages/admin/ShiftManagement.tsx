@@ -12,6 +12,7 @@ import { staffWorkRosterApi, type StaffWorkRosterItem } from '../../api/lib/staf
 import { staffShiftAssignmentApi, type StaffShiftAssignmentItem } from '../../api/lib/staffShiftAssignmentApi'
 import { userApi, type UserListItem } from '../../api/lib/userApi'
 import { locationApi, type LocationItem } from '../../api/lib/locationApi'
+import { initUserSocket } from '../../lib/socket'
 
 type TabType = 'STAFF_SHIFTS' | 'LOCATION_SHIFTS' | 'ROSTERS' | 'ASSIGNMENTS'
 
@@ -47,7 +48,7 @@ const toTimePickerValue = (timeValue: string): Dayjs | null => {
   return dayjs().hour(hour).minute(minute).second(0).millisecond(0)
 }
 
-function StaffShiftsTab() {
+function StaffShiftsTab({ refreshTrigger }: { refreshTrigger: number }) {
   const [shifts, setShifts] = useState<StaffShiftItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -55,7 +56,7 @@ function StaffShiftsTab() {
   const [editId, setEditId] = useState<string | null>(null)
 
   const [formData, setFormData] = useState<{ shift_name: StaffShiftName; start_time: string; end_time: string }>({
-    shift_name: 'MORNING',
+    shift_name: 'CA SÁNG',
     start_time: '',
     end_time: ''
   })
@@ -74,7 +75,7 @@ function StaffShiftsTab() {
 
   useEffect(() => {
     fetchShifts()
-  }, [])
+  }, [refreshTrigger])
 
   const handleOpen = (shift?: StaffShiftItem) => {
     if (shift) {
@@ -82,29 +83,32 @@ function StaffShiftsTab() {
       setFormData({ shift_name: shift.shift_name, start_time: shift.start_time, end_time: shift.end_time })
     } else {
       setEditId(null)
-      setFormData({ shift_name: 'MORNING', start_time: '', end_time: '' })
+      setFormData({ shift_name: 'CA SÁNG', start_time: '', end_time: '' })
     }
     setIsModalOpen(true)
   }
 
   const handleSubmit = async () => {
-    if (!formData.shift_name || !formData.start_time || !formData.end_time) {
-      toast.error('Please fill all fields')
-      return
-    }
-
-    if (formData.shift_name !== 'NIGHT' && formData.start_time >= formData.end_time) {
-      toast.error('Start time cannot be after or equal to end time')
+    if (!formData.shift_name) {
+      toast.error('Vui lòng chọn tên ca')
       return
     }
 
     try {
       setIsSaving(true)
+      const times: Record<string, { start: string, end: string }> = {
+        'CA SÁNG': { start: '06:00', end: '12:00' },
+        'CA CHIỀU': { start: '12:00', end: '18:00' },
+        'CA TỐI': { start: '18:00', end: '00:00' },
+        'CA ĐÊM': { start: '00:00', end: '06:00' }
+      }
+      const finalData = { ...formData, ...times[formData.shift_name], role: 'MANAGER' }
+      
       if (editId) {
-        await staffShiftApi.update(editId, { ...formData, role: 'MANAGER' })
+        await staffShiftApi.update(editId, finalData)
         toast.success('Shift updated')
       } else {
-        await staffShiftApi.create({ ...formData, role: 'MANAGER' })
+        await staffShiftApi.create(finalData)
         toast.success('Shift created')
       }
       setIsModalOpen(false)
@@ -116,11 +120,22 @@ function StaffShiftsTab() {
     }
   }
 
+  const handleDeleteStaffShift = async (id: string) => {
+    if (!confirm('Bạn có chắc chắn muốn xoá ca làm việc này?')) return
+    try {
+      await staffShiftApi.delete(id)
+      toast.success('Đã xoá ca làm việc')
+      fetchShifts()
+    } catch {
+      toast.error('Xoá ca làm việc thất bại')
+    }
+  }
+
   return (
     <div>
       <SectionHeader
-        title="Manager Shift Templates"
-        description="Define shift formats for manager operations."
+        title="Quản lý Ca làm việc (Quản lý cụm)"
+        description="Định nghĩa các mẫu ca cố định dành cho cấp quản lý."
         onRefresh={fetchShifts}
         isLoading={isLoading}
         rightAction={
@@ -128,7 +143,7 @@ function StaffShiftsTab() {
             onClick={() => handleOpen()}
             className="inline-flex items-center gap-2 px-5 py-2.5 text-base font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
           >
-            <Plus className="w-4 h-4" /> Create Shift
+            <Plus className="w-4 h-4" /> Tạo Ca Mới
           </button>
         }
       />
@@ -143,8 +158,11 @@ function StaffShiftsTab() {
               <Clock className="w-4 h-4 text-blue-500" />
               <span>{shift.start_time} - {shift.end_time}</span>
             </div>
-            <div className="flex justify-end pt-3 border-t border-gray-50">
-              <button onClick={() => handleOpen(shift)} className="text-gray-400 hover:text-blue-600 transition p-1">
+            <div className="flex justify-end gap-2 pt-3 border-t border-gray-50">
+              <button onClick={() => handleDeleteStaffShift(shift.id)} className="text-gray-400 hover:text-red-600 transition p-1" title="Xoá ca">
+                <Trash2 className="w-4 h-4" />
+              </button>
+              <button onClick={() => handleOpen(shift)} className="text-gray-400 hover:text-blue-600 transition p-1" title="Sửa ca">
                 <Edit2 className="w-4 h-4" />
               </button>
             </div>
@@ -153,53 +171,30 @@ function StaffShiftsTab() {
       </div>
 
       {shifts.length === 0 && !isLoading && (
-        <div className="bg-white border border-dashed border-gray-200 rounded-xl p-8 text-center text-gray-500">No shifts found</div>
+        <div className="bg-white border border-dashed border-gray-200 rounded-xl p-8 text-center text-gray-500">Không tìm thấy ca làm việc nào</div>
       )}
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editId ? 'Edit Shift' : 'Create Shift'} size="sm">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editId ? 'Sửa Ca Làm Việc' : 'Tạo Ca Làm Việc'} size="sm">
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Shift Name</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Tên Ca</label>
             <select
               value={formData.shift_name}
-              onChange={(e) => setFormData({ ...formData, shift_name: e.target.value as StaffShiftName })}
+              onChange={(e) => setFormData({ ...formData, shift_name: e.target.value as StaffShiftName, start_time: '', end_time: '' })}
               className="w-full px-4 py-2.5 text-base border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="MORNING">Morning</option>
-              <option value="AFTERNOON">Afternoon</option>
-              <option value="NIGHT">Night</option>
+              <option value="CA SÁNG">Ca Sáng (06:00 - 12:00)</option>
+              <option value="CA CHIỀU">Ca Chiều (12:00 - 18:00)</option>
+              <option value="CA TỐI">Ca Tối (18:00 - 00:00)</option>
+              <option value="CA ĐÊM">Ca Đêm (00:00 - 06:00)</option>
             </select>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-              <TimePicker
-                needConfirm={false}
-                size="large"
-                value={toTimePickerValue(formData.start_time)}
-                format="HH:mm"
-                onChange={(value) => setFormData({ ...formData, start_time: value ? value.format('HH:mm') : '' })}
-                className="w-full text-base"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
-              <TimePicker
-                needConfirm={false}
-                size="large"
-                value={toTimePickerValue(formData.end_time)}
-                format="HH:mm"
-                onChange={(value) => setFormData({ ...formData, end_time: value ? value.format('HH:mm') : '' })}
-                className="w-full text-base"
-              />
-            </div>
           </div>
           <div className="pt-4 flex justify-end gap-2">
             <button disabled={isSaving} onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-base border rounded-lg text-gray-600 hover:bg-gray-50">
-              Cancel
+              Hủy
             </button>
             <button disabled={isSaving} onClick={handleSubmit} className="px-5 py-2.5 text-base font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-              Save
+              Lưu
             </button>
           </div>
         </div>
@@ -208,7 +203,7 @@ function StaffShiftsTab() {
   )
 }
 
-function LocationShiftsTab() {
+function LocationShiftsTab({ refreshTrigger }: { refreshTrigger: number }) {
   const [items, setItems] = useState<LocationShiftItem[]>([])
   const [locations, setLocations] = useState<LocationItem[]>([])
   const [shifts, setShifts] = useState<StaffShiftItem[]>([])
@@ -237,7 +232,7 @@ function LocationShiftsTab() {
 
   useEffect(() => {
     fetchAll()
-  }, [])
+  }, [refreshTrigger])
 
   const handleDelete = async (id: string) => {
     if (!confirm('Remove this shift mapping?')) return
@@ -377,7 +372,7 @@ function LocationShiftsTab() {
   )
 }
 
-function AssignmentsTab() {
+function AssignmentsTab({ refreshTrigger }: { refreshTrigger: number }) {
   const [assignments, setAssignments] = useState<StaffShiftAssignmentItem[]>([])
   const [managers, setManagers] = useState<UserListItem[]>([])
   const [locShifts, setLocShifts] = useState<LocationShiftItem[]>([])
@@ -418,7 +413,7 @@ function AssignmentsTab() {
 
   useEffect(() => {
     fetchAll()
-  }, [])
+  }, [refreshTrigger])
 
   const handleDelete = async (id: string) => {
     if (!confirm('Confirm delete assignment?')) return
@@ -641,7 +636,7 @@ function AssignmentsTab() {
   )
 }
 
-function RostersTab() {
+function RostersTab({ refreshTrigger }: { refreshTrigger: number }) {
   const [rosters, setRosters] = useState<StaffWorkRosterItem[]>([])
   const [managers, setManagers] = useState<UserListItem[]>([])
   const [locShifts, setLocShifts] = useState<LocationShiftItem[]>([])
@@ -685,7 +680,7 @@ function RostersTab() {
 
   useEffect(() => {
     fetchAll()
-  }, [])
+  }, [refreshTrigger])
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete roster entry?')) return
@@ -866,6 +861,24 @@ function RostersTab() {
 
 export const AdminShiftManagement = () => {
   const [activeTab, setActiveTab] = useState<TabType>('STAFF_SHIFTS')
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
+
+  useEffect(() => {
+    const socket = initUserSocket()
+    if (!socket) return
+
+    const handleNewData = () => {
+      setRefreshTrigger(prev => prev + 1)
+    }
+
+    socket.on('user:notification', handleNewData)
+    socket.on('dashboard:refresh', handleNewData)
+
+    return () => {
+      socket.off('user:notification', handleNewData)
+      socket.off('dashboard:refresh', handleNewData)
+    }
+  }, [])
 
   const tabs: { id: TabType; label: string; icon: React.ReactNode }[] = [
     { id: 'STAFF_SHIFTS', label: 'Shift Templates', icon: <Clock className="w-4 h-4" /> },
@@ -901,10 +914,10 @@ export const AdminShiftManagement = () => {
       </div>
 
       <div className="p-8 flex-1">
-        {activeTab === 'STAFF_SHIFTS' && <StaffShiftsTab />}
-        {activeTab === 'LOCATION_SHIFTS' && <LocationShiftsTab />}
-        {activeTab === 'ROSTERS' && <RostersTab />}
-        {activeTab === 'ASSIGNMENTS' && <AssignmentsTab />}
+        {activeTab === 'STAFF_SHIFTS' && <StaffShiftsTab refreshTrigger={refreshTrigger} />}
+        {activeTab === 'LOCATION_SHIFTS' && <LocationShiftsTab refreshTrigger={refreshTrigger} />}
+        {activeTab === 'ROSTERS' && <RostersTab refreshTrigger={refreshTrigger} />}
+        {activeTab === 'ASSIGNMENTS' && <AssignmentsTab refreshTrigger={refreshTrigger} />}
       </div>
     </div>
   )

@@ -100,9 +100,11 @@ export interface RoomChangeCandidatePod {
   pod_name?: string
   status?: string
   cluster_id?: string
+  cluster_name?: string
   location_id?: string
   scope_level?: 'SAME_CLUSTER' | 'SAME_PARENT_LOCATION' | string
   buffer_minutes_applied?: number
+  is_selectable?: boolean
 }
 
 interface RoomChangeCandidatesResponse {

@@ -25,6 +25,7 @@ import {
 import { TrendingUp, Calendar, Package, RefreshCw, ChevronDown } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
+import { initUserSocket } from '../../lib/socket'
 
 ChartJS.register(
   DoughnutController,
@@ -337,8 +338,7 @@ const mapDateLabelToVietnamese = (label: string, groupBy: string) => {
   if (groupBy === 'day') {
     const date = new Date(label)
     if (!Number.isNaN(date.getTime())) {
-      const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7']
-      return days[date.getDay()]
+      return date.toLocaleDateString('vi-VN')
     }
   }
   return label
@@ -359,6 +359,8 @@ export const ManagerDashboard = () => {
 
   const [showSummaryRangePicker, setShowSummaryRangePicker] = useState(false)
   const [showChartRangePicker, setShowChartRangePicker] = useState(false)
+
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const fetchSummaryDashboard = async (selectedRange: RangeOption) => {
     try {
@@ -391,12 +393,30 @@ export const ManagerDashboard = () => {
   useEffect(() => {
     fetchSummaryDashboard(summaryRange)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [summaryRange])
+  }, [summaryRange, refreshTrigger])
 
   useEffect(() => {
     fetchChartDashboard(chartRange)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartRange])
+  }, [chartRange, refreshTrigger])
+
+  useEffect(() => {
+    const socket = initUserSocket()
+    if (!socket) return
+
+    const handleNewData = () => {
+      refreshScope()
+      setRefreshTrigger(prev => prev + 1)
+    }
+
+    socket.on('user:notification', handleNewData)
+    socket.on('dashboard:refresh', handleNewData)
+
+    return () => {
+      socket.off('user:notification', handleNewData)
+      socket.off('dashboard:refresh', handleNewData)
+    }
+  }, [refreshScope])
 
   const scopedClusterIds = useMemo(
     () => new Set(scopedClusters.map((cluster) => cluster.id)),

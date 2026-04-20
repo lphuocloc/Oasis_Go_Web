@@ -1,9 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Boxes, Eye, ImagePlus, MapPin, RefreshCw, Search, SlidersHorizontal, Check, X, Server, LayoutTemplate } from 'lucide-react'
+import { Boxes, Eye, ImagePlus, MapPin, RefreshCw, Search, SlidersHorizontal, Check, X, Server, LayoutTemplate, ClipboardCheck } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { podClusterApi, type PodClusterItem } from '../../api/lib/podClusterApi'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
+import { ClusterPodItemBulkAssign } from '../../components/common/ClusterPodItemBulkAssign'
 import { initUserSocket } from '../../lib/socket'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from '../../components/ui/dialog'
+import { Button } from '../../components/ui/button'
 
 const formatMoneyModifier = (value?: number | null) => {
   if (value == null) return '—'
@@ -12,7 +21,7 @@ const formatMoneyModifier = (value?: number | null) => {
 
 export const ClusterManagement = () => {
   const { clusters: scopedClusters, locationOptions, isLoading: isScopeLoading, refreshScope } = useManagerScope()
-  
+
   const [search, setSearch] = useState('')
   const [locationFilter, setLocationFilter] = useState('all')
 
@@ -22,6 +31,7 @@ export const ClusterManagement = () => {
   })
 
   const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null)
   const [selectedCluster, setSelectedCluster] = useState<PodClusterItem | null>(null)
@@ -120,35 +130,43 @@ export const ClusterManagement = () => {
 
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
+
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Pod Cluster Management</h1>
-          <p className="text-gray-500 mt-1">View pod clusters in your assigned location scope.</p>
+          <h1 className="text-3xl font-bold text-gray-900">Quản Lý Cụm Pod</h1>
+          <p className="text-gray-500 mt-1">Xem và quản lý các cụm pod trong phạm vi quản lý của bạn.</p>
         </div>
 
         <div className="flex items-center gap-3">
-          <button
+          <Button
             onClick={refreshScope}
             disabled={isScopeLoading}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
+            variant="outline"
           >
             <RefreshCw className={`w-4 h-4 ${isScopeLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
+            Làm mới
+          </Button>
+
+          <Button
+            onClick={() => setIsAssignModalOpen(true)}
+          >
+            <ClipboardCheck className="w-4 h-4 mr-2" />
+            Gán vật tư hàng loạt
+          </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-gray-500">Total Clusters</span>
+            <span className="text-sm font-medium text-gray-500">Tổng số Cụm Pod</span>
             <Boxes className="w-5 h-5 text-blue-500" />
           </div>
           <div className="text-3xl font-bold text-gray-900">{clusters.length}</div>
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-gray-500">Locations Covered</span>
+            <span className="text-sm font-medium text-gray-500">Khu vực quản lý</span>
             <MapPin className="w-5 h-5 text-purple-500" />
           </div>
           <div className="text-3xl font-bold text-gray-900">{totalLocations}</div>
@@ -176,7 +194,7 @@ export const ClusterManagement = () => {
             />
           </div>
         </div>
-        
+
         <div>
           <button
             type="button"
@@ -389,7 +407,7 @@ export const ClusterManagement = () => {
                   <div>
                     <h3 className="text-base font-semibold text-indigo-900 mb-1">{selectedCluster.name}</h3>
                     <p className="text-sm text-indigo-700/80">
-                       Located in <span className="font-semibold">{selectedCluster.location?.name ?? 'Unknown'}</span>
+                      Located in <span className="font-semibold">{selectedCluster.location?.name ?? 'Unknown'}</span>
                     </p>
                   </div>
                 </div>
@@ -447,20 +465,20 @@ export const ClusterManagement = () => {
                   ) : (
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                       {selectedCluster.images.map((image) => (
-                         <a
-                         key={image.id}
-                         href={image.image_url}
-                         target="_blank"
-                         rel="noreferrer"
-                         className="group block relative border border-gray-200 rounded-xl overflow-hidden bg-gray-50 aspect-[4/3] focus:outline-none focus:ring-2 focus:ring-blue-500"
-                       >
-                         <img
-                           src={image.image_url}
-                           alt={`Cluster image ${image.id}`}
-                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                         />
-                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
-                       </a>
+                        <a
+                          key={image.id}
+                          href={image.image_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="group block relative border border-gray-200 rounded-xl overflow-hidden bg-gray-50 aspect-[4/3] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <img
+                            src={image.image_url}
+                            alt={`Cluster image ${image.id}`}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
+                        </a>
                       ))}
                     </div>
                   )}
@@ -470,6 +488,25 @@ export const ClusterManagement = () => {
           </div>
         </div>
       </div>
+
+      <Dialog
+        open={isAssignModalOpen}
+        onOpenChange={(open: boolean) => {
+          if (!open) setIsAssignModalOpen(false)
+        }}
+      >
+        <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>Gán vật tư hàng loạt theo Cụm Pod</DialogTitle>
+            <DialogDescription className="sr-only">
+              Assign items in bulk by pod cluster.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="px-1 pb-1">
+            <ClusterPodItemBulkAssign clusters={scopedClusters} isLoadingClusters={isScopeLoading} />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

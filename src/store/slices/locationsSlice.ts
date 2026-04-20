@@ -1,7 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit'
 import type { LocationItem } from '../../api/lib/locationApi'
 import type { RootState } from '../index'
-import { fetchLocations } from '../thunks/locationsThunks'
+import { fetchLocations, updateLocation } from '../thunks/locationsThunks'
 
 interface LocationsState {
     items: LocationItem[]
@@ -36,6 +36,18 @@ const locationsSlice = createSlice({
             .addCase(fetchLocations.rejected, (state, action) => {
                 state.isLoading = false
                 state.error = action.payload ?? 'Failed to load locations'
+            })
+            .addCase(updateLocation.pending, (state) => {
+                state.error = null
+            })
+            .addCase(updateLocation.fulfilled, (state, action) => {
+                const index = state.items.findIndex((item) => item.id === action.payload.id)
+                if (index !== -1) {
+                    state.items[index] = action.payload
+                }
+            })
+            .addCase(updateLocation.rejected, (state, action) => {
+                state.error = action.payload ?? 'Failed to update location'
             })
     }
 })

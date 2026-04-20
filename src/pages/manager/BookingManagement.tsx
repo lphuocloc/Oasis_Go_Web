@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from 'react'
 import {
   CalendarClock,
@@ -14,8 +15,7 @@ import {
   X,
   CreditCard,
   Ban,
-  Boxes,
-  AlertCircle
+  Boxes
 } from 'lucide-react'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -161,6 +161,7 @@ export const BookingManagement = () => {
     pod_id: [],
     dateRange: [null, null]
   })
+
 
   const [draftOrderFilters, setDraftOrderFilters] = useState<{
     status: BookingOrderStatus[]
@@ -1303,12 +1304,18 @@ export const BookingManagement = () => {
                             <div>
                               <p className="text-xs text-gray-500 uppercase">Pod</p>
                               <p className="font-medium text-gray-900">{booking.pod?.code ?? podMap.get(booking.pod_id)?.code ?? compactId(booking.pod_id)}</p>
+                              <p className="text-xs text-gray-500 uppercase">Pod</p>
+                              <p className="font-medium text-gray-900">{booking.pod?.code ?? podMap.get(booking.pod_id)?.code ?? compactId(booking.pod_id)}</p>
                             </div>
                             <div>
                               <p className="text-xs text-gray-500 uppercase">Start Time</p>
                               <p className="font-medium text-gray-900">{formatDateTime(booking.start_time)}</p>
+                              <p className="text-xs text-gray-500 uppercase">Start Time</p>
+                              <p className="font-medium text-gray-900">{formatDateTime(booking.start_time)}</p>
                             </div>
                             <div>
+                              <p className="text-xs text-gray-500 uppercase">End Time</p>
+                              <p className="font-medium text-gray-900">{formatDateTime(booking.end_time)}</p>
                               <p className="text-xs text-gray-500 uppercase">End Time</p>
                               <p className="font-medium text-gray-900">{formatDateTime(booking.end_time)}</p>
                             </div>

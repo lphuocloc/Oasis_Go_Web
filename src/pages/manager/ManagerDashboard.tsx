@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArcElement,
@@ -41,8 +42,6 @@ ChartJS.register(
   Tooltip,
   Legend
 )
-
-const OPEN_INCIDENT_STATUSES = ['PENDING', 'INVESTIGATING']
 
 type RangeOption = 'today' | 'week' | 'month'
 
@@ -289,7 +288,7 @@ const LineChart: React.FC<{
       scales: {
         x: {
           grid: { display: false },
-          ticks: { color: '#64748b', font: { size: 13, weight: 'bold' } }
+          ticks: { color: '#64748b', font: { size: 13, weight: 500 } }
         },
         y: {
           type: 'linear',
@@ -299,7 +298,7 @@ const LineChart: React.FC<{
           grid: { color: '#f1f5f9' },
           ticks: {
             color: '#64748b',
-            font: { size: 13, weight: 'bold' },
+            font: { size: 13, weight: 500 },
             callback: (tickValue) =>
               new Intl.NumberFormat('vi-VN', {
                 notation: 'compact',
@@ -313,7 +312,7 @@ const LineChart: React.FC<{
           position: 'right',
           beginAtZero: true,
           grid: { drawOnChartArea: false },
-          ticks: { color: '#64748b', font: { size: 13, weight: 'bold' }, stepSize: 1 }
+          ticks: { color: '#64748b', font: { size: 13, weight: 500 }, stepSize: 1 }
         }
       }
     }

@@ -28,7 +28,7 @@ const statusBadgeClass = (status: string) => {
 }
 
 export const CleaningManagement = () => {
-  const { clusters, isLoading: isScopeLoading, refreshScope } = useManagerScope()
+  const { clusters, refreshScope } = useManagerScope()
   const [tasks, setTasks] = useState<MaintenanceTaskItem[]>([])
   const [pods, setPods] = useState<PodItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -62,8 +62,8 @@ export const CleaningManagement = () => {
       const podIdsParam = clusterFilter.length > 0 ? podsRes.data.map(p => p.id).join(',') : undefined
 
       const tasksRes = await maintenanceTaskApi.getAll({
-          pod_ids: podIdsParam,
-          status: statusFilter.length > 0 ? (statusFilter.join(',') as MaintenanceTaskStatus) : undefined
+        pod_ids: podIdsParam,
+        status: statusFilter.length > 0 ? (statusFilter.join(',') as MaintenanceTaskStatus) : undefined
       })
       setPods(podsRes.data)
       setTasks(tasksRes.data)

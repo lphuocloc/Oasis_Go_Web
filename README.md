@@ -1,74 +1,72 @@
-# React + TypeScript + Vite
-
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
 # Oasis_Go_Web
+
+Frontend React + TypeScript + Vite cho Oasis Go.
+
+## Chay local
+
+```bash
+npm install
+npm run dev
+```
+
+## Firebase Web Push config (an toan khi day len GitHub)
+
+Project nay khong luu Firebase key that trong source control.
+
+- Commit template files:
+  - `src/config/firebase.template.ts`
+  - `public/firebase-messaging-sw.template.js`
+- Runtime files duoc generate tu env:
+  - `src/config/firebase.ts`
+  - `public/firebase-messaging-sw.js`
+
+Lenh generate:
+
+```bash
+npm run generate:firebase-config
+```
+
+Build production se tu dong chay che do strict:
+
+```bash
+npm run build
+```
+
+Neu thieu env Firebase, build se fail som de tranh deploy sai cau hinh.
+
+## Build production
+
+```bash
+npm run build
+```
+
+## Deploy len Netlify
+
+Project da duoc them file `netlify.toml` de Netlify tu nhan:
+
+- Build command: `npm run build`
+- Publish directory: `dist`
+- SPA redirect: tat ca route (`/*`) se tro ve `index.html`
+
+### Bien moi truong production
+
+Tao bien tren Netlify Site settings > Environment variables:
+
+- `VITE_API_BASE_URL` = domain API production (vi du: `https://api.your-domain.com/api`)
+- `VITE_SOCKET_URL` = domain socket production (vi du: `https://api.your-domain.com`)
+- `FIREBASE_API_KEY`
+- `FIREBASE_AUTH_DOMAIN` (vi du: `oasisgo-auth-dev.firebaseapp.com`)
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_STORAGE_BUCKET` (vi du: `oasisgo-auth-dev.firebasestorage.app`)
+- `FIREBASE_MESSAGING_SENDER_ID`
+- `FIREBASE_APP_ID`
+- `FIREBASE_WEB_PUSH_VAPID_KEY`
+
+Netlify se dung cac bien tren de generate file Firebase runtime truoc khi build.
+
+Ban co the tham khao file mau: `.env.production.example`
+
+## Luu y
+
+- Khong commit file `.env.production` chua secret.
+- Sau khi cap nhat env tren Netlify, can trigger deploy lai de app nhan gia tri moi.

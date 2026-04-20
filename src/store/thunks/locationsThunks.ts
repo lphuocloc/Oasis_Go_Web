@@ -1,5 +1,5 @@
 import { createAsyncThunk } from '@reduxjs/toolkit'
-import { locationApi, type LocationItem } from '../../api/lib/locationApi'
+import { locationApi, type LocationItem, type LocationPayload } from '../../api/lib/locationApi'
 
 const getErrorMessage = (error: unknown, fallback: string) => {
     if (typeof error === 'object' && error !== null && 'response' in error) {
@@ -24,5 +24,24 @@ export const fetchLocations = createAsyncThunk<
         return response.data
     } catch (error: unknown) {
         return rejectWithValue(getErrorMessage(error, 'Failed to load locations'))
+    }
+})
+
+interface UpdateLocationArgs {
+    id: string
+    payload: LocationPayload
+}
+
+export const updateLocation = createAsyncThunk<
+    LocationItem,
+    UpdateLocationArgs,
+    { rejectValue: string }
+>('locations/updateLocation', async ({ id, payload }, { dispatch, rejectWithValue }) => {
+    try {
+        const response = await locationApi.update(id, payload)
+        await dispatch(fetchLocations())
+        return response.data
+    } catch (error: unknown) {
+        return rejectWithValue(getErrorMessage(error, 'Failed to update location'))
     }
 })

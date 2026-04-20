@@ -27,6 +27,34 @@ interface PodItemMutationResponse {
   data?: PodItemLink
 }
 
+export interface ClusterBulkPodItemEntry {
+  item_id: string
+  expected_quantity?: number
+  current_quantity?: number
+}
+
+export interface ClusterBulkCreatePayload {
+  cluster_id: string
+  items: ClusterBulkPodItemEntry[]
+}
+
+export interface ClusterBulkCreateResult {
+  cluster_id: string
+  pod_count: number
+  input_item_count: number
+  unique_item_count: number
+  total_target_pairs: number
+  created_count: number
+  skipped_existing_count: number
+  message: string
+}
+
+interface ClusterBulkCreateResponse {
+  success: boolean
+  message: string
+  data: ClusterBulkCreateResult
+}
+
 export interface PodItemFilters {
   pod_id?: string
   item_id?: string
@@ -55,6 +83,10 @@ export const podItemApi = {
   getById: (id: string) => api.get<PodItemDetailResponse>(`/pod-items/${id}`).then((r) => r.data),
 
   create: (payload: CreatePodItemPayload) => api.post<PodItemMutationResponse>('/pod-items', payload).then((r) => r.data),
+
+  createForClusterBulk: (payload: ClusterBulkCreatePayload) => {
+    return api.post<ClusterBulkCreateResponse>('/pod-items/cluster/bulk', payload).then((r) => r.data)
+  },
 
   update: (id: string, payload: UpdatePodItemPayload) => api.put<PodItemMutationResponse>(`/pod-items/${id}`, payload).then((r) => r.data),
 

@@ -102,7 +102,7 @@ function StaffShiftsTab({ refreshTrigger }: { refreshTrigger: number }) {
         'CA TỐI': { start: '18:00', end: '00:00' },
         'CA ĐÊM': { start: '00:00', end: '06:00' }
       }
-      const finalData = { ...formData, ...times[formData.shift_name], role: 'MANAGER' }
+      const finalData = { ...formData, ...times[formData.shift_name], role: 'MANAGER' as const }
       
       if (editId) {
         await staffShiftApi.update(editId, finalData)

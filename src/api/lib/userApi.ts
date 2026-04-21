@@ -109,5 +109,13 @@ export const userApi = {
       count: payload.count ?? list.length,
       data: list
     }
+  },
+
+  createStaff: (data: any) => {
+    return api.post('/admin/users', data).then((r) => r.data)
+  },
+
+  updateStaff: (id: string, data: any) => {
+    return api.put(`/admin/users/${id}`, data).then((r) => r.data)
   }
 }

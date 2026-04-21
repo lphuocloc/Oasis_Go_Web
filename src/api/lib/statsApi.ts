@@ -17,6 +17,9 @@ export interface RevenueStats {
     status: string
     created_at: string
   }>
+  comparison?: {
+    revenueChange: number
+  }
 }
 
 // ── Users (users table) ────────────────────────────────────────────────────────
@@ -25,6 +28,9 @@ export interface UserStats {
   active: number                 // is_active = true
   newInPeriod: number            // Đăng ký trong khoảng lọc
   byRole: Array<{ role: string; count: number }> // CUSTOMER, CLEANER, MANAGER, ADMIN
+  comparison?: {
+    newUsersChange: number
+  }
 }
 
 // ── Location Performance (locations + pods + bookings + payments) ─────────────

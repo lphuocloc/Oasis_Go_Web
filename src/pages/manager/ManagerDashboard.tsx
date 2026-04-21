@@ -23,10 +23,15 @@ import {
   type DashboardFilters,
   type DashboardPod
 } from '../../api/lib/dashboardApi'
-import { TrendingUp, Calendar, Package, RefreshCw, ChevronDown } from 'lucide-react'
+import { TrendingUp, Calendar, Package, RefreshCw, ChevronDown, ArrowUpRight, ArrowDownRight } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
 import { initUserSocket } from '../../lib/socket'
+import { DatePicker, ConfigProvider } from 'antd'
+import viVN from 'antd/locale/vi_VN'
+import dayjs from 'dayjs'
+
+const { RangePicker } = DatePicker
 
 ChartJS.register(
   DoughnutController,
@@ -43,12 +48,13 @@ ChartJS.register(
   Legend
 )
 
-type RangeOption = 'today' | 'week' | 'month'
+type RangeOption = 'today' | 'week' | 'month' | 'custom'
 
 const RANGE_OPTIONS: { label: string; value: RangeOption }[] = [
   { label: 'Hôm nay', value: 'today' },
   { label: 'Tuần này', value: 'week' },
-  { label: 'Tháng này', value: 'month' }
+  { label: 'Tháng này', value: 'month' },
+  { label: 'Tùy chọn', value: 'custom' }
 ]
 
 const getDateRange = (range: RangeOption): { from: Date; to: Date; groupBy: DashboardFilters['groupBy'] } => {
@@ -119,20 +125,36 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => (
   </span>
 )
 
+const TrendBadge: React.FC<{ value?: number; label?: string }> = ({ value, label }) => {
+  if (value === undefined || value === 0) return null;
+  const isPositive = value > 0;
+  const Icon = isPositive ? ArrowUpRight : ArrowDownRight;
+  const colorClass = isPositive ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50';
+
+  return (
+    <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold ${colorClass} mb-1 shadow-sm border border-current border-opacity-10`} title={label}>
+      <Icon className="w-3 h-3" />
+      <span>{Math.abs(value)}%</span>
+    </div>
+  );
+};
+
 const SummaryCard: React.FC<{
   title: string
   value: React.ReactNode
   icon: React.ReactNode
   iconBg: string
   extra?: React.ReactNode
-}> = ({ title, value, icon, iconBg, extra }) => (
-  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col gap-3">
+  badge?: React.ReactNode
+}> = ({ title, value, icon, iconBg, extra, badge }) => (
+  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col gap-3 hover:shadow-md transition-shadow">
     <div className="flex items-center justify-between">
       <p className="text-sm font-medium text-gray-500">{title}</p>
       <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${iconBg}`}>{icon}</div>
     </div>
-    <div className="flex items-end gap-2">
-      <p className="text-3xl font-bold text-gray-900">{value}</p>
+    <div className="flex items-end justify-between gap-2">
+      <p className="text-3xl font-bold text-gray-900 leading-none">{value}</p>
+      {badge}
     </div>
     {extra && <div className="text-sm space-y-1">{extra}</div>}
   </div>
@@ -337,7 +359,7 @@ const mapDateLabelToVietnamese = (label: string, groupBy: string) => {
   if (groupBy === 'day') {
     const date = new Date(label)
     if (!Number.isNaN(date.getTime())) {
-      return date.toLocaleDateString('vi-VN')
+      return `${date.getDate()}/${date.getMonth() + 1}`
     }
   }
   return label
@@ -358,13 +380,44 @@ export const ManagerDashboard = () => {
 
   const [showSummaryRangePicker, setShowSummaryRangePicker] = useState(false)
   const [showChartRangePicker, setShowChartRangePicker] = useState(false)
-
+  const [isSummaryPickerOpen, setIsSummaryPickerOpen] = useState(false)
+  const [isChartPickerOpen, setIsChartPickerOpen] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
-  const fetchSummaryDashboard = async (selectedRange: RangeOption) => {
+  const [summaryCustomRange, setSummaryCustomRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>([dayjs().startOf('month'), dayjs()])
+  const [chartCustomRange, setChartCustomRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>([dayjs().startOf('week'), dayjs()])
+
+  // Sync custom range when preset changes (if not 'custom')
+  useEffect(() => {
+    if (summaryRange !== 'custom') {
+      const { from, to } = getDateRange(summaryRange)
+      setSummaryCustomRange([dayjs(from), dayjs(to)])
+    }
+  }, [summaryRange])
+
+  useEffect(() => {
+    if (chartRange !== 'custom') {
+      const { from, to } = getDateRange(chartRange)
+      setChartCustomRange([dayjs(from), dayjs(to)])
+    }
+  }, [chartRange])
+
+  const fetchSummaryDashboard = async (selectedRange: RangeOption, customDates?: [dayjs.Dayjs, dayjs.Dayjs] | null) => {
     try {
       setIsSummaryLoading(true)
-      const { from, to, groupBy } = getDateRange(selectedRange)
+      let rangeQuery: { from: Date; to: Date; groupBy: DashboardFilters['groupBy'] }
+      
+      if (selectedRange === 'custom' && customDates) {
+        rangeQuery = {
+          from: customDates[0].startOf('day').toDate(),
+          to: customDates[1].endOf('day').toDate(),
+          groupBy: 'day'
+        }
+      } else {
+        rangeQuery = getDateRange(selectedRange === 'custom' ? 'month' : selectedRange)
+      }
+      
+      const { from, to, groupBy } = rangeQuery
       const response = await adminDashboardApi.getDashboard({ from, to, groupBy })
       setSummaryRawData(response.data)
     } catch (fetchError: any) {
@@ -375,10 +428,22 @@ export const ManagerDashboard = () => {
     }
   }
 
-  const fetchChartDashboard = async (selectedRange: RangeOption) => {
+  const fetchChartDashboard = async (selectedRange: RangeOption, customDates?: [dayjs.Dayjs, dayjs.Dayjs] | null) => {
     try {
       setIsChartLoading(true)
-      const { from, to, groupBy } = getDateRange(selectedRange)
+      let rangeQuery: { from: Date; to: Date; groupBy: DashboardFilters['groupBy'] }
+      
+      if (selectedRange === 'custom' && customDates) {
+        rangeQuery = {
+          from: customDates[0].startOf('day').toDate(),
+          to: customDates[1].endOf('day').toDate(),
+          groupBy: 'day'
+        }
+      } else {
+        rangeQuery = getDateRange(selectedRange === 'custom' ? 'month' : selectedRange)
+      }
+      
+      const { from, to, groupBy } = rangeQuery
       const response = await adminDashboardApi.getDashboard({ from, to, groupBy })
       setChartRawData(response.data)
     } catch (fetchError: any) {
@@ -390,14 +455,12 @@ export const ManagerDashboard = () => {
   }
 
   useEffect(() => {
-    fetchSummaryDashboard(summaryRange)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [summaryRange, refreshTrigger])
+    fetchSummaryDashboard(summaryRange, summaryCustomRange)
+  }, [summaryRange, summaryCustomRange, refreshTrigger])
 
   useEffect(() => {
-    fetchChartDashboard(chartRange)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartRange, refreshTrigger])
+    fetchChartDashboard(chartRange, chartCustomRange)
+  }, [chartRange, chartCustomRange, refreshTrigger])
 
   useEffect(() => {
     const socket = initUserSocket()
@@ -422,8 +485,19 @@ export const ManagerDashboard = () => {
     [scopedClusters]
   )
 
-  const summaryRangeLabel = RANGE_OPTIONS.find((o) => o.value === summaryRange)?.label ?? 'Tháng này'
-  const chartRangeLabel = RANGE_OPTIONS.find((o) => o.value === chartRange)?.label ?? 'Tuần này'
+  const summaryRangeLabel = useMemo(() => {
+    if (summaryRange === 'custom' && summaryCustomRange) {
+      return `${summaryCustomRange[0].format('DD/MM')} - ${summaryCustomRange[1].format('DD/MM')}`
+    }
+    return RANGE_OPTIONS.find((o) => o.value === summaryRange)?.label ?? 'Tháng này'
+  }, [summaryRange, summaryCustomRange])
+
+  const chartRangeLabel = useMemo(() => {
+    if (chartRange === 'custom' && chartCustomRange) {
+      return `${chartCustomRange[0].format('DD/MM')} - ${chartCustomRange[1].format('DD/MM')}`
+    }
+    return RANGE_OPTIONS.find((o) => o.value === chartRange)?.label ?? 'Tuần này'
+  }, [chartRange, chartCustomRange])
 
   const { summaryData, listData } = useMemo(() => {
     if (!summaryRawData) return { summaryData: null, listData: null }
@@ -454,7 +528,8 @@ export const ManagerDashboard = () => {
         ordersInRange: summaryRawData.summary.ordersInRange ?? 0,
         revenue: {
           totalInRange: summaryRawData.summary.revenueInRange ?? summaryRawData.bookings.revenue?.total ?? 0
-        }
+        },
+        comparison: summaryRawData.summary.comparison
       },
       listData: {
         latestBookings: [...scopedBookings]
@@ -585,30 +660,65 @@ export const ManagerDashboard = () => {
 
           <div className="flex items-center justify-between mb-3 mt-6">
             <SectionTitle icon={<Package className="w-4 h-4" />}>Tổng Quan Hoạt Động</SectionTitle>
-            <div className="relative">
-              <button
-                onClick={() => setShowSummaryRangePicker((v) => !v)}
-                className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
-              >
-                {summaryRangeLabel}
-                <ChevronDown className="w-4 h-4 text-gray-400" />
-              </button>
-              {showSummaryRangePicker && (
-                <div className="absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded-lg shadow-lg z-10 overflow-hidden">
-                  {RANGE_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={() => {
-                        setSummaryRange(opt.value)
-                        setShowSummaryRangePicker(false)
-                      }}
-                      className={`w-full px-4 py-2 text-left text-xs hover:bg-gray-50 transition-colors ${summaryRange === opt.value ? 'text-blue-600 font-semibold bg-blue-50' : 'text-gray-700'}`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center">
+                {summaryRange === 'custom' || isSummaryPickerOpen ? (
+                  <div className="animate-in fade-in slide-in-from-right-2 duration-300">
+                    <ConfigProvider locale={viVN}>
+                      <RangePicker
+                        open={isSummaryPickerOpen}
+                        onOpenChange={setIsSummaryPickerOpen}
+                        value={summaryCustomRange}
+                        onChange={(dates) => { 
+                          setSummaryCustomRange(dates as [dayjs.Dayjs, dayjs.Dayjs]); 
+                          if (dates) setSummaryRange('custom');
+                        }}
+                        className="h-8 shadow-sm transition-all hover:border-blue-300"
+                        placeholder={['Bắt đầu', 'Kết thúc']}
+                      />
+                    </ConfigProvider>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setIsSummaryPickerOpen(true)}
+                    className="flex items-center justify-center w-8 h-8 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-all shadow-sm animate-in fade-in zoom-in duration-200"
+                    title="Chọn khoảng ngày tùy chỉnh"
+                  >
+                    <Calendar className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              <div className="relative">
+                <button
+                  onClick={() => setShowSummaryRangePicker((v) => !v)}
+                  className={`flex items-center gap-2 px-3 py-1.5 bg-white border rounded-lg text-xs font-medium shadow-sm transition-all ${
+                    summaryRange !== 'custom' ? 'border-blue-200 text-blue-600' : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <RefreshCw className="w-3 h-3 text-gray-400 group-hover:rotate-180 transition-transform" />
+                  {RANGE_OPTIONS.find((o) => o.value === summaryRange)?.label ?? 'Tháng này'}
+                  <ChevronDown className={`w-4 h-4 transition-transform ${showSummaryRangePicker ? 'rotate-180' : ''}`} />
+                </button>
+                {showSummaryRangePicker && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowSummaryRangePicker(false)} />
+                    <div className="absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded-lg shadow-xl z-20 overflow-hidden animate-in fade-in zoom-in duration-100">
+                      {RANGE_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          onClick={() => {
+                            setSummaryRange(opt.value)
+                            setShowSummaryRangePicker(false)
+                          }}
+                          className={`w-full px-4 py-2.5 text-left text-xs hover:bg-gray-50 transition-colors ${summaryRange === opt.value ? 'text-blue-600 font-bold bg-blue-50' : 'text-gray-700'}`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
@@ -618,6 +728,7 @@ export const ManagerDashboard = () => {
               value={summaryData.bookings.totalInRange}
               icon={<Calendar className="w-5 h-5 text-green-600" />}
               iconBg="bg-green-50"
+              badge={<TrendBadge value={summaryData.comparison?.bookingsChange} label="So với kỳ trước" />}
               extra={Object.entries(summaryData.bookings.byStatus).map(([status, count]) => (
                 <div key={status} className="flex justify-between items-center">
                   <StatusBadge status={status} />
@@ -631,6 +742,7 @@ export const ManagerDashboard = () => {
               value={summaryData.ordersInRange}
               icon={<Package className="w-5 h-5 text-blue-600" />}
               iconBg="bg-blue-50"
+              badge={<TrendBadge value={summaryData.comparison?.ordersChange} label="So với kỳ trước" />}
             />
 
             <SummaryCard
@@ -638,6 +750,7 @@ export const ManagerDashboard = () => {
               value={new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(summaryData.revenue.totalInRange)}
               icon={<TrendingUp className="w-5 h-5 text-purple-600" />}
               iconBg="bg-purple-50"
+              badge={<TrendBadge value={summaryData.comparison?.revenueChange} label="So với kỳ trước" />}
             />
           </div>
 
@@ -645,30 +758,65 @@ export const ManagerDashboard = () => {
             <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col">
               <div className="flex items-center justify-between mb-5">
                 <h2 className="text-base font-semibold text-gray-900">Doanh thu và Đơn hàng</h2>
-                <div className="relative">
-                  <button
-                    onClick={() => setShowChartRangePicker((v) => !v)}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
-                  >
-                    {chartRangeLabel}
-                    <ChevronDown className="w-4 h-4 text-gray-400" />
-                  </button>
-                  {showChartRangePicker && (
-                    <div className="absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded-lg shadow-lg z-10 overflow-hidden">
-                      {RANGE_OPTIONS.map((opt) => (
-                        <button
-                          key={opt.value}
-                          onClick={() => {
-                            setChartRange(opt.value)
-                            setShowChartRangePicker(false)
-                          }}
-                          className={`w-full px-4 py-2 text-left text-xs hover:bg-gray-50 transition-colors ${chartRange === opt.value ? 'text-blue-600 font-semibold bg-blue-50' : 'text-gray-700'}`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center">
+                    {chartRange === 'custom' || isChartPickerOpen ? (
+                      <div className="animate-in fade-in slide-in-from-right-2 duration-300">
+                        <ConfigProvider locale={viVN}>
+                          <RangePicker
+                            open={isChartPickerOpen}
+                            onOpenChange={setIsChartPickerOpen}
+                            value={chartCustomRange}
+                            onChange={(dates) => { 
+                              setChartCustomRange(dates as [dayjs.Dayjs, dayjs.Dayjs]); 
+                              if (dates) setChartRange('custom');
+                            }}
+                            className="h-8 shadow-sm transition-all hover:border-blue-300"
+                            placeholder={['Bắt đầu', 'Kết thúc']}
+                          />
+                        </ConfigProvider>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setIsChartPickerOpen(true)}
+                        className="flex items-center justify-center w-8 h-8 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-all shadow-sm animate-in fade-in zoom-in duration-200"
+                        title="Chọn khoảng ngày tùy chỉnh"
+                      >
+                        <Calendar className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowChartRangePicker((v) => !v)}
+                      className={`flex items-center gap-2 px-3 py-1.5 bg-white border rounded-lg text-xs font-medium shadow-sm transition-all ${
+                        chartRange !== 'custom' ? 'border-blue-200 text-blue-600' : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <RefreshCw className="w-3 h-3 text-gray-400 group-hover:rotate-180 transition-transform" />
+                      {RANGE_OPTIONS.find((o) => o.value === chartRange)?.label ?? 'Tuần này'}
+                      <ChevronDown className={`w-4 h-4 transition-transform ${showChartRangePicker ? 'rotate-180' : ''}`} />
+                    </button>
+                    {showChartRangePicker && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setShowChartRangePicker(false)} />
+                        <div className="absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded-lg shadow-xl z-20 overflow-hidden animate-in fade-in zoom-in duration-100">
+                          {RANGE_OPTIONS.map((opt) => (
+                            <button
+                              key={opt.value}
+                              onClick={() => {
+                                setChartRange(opt.value)
+                                setShowChartRangePicker(false)
+                              }}
+                              className={`w-full px-4 py-2.5 text-left text-xs hover:bg-gray-50 transition-colors ${chartRange === opt.value ? 'text-blue-600 font-bold bg-blue-50' : 'text-gray-700'}`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
 

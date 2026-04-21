@@ -75,16 +75,16 @@ const AdminSidebar: React.FC<{ userName?: string; userRole?: string }> = ({
       path: '/admin/incidents',
       icon: <AlertCircle className="w-6 h-6" />
     },
-    {
-      label: 'Analytics & Reports',
-      path: '/admin/analytics',
-      icon: <BarChart3 className="w-6 h-6" />
-    },
-    {
-      label: 'System Settings',
-      path: '/admin/settings',
-      icon: <Settings className="w-6 h-6" />
-    }
+    // {
+    //   label: 'Analytics & Reports',
+    //   path: '/admin/analytics',
+    //   icon: <BarChart3 className="w-6 h-6" />
+    // },
+    // {
+    //   label: 'System Settings',
+    //   path: '/admin/settings',
+    //   icon: <Settings className="w-6 h-6" />
+    // }
 
   ]
 

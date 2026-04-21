@@ -803,8 +803,8 @@ export const SupportManagement = () => {
               <p className="text-[34px] leading-tight font-bold text-gray-900 mt-1">{supportRequests.length}</p>
             </div>
 
-            <div className="min-w-[650px] flex-1 py-1">
-              <p className="text-sm font-semibold text-gray-900 mb-1.5">{supportRequests.length} phiếu</p>
+            <div className="min-w-[500px] flex-1 py-1">
+              <p className="text-sm font-semibold text-gray-900 mb-1.5">{supportRequests.length} yêu cầu</p>
               <div className="flex h-2.5 rounded-full overflow-hidden bg-gray-100 mb-1.5">
                 {statusSummary.map((item) => (
                   <div
@@ -1290,7 +1290,7 @@ export const SupportManagement = () => {
 
                   {/* Right Column: Actions */}
                   <div className="flex-1 min-w-0 bg-white p-6 lg:p-8 overflow-y-auto border-t lg:border-t-0 border-gray-100 flex flex-col gap-8 shadow-[-4px_0_24px_-16px_rgba(0,0,0,0.05)]">
-                    
+
                     {/* Status Badge Concept */}
                     {(() => {
                       let bg = '', iconBg = '', title = '', desc = '', Icon = null;
@@ -1347,7 +1347,7 @@ export const SupportManagement = () => {
                     {/* Controls & Actions */}
                     {!shouldHideManagerActions && (
                       <div className="space-y-6">
-                        
+
                         {isMaintenanceRequest(detailRequest.type) && !isCompletedReq && (
                           <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
                             <label className="block text-sm font-bold text-gray-900 mb-3 uppercase tracking-wide">Mức độ bảo trì</label>
@@ -1423,7 +1423,7 @@ export const SupportManagement = () => {
                               )}
                             </div>
                           </div>
-                          
+
                           {detailCanResolve && !detailCanResolveByTasks && (
                             <p className="text-xs text-rose-600 mt-3 text-center bg-rose-50 p-2 rounded-lg border border-rose-100">Không thể hoàn tất: một số tác vụ liên quan chưa được xử lý xong.</p>
                           )}
@@ -1481,7 +1481,7 @@ export const SupportManagement = () => {
                                   />
                                 </div>
                                 {filteredCandidates.length === 0 && (
-                                  <p className="text-xs text-amber-700 mt-2 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Không có phòng trống khả dụng.</p>
+                                  <p className="text-xs text-amber-700 mt-2 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Không có phòng trống khả dụng.</p>
                                 )}
                               </div>
 

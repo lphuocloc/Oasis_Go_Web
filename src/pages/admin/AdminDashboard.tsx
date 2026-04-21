@@ -26,9 +26,15 @@ import { initUserSocket } from '../../lib/socket'
 import {
   TrendingUp, AlertCircle, Calendar, Package,
   RefreshCw, ChevronDown, DollarSign,
-  Star, Tag, MapPin, ShieldCheck, Clock, ShoppingCart
+  Star, Tag, MapPin, ShieldCheck, Clock, ShoppingCart,
+  ArrowUpRight, ArrowDownRight
 } from 'lucide-react'
 import { toast } from 'react-toastify'
+import { DatePicker, ConfigProvider } from 'antd'
+import viVN from 'antd/locale/vi_VN'
+import dayjs from 'dayjs'
+
+const { RangePicker } = DatePicker
 
 ChartJS.register(
   BarController,
@@ -48,12 +54,13 @@ ChartJS.register(
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type RangeOption = 'today' | 'week' | 'month'
+type RangeOption = 'today' | 'week' | 'month' | 'custom'
 
 const RANGE_OPTIONS: { label: string; value: RangeOption }[] = [
   { label: 'Hôm nay', value: 'today' },
   { label: 'Tuần này', value: 'week' },
-  { label: 'Tháng này', value: 'month' }
+  { label: 'Tháng này', value: 'month' },
+  { label: 'Tùy chọn', value: 'custom' }
 ]
 
 const getDateRange = (range: RangeOption): { from: Date; to: Date; groupBy: DashboardFilters['groupBy'] } => {
@@ -120,6 +127,20 @@ const StarRating: React.FC<{ rating: number; max?: number }> = ({ rating, max = 
   </div>
 )
 
+const TrendBadge: React.FC<{ value?: number; label?: string }> = ({ value, label }) => {
+  if (value === undefined || value === 0) return null;
+  const isPositive = value > 0;
+  const Icon = isPositive ? ArrowUpRight : ArrowDownRight;
+  const colorClass = isPositive ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50';
+
+  return (
+    <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold ${colorClass} mb-1 shadow-sm border border-current border-opacity-10`} title={label}>
+      <Icon className="w-3 h-3" />
+      <span>{Math.abs(value)}%</span>
+    </div>
+  );
+};
+
 const SummaryCard: React.FC<{
   title: string
   value: React.ReactNode
@@ -128,13 +149,13 @@ const SummaryCard: React.FC<{
   extra?: React.ReactNode
   badge?: React.ReactNode
 }> = ({ title, value, icon, iconBg, extra, badge }) => (
-  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col gap-3">
+  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col gap-3 hover:shadow-md transition-shadow">
     <div className="flex items-center justify-between">
       <p className="text-sm font-medium text-gray-500">{title}</p>
       <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${iconBg}`}>{icon}</div>
     </div>
-    <div className="flex items-end gap-2">
-      <p className="text-3xl font-bold text-gray-900">{value}</p>
+    <div className="flex items-end justify-between gap-2">
+      <p className="text-3xl font-bold text-gray-900 leading-none">{value}</p>
       {badge}
     </div>
     {extra && <div className="text-sm space-y-1">{extra}</div>}
@@ -220,7 +241,7 @@ const mapDateLabelToVietnamese = (label: string, groupBy: string) => {
   if (groupBy === 'day') {
     const date = new Date(label)
     if (!Number.isNaN(date.getTime())) {
-      return date.toLocaleDateString('vi-VN')
+      return `${date.getDate()}/${date.getMonth() + 1}`
     }
   }
   return label
@@ -349,13 +370,44 @@ export const AdminDashboard = () => {
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(true)
   const [kpiRange, setKpiRange] = useState<RangeOption>('month')
   const [analyticsRange, setAnalyticsRange] = useState<RangeOption>('week')
+  const [kpiCustomRange, setKpiCustomRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>([dayjs().startOf('month'), dayjs()])
+  const [analyticsCustomRange, setAnalyticsCustomRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>([dayjs().startOf('week'), dayjs()])
   const [showKpiRangePicker, setShowKpiRangePicker] = useState(false)
   const [showAnalyticsRangePicker, setShowAnalyticsRangePicker] = useState(false)
+  const [isKpiPickerOpen, setIsKpiPickerOpen] = useState(false)
+  const [isAnalyticsPickerOpen, setIsAnalyticsPickerOpen] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
-  const fetchKpiData = async (selectedRange: RangeOption) => {
+  // Sync custom range when preset changes (if not 'custom')
+  useEffect(() => {
+    if (kpiRange !== 'custom') {
+      const { from, to } = getDateRange(kpiRange)
+      setKpiCustomRange([dayjs(from), dayjs(to)])
+    }
+  }, [kpiRange])
+
+  useEffect(() => {
+    if (analyticsRange !== 'custom') {
+      const { from, to } = getDateRange(analyticsRange)
+      setAnalyticsCustomRange([dayjs(from), dayjs(to)])
+    }
+  }, [analyticsRange])
+
+  const fetchKpiData = async (selectedRange: RangeOption, customDates?: [dayjs.Dayjs, dayjs.Dayjs] | null) => {
     setIsKpiLoading(true)
-    const { from, to, groupBy } = getDateRange(selectedRange)
+    let rangeQuery: { from: Date; to: Date; groupBy: DashboardFilters['groupBy'] }
+    
+    if (selectedRange === 'custom' && customDates) {
+      rangeQuery = {
+        from: customDates[0].startOf('day').toDate(),
+        to: customDates[1].endOf('day').toDate(),
+        groupBy: 'day'
+      }
+    } else {
+      rangeQuery = getDateRange(selectedRange === 'custom' ? 'month' : selectedRange)
+    }
+    
+    const { from, to, groupBy } = rangeQuery
 
     const [dashResult, statsResult] = await Promise.allSettled([
       adminDashboardApi.getDashboard({ from, to, groupBy }),
@@ -375,9 +427,21 @@ export const AdminDashboard = () => {
     setIsKpiLoading(false)
   }
 
-  const fetchAnalyticsData = async (selectedRange: RangeOption) => {
+  const fetchAnalyticsData = async (selectedRange: RangeOption, customDates?: [dayjs.Dayjs, dayjs.Dayjs] | null) => {
     setIsAnalyticsLoading(true)
-    const { from, to, groupBy } = getDateRange(selectedRange)
+    let rangeQuery: { from: Date; to: Date; groupBy: DashboardFilters['groupBy'] }
+    
+    if (selectedRange === 'custom' && customDates) {
+      rangeQuery = {
+        from: customDates[0].startOf('day').toDate(),
+        to: customDates[1].endOf('day').toDate(),
+        groupBy: 'day'
+      }
+    } else {
+      rangeQuery = getDateRange(selectedRange === 'custom' ? 'month' : selectedRange)
+    }
+    
+    const { from, to, groupBy } = rangeQuery
 
     const [dashResult, statsResult] = await Promise.allSettled([
       adminDashboardApi.getDashboard({ from, to, groupBy }),
@@ -398,14 +462,12 @@ export const AdminDashboard = () => {
   }
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchKpiData(kpiRange)
-  }, [kpiRange, refreshTrigger])
+    fetchKpiData(kpiRange, kpiCustomRange)
+  }, [kpiRange, kpiCustomRange, refreshTrigger])
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchAnalyticsData(analyticsRange)
-  }, [analyticsRange, refreshTrigger])
+    fetchAnalyticsData(analyticsRange, analyticsCustomRange)
+  }, [analyticsRange, analyticsCustomRange, refreshTrigger])
 
   useEffect(() => {
     const socket = initUserSocket()
@@ -426,8 +488,19 @@ export const AdminDashboard = () => {
 
   const isLoading = isKpiLoading || isAnalyticsLoading
 
-  const kpiRangeLabel = RANGE_OPTIONS.find(o => o.value === kpiRange)?.label ?? 'Tháng này'
-  const analyticsRangeLabel = RANGE_OPTIONS.find(o => o.value === analyticsRange)?.label ?? 'Tuần này'
+  const kpiRangeLabel = useMemo(() => {
+    if (kpiRange === 'custom' && kpiCustomRange) {
+      return `${kpiCustomRange[0].format('DD/MM')} - ${kpiCustomRange[1].format('DD/MM')}`
+    }
+    return RANGE_OPTIONS.find(o => o.value === kpiRange)?.label ?? 'Tháng này'
+  }, [kpiRange, kpiCustomRange])
+
+  const analyticsRangeLabel = useMemo(() => {
+    if (analyticsRange === 'custom' && analyticsCustomRange) {
+      return `${analyticsCustomRange[0].format('DD/MM')} - ${analyticsCustomRange[1].format('DD/MM')}`
+    }
+    return RANGE_OPTIONS.find(o => o.value === analyticsRange)?.label ?? 'Tuần này'
+  }, [analyticsRange, analyticsCustomRange])
 
   const locations = useMemo(() => analyticsStatsData?.locations ?? [], [analyticsStatsData])
   const sortedLocations = useMemo(
@@ -543,27 +616,62 @@ export const AdminDashboard = () => {
           {/* ── Section 1: Overview KPIs ───────────────────────────────── */}
           <div className="flex items-center justify-between mb-3 mt-6">
             <SectionTitle icon={<Package className="w-4 h-4" />}>Tổng Quan Hoạt Động {"&"} Doanh Thu</SectionTitle>
-            <div className="relative">
-              <button
-                onClick={() => setShowKpiRangePicker(v => !v)}
-                className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
-              >
-                {kpiRangeLabel}
-                <ChevronDown className="w-4 h-4 text-gray-400" />
-              </button>
-              {showKpiRangePicker && (
-                <div className="absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded-lg shadow-lg z-10 overflow-hidden">
-                  {RANGE_OPTIONS.map(opt => (
-                    <button
-                      key={opt.value}
-                      onClick={() => { setKpiRange(opt.value); setShowKpiRangePicker(false) }}
-                      className={`w-full px-4 py-2 text-left text-xs hover:bg-gray-50 transition-colors ${kpiRange === opt.value ? 'text-blue-600 font-semibold bg-blue-50' : 'text-gray-700'}`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center">
+                {kpiRange === 'custom' || isKpiPickerOpen ? (
+                  <div className="animate-in fade-in slide-in-from-right-2 duration-300">
+                    <ConfigProvider locale={viVN}>
+                      <RangePicker
+                        open={isKpiPickerOpen}
+                        onOpenChange={setIsKpiPickerOpen}
+                        value={kpiCustomRange}
+                        onChange={(dates) => { 
+                          setKpiCustomRange(dates as [dayjs.Dayjs, dayjs.Dayjs]); 
+                          if (dates) setKpiRange('custom');
+                        }}
+                        className="h-8 shadow-sm transition-all hover:border-blue-300"
+                        placeholder={['Bắt đầu', 'Kết thúc']}
+                      />
+                    </ConfigProvider>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setIsKpiPickerOpen(true)}
+                    className="flex items-center justify-center w-8 h-8 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-all shadow-sm animate-in fade-in zoom-in duration-200"
+                    title="Chọn khoảng ngày tùy chỉnh"
+                  >
+                    <Calendar className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              <div className="relative">
+                <button
+                  onClick={() => setShowKpiRangePicker(v => !v)}
+                  className={`flex items-center gap-2 px-3 py-1.5 bg-white border rounded-lg text-xs font-medium shadow-sm transition-all ${
+                    kpiRange !== 'custom' ? 'border-blue-200 text-blue-600' : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <RefreshCw className="w-3 h-3 text-gray-400 group-hover:rotate-180 transition-transform" />
+                  {RANGE_OPTIONS.find(o => o.value === kpiRange)?.label ?? 'Tháng này'}
+                  <ChevronDown className={`w-4 h-4 transition-transform ${showKpiRangePicker ? 'rotate-180' : ''}`} />
+                </button>
+                {showKpiRangePicker && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowKpiRangePicker(false)} />
+                    <div className="absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded-lg shadow-xl z-20 overflow-hidden animate-in fade-in zoom-in duration-100">
+                      {RANGE_OPTIONS.map(opt => (
+                        <button
+                          key={opt.value}
+                          onClick={() => { setKpiRange(opt.value); setShowKpiRangePicker(false) }}
+                          className={`w-full px-4 py-2.5 text-left text-xs hover:bg-gray-50 transition-colors ${kpiRange === opt.value ? 'text-blue-600 font-bold bg-blue-50' : 'text-gray-700'}`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
@@ -573,6 +681,7 @@ export const AdminDashboard = () => {
               value={kpiStatsData ? formatCurrency(kpiStatsData.revenue.periodRevenue) : '—'}
               icon={<DollarSign className="w-5 h-5 text-emerald-600" />}
               iconBg="bg-emerald-50"
+              badge={<TrendBadge value={kpiStatsData?.revenue.comparison?.revenueChange} label="So với kỳ trước" />}
             />
 
             <SummaryCard
@@ -580,6 +689,7 @@ export const AdminDashboard = () => {
               value={kpiDashData?.summary.bookingsInRange ?? '—'}
               icon={<Calendar className="w-5 h-5 text-blue-600" />}
               iconBg="bg-blue-50"
+              badge={<TrendBadge value={kpiDashData?.summary.comparison?.bookingsChange} label="So với kỳ trước" />}
             />
 
             <SummaryCard
@@ -587,33 +697,69 @@ export const AdminDashboard = () => {
               value={kpiDashData?.summary.ordersInRange ?? 0}
               icon={<ShoppingCart className="w-5 h-5 text-sky-600" />}
               iconBg="bg-sky-50"
+              badge={<TrendBadge value={kpiDashData?.summary.comparison?.ordersChange} label="So với kỳ trước" />}
             />
 
           </div>
 
           <div className="flex items-center justify-between mb-3">
             <SectionTitle icon={<TrendingUp className="w-4 h-4" />}>Biểu đồ Thống kê</SectionTitle>
-            <div className="relative">
-              <button
-                onClick={() => setShowAnalyticsRangePicker(v => !v)}
-                className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
-              >
-                {analyticsRangeLabel}
-                <ChevronDown className="w-4 h-4 text-gray-400" />
-              </button>
-              {showAnalyticsRangePicker && (
-                <div className="absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded-lg shadow-lg z-10 overflow-hidden">
-                  {RANGE_OPTIONS.map(opt => (
-                    <button
-                      key={opt.value}
-                      onClick={() => { setAnalyticsRange(opt.value); setShowAnalyticsRangePicker(false) }}
-                      className={`w-full px-4 py-2 text-left text-xs hover:bg-gray-50 transition-colors ${analyticsRange === opt.value ? 'text-blue-600 font-semibold bg-blue-50' : 'text-gray-700'}`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center">
+                {analyticsRange === 'custom' || isAnalyticsPickerOpen ? (
+                  <div className="animate-in fade-in slide-in-from-right-2 duration-300">
+                    <ConfigProvider locale={viVN}>
+                      <RangePicker
+                        open={isAnalyticsPickerOpen}
+                        onOpenChange={setIsAnalyticsPickerOpen}
+                        value={analyticsCustomRange}
+                        onChange={(dates) => { 
+                          setAnalyticsCustomRange(dates as [dayjs.Dayjs, dayjs.Dayjs]); 
+                          if (dates) setAnalyticsRange('custom');
+                        }}
+                        className="h-8 shadow-sm transition-all hover:border-blue-300"
+                        placeholder={['Bắt đầu', 'Kết thúc']}
+                      />
+                    </ConfigProvider>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setIsAnalyticsPickerOpen(true)}
+                    className="flex items-center justify-center w-8 h-8 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-all shadow-sm animate-in fade-in zoom-in duration-200"
+                    title="Chọn khoảng ngày tùy chỉnh"
+                  >
+                    <Calendar className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              <div className="relative">
+                <button
+                  onClick={() => setShowAnalyticsRangePicker(v => !v)}
+                  className={`flex items-center gap-2 px-3 py-1.5 bg-white border rounded-lg text-xs font-medium shadow-sm transition-all ${
+                    analyticsRange !== 'custom' ? 'border-blue-200 text-blue-600' : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <RefreshCw className="w-3 h-3 text-gray-400 group-hover:rotate-180 transition-transform" />
+                  {RANGE_OPTIONS.find(o => o.value === analyticsRange)?.label ?? 'Tuần này'}
+                  <ChevronDown className={`w-4 h-4 transition-transform ${showAnalyticsRangePicker ? 'rotate-180' : ''}`} />
+                </button>
+                {showAnalyticsRangePicker && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowAnalyticsRangePicker(false)} />
+                    <div className="absolute right-0 mt-1 w-32 bg-white border border-gray-100 rounded-lg shadow-xl z-20 overflow-hidden animate-in fade-in zoom-in duration-100">
+                      {RANGE_OPTIONS.map(opt => (
+                        <button
+                          key={opt.value}
+                          onClick={() => { setAnalyticsRange(opt.value); setShowAnalyticsRangePicker(false) }}
+                          className={`w-full px-4 py-2.5 text-left text-xs hover:bg-gray-50 transition-colors ${analyticsRange === opt.value ? 'text-blue-600 font-bold bg-blue-50' : 'text-gray-700'}`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 

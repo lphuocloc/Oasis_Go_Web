@@ -10,6 +10,9 @@ import { InventoryWarehouseManagement } from './pages/admin/InventoryWarehouseMa
 import { AdminProfile } from './pages/admin/Profile'
 import { AdminShiftManagement } from './pages/admin/ShiftManagement'
 import { WithdrawManagement } from './pages/admin/WithdrawManagement'
+import { StaffManagement } from './pages/admin/StaffManagement'
+import { ReviewManagement } from './pages/admin/ReviewManagement'
+import { BookingManagement as AdminBookingManagement } from './pages/admin/BookingManagement'
 import { ManagerDashboard } from './pages/manager/ManagerDashboard'
 import { ManagerProfile } from './pages/manager/Profile'
 import { Login } from './pages/Login'
@@ -84,6 +87,18 @@ export const router = createBrowserRouter([
           {
             path: "profile",
             element: <AdminProfile />
+          },
+          {
+            path: 'staff',
+            element: <StaffManagement />
+          },
+          {
+            path: 'reviews',
+            element: <ReviewManagement />
+          },
+          {
+            path: 'bookings',
+            element: <AdminBookingManagement />
           }
         ]
       }

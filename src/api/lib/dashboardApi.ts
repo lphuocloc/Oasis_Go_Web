@@ -35,6 +35,11 @@ export interface DashboardResponse {
         openNow: number
         byStatus: Record<string, number>
       }
+      comparison?: {
+        bookingsChange: number
+        ordersChange: number
+        revenueChange: number
+      }
     }
     charts: {
       bookingsStatusPie: Array<{ status: string; count: number }>
@@ -122,6 +127,11 @@ export interface AdminDashboardResponse {
       incidentsTotal: number
       openIncidents?: number
       revenueInRange?: number
+      comparison?: {
+        bookingsChange: number
+        ordersChange: number
+        revenueChange: number
+      }
     }
     ratings?: {
       bookingStatus?: Array<{ status: string; count: number; rate: number }>

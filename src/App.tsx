@@ -8,7 +8,7 @@ import { PodClusterManagement } from './pages/admin/PodClusterManagement'
 import { AdminPodManagement } from './pages/admin/PodManagement'
 import { InventoryWarehouseManagement } from './pages/admin/InventoryWarehouseManagement'
 import { AdminProfile } from './pages/admin/Profile'
-import { AdminShiftManagement } from './pages/admin/ShiftManagement'
+// import { AdminShiftManagement } from './pages/admin/ShiftManagement'
 import { WithdrawManagement } from './pages/admin/WithdrawManagement'
 import { ManagerDashboard } from './pages/manager/ManagerDashboard'
 import { ManagerProfile } from './pages/manager/Profile'
@@ -18,7 +18,7 @@ import { PodManagement } from './pages/manager/PodManagement'
 import { BookingManagement } from './pages/manager/BookingManagement'
 import { CleaningManagement } from './pages/manager/CleaningManagement'
 import { IncidentManagement } from './pages/manager/IncidentManagement'
-import { ShiftManagement } from './pages/manager/ShiftManagement'
+// import { ShiftManagement } from './pages/manager/ShiftManagement'
 import { LostAndFoundManagement } from './pages/manager/LostAndFoundManagement'
 import { SupportManagement } from './pages/manager/SupportManagement'
 import { AdminLayout } from './layouts/AdminLayout'
@@ -73,10 +73,10 @@ export const router = createBrowserRouter([
             path: 'cleaning-tasks',
             element: <CleaningTaskManagement />
           },
-          {
-            path: 'shifts',
-            element: <AdminShiftManagement />
-          },
+          // {
+          //   path: 'shifts',
+          //   element: <AdminShiftManagement />
+          // },
           {
             path: 'withdraw',
             element: <WithdrawManagement />
@@ -121,10 +121,10 @@ export const router = createBrowserRouter([
             path: "incidents",
             element: <IncidentManagement />
           },
-          {
-            path: "shifts",
-            element: <ShiftManagement />
-          },
+          // {
+          //   path: "shifts",
+          //   element: <ShiftManagement />
+          // },
           {
             path: "lost-found",
             element: <LostAndFoundManagement />

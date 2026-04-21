@@ -3,7 +3,7 @@ import { api } from '../api'
 export const STAFF_SHIFT_ROLES = ['CLEANER', 'MANAGER'] as const
 export type StaffShiftRole = (typeof STAFF_SHIFT_ROLES)[number]
 
-export const STAFF_SHIFT_NAMES = ['MORNING', 'AFTERNOON', 'NIGHT'] as const
+export const STAFF_SHIFT_NAMES = ['CA SÁNG', 'CA CHIỀU', 'CA TỐI', 'CA ĐÊM'] as const
 export type StaffShiftName = (typeof STAFF_SHIFT_NAMES)[number]
 
 export interface StaffShiftItem {

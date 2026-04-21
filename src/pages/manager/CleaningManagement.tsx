@@ -10,6 +10,7 @@ import {
 } from '../../api/lib/maintenanceTaskApi'
 import { podApi, type PodItem } from '../../api/lib/podApi'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
+import { initUserSocket } from '../../lib/socket'
 
 const statusBadgeClass = (status: string) => {
   switch (status) {
@@ -34,6 +35,7 @@ export const CleaningManagement = () => {
   const [search, setSearch] = useState('')
   const [clusterFilter, setClusterFilter] = useState<string[]>([])
   const [statusFilter, setStatusFilter] = useState<MaintenanceTaskStatus[]>([])
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const toggleArrayFilter = <T extends string>(current: T[], value: T | 'all', fullLength: number): T[] => {
     if (value === 'all') return []
@@ -76,7 +78,24 @@ export const CleaningManagement = () => {
   useEffect(() => {
     fetchPrimaryData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clusterFilter, statusFilter, clusters])
+  }, [clusterFilter, statusFilter, clusters, refreshTrigger])
+
+  useEffect(() => {
+    const socket = initUserSocket()
+    if (!socket) return
+
+    const handleNewData = () => {
+      setRefreshTrigger(prev => prev + 1)
+    }
+
+    socket.on('user:notification', handleNewData)
+    socket.on('dashboard:refresh', handleNewData)
+
+    return () => {
+      socket.off('user:notification', handleNewData)
+      socket.off('dashboard:refresh', handleNewData)
+    }
+  }, [])
 
   const podMap = useMemo(() => new Map(pods.map(p => [p.id, p])), [pods])
   const clusterMap = useMemo(() => new Map(clusters.map(c => [c.id, c])), [clusters])

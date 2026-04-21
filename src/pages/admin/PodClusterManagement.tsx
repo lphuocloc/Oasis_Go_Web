@@ -39,6 +39,7 @@ import {
   type PodClusterPayload,
   type PodClusterPricingSummary
 } from '../../api/lib/podClusterApi'
+import { initUserSocket } from '../../lib/socket'
 import { ClusterPodItemBulkAssign } from '../../components/common/ClusterPodItemBulkAssign'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
 import {
@@ -156,6 +157,7 @@ export const PodClusterManagement = () => {
   const [editingCluster, setEditingCluster] = useState<PodClusterItem | null>(null)
   const [selectedPricingCluster, setSelectedPricingCluster] = useState<PodClusterItem | null>(null)
   const [form, setForm] = useState<PodClusterFormState>(createEmptyForm())
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const images = editingCluster ? (imagesByClusterId[editingCluster.id] ?? []) : []
   const isImagesLoading = editingCluster ? (imagesLoadingByClusterId[editingCluster.id] ?? false) : false
@@ -166,7 +168,24 @@ export const PodClusterManagement = () => {
 
   useEffect(() => {
     void dispatch(fetchPodClusters(locationFilter))
-  }, [dispatch, locationFilter])
+  }, [dispatch, locationFilter, refreshTrigger])
+
+  useEffect(() => {
+    const socket = initUserSocket()
+    if (!socket) return
+
+    const handleNewData = () => {
+      setRefreshTrigger(prev => prev + 1)
+    }
+
+    socket.on('user:notification', handleNewData)
+    socket.on('dashboard:refresh', handleNewData)
+
+    return () => {
+      socket.off('user:notification', handleNewData)
+      socket.off('dashboard:refresh', handleNewData)
+    }
+  }, [])
 
   useEffect(() => {
     if (!clustersError) return

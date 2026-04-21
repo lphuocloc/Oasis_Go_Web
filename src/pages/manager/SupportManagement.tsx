@@ -18,6 +18,7 @@ import { bookingApi, type BookingItem } from '../../api/lib/bookingApi'
 import { podApi, type PodItem } from '../../api/lib/podApi'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
 import { PodGridSelector } from '../../components/common/PodGridSelector'
+import { initUserSocket } from '../../lib/socket'
 
 const formatDateTime = (value?: string | null) => {
   if (!value) return '—'
@@ -113,12 +114,44 @@ const getCandidatePodCode = (pod: RoomChangeCandidatePod) => pod.pod_code || pod
 const getCandidatePodName = (pod: RoomChangeCandidatePod) => pod.pod_name || pod.name || ''
 const getCreatedTimestamp = (item: SupportRequestItem) => item.created_at || (item as any).createdAt || null
 
+const translateStatus = (status: SupportRequestStatus) => {
+  switch (status) {
+    case 'PENDING': return 'Chờ tiếp nhận'
+    case 'PROCESSING': return 'Đang xử lý'
+    case 'IN_PROGRESS': return 'Đang thực hiện'
+    case 'ESCALATED': return 'Chuyển cấp'
+    case 'RESOLVED': return 'Đã giải quyết'
+    case 'REJECTED': return 'Đã từ chối'
+    case 'CANCELED': return 'Đã hủy'
+    default: return status
+  }
+}
+
+const translateType = (type?: string | null) => {
+  const t = normalizedType(type)
+  if (t === 'CHANGE_POD') return 'Đổi phòng'
+  if (t === 'MAINTENANCE') return 'Bảo trì/Sửa chữa'
+  return type || 'Yêu cầu hỗ trợ'
+}
+
+const translateSeverity = (s?: string | null) => {
+  const normalized = (s || '').trim().toUpperCase()
+  switch (normalized) {
+    case 'LOW': return 'Thấp'
+    case 'MEDIUM': return 'Trung bình'
+    case 'HIGH': return 'Cao'
+    case 'CRITICAL': return 'Nghiêm trọng'
+    default: return s || 'Trung bình'
+  }
+}
+
 type SupportSortKey = 'created_at' | 'type' | 'user' | 'pod' | 'status'
 type SupportSortDirection = 'asc' | 'desc'
 
 type SupportFilterState = {
   statuses: SupportRequestStatus[]
   types: string[]
+  clusterIds: string[]
   dateRange: [Date | null, Date | null]
 }
 
@@ -165,8 +198,8 @@ export const SupportManagement = () => {
 
   const [detailRequestId, setDetailRequestId] = useState<string | null>(null)
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false)
-  const [filters, setFilters] = useState<SupportFilterState>({ statuses: [], types: [], dateRange: [null, null] })
-  const [draftFilters, setDraftFilters] = useState<SupportFilterState>({ statuses: [], types: [], dateRange: [null, null] })
+  const [filters, setFilters] = useState<SupportFilterState>({ statuses: [], types: [], clusterIds: [], dateRange: [null, null] })
+  const [draftFilters, setDraftFilters] = useState<SupportFilterState>({ statuses: [], types: [], clusterIds: [], dateRange: [null, null] })
   const [sortKey, setSortKey] = useState<SupportSortKey>('created_at')
   const [sortDirection, setSortDirection] = useState<SupportSortDirection>('desc')
   const [selectedNewPodByRequest, setSelectedNewPodByRequest] = useState<Record<string, string>>({})
@@ -186,6 +219,7 @@ export const SupportManagement = () => {
   })
   const [bookingDetailsById, setBookingDetailsById] = useState<Record<string, BookingItem>>({})
   const [loadingBookingId, setLoadingBookingId] = useState<string | null>(null)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const podMap = useMemo(() => new Map(pods.map((pod) => [pod.id, pod])), [pods])
 
@@ -219,6 +253,13 @@ export const SupportManagement = () => {
       if (filters.types.length > 0) {
         const normalizedTypeValue = normalizedType(item.type)
         if (!filters.types.some(t => normalizedType(t) === normalizedTypeValue)) return false
+      }
+
+      if (filters.clusterIds.length > 0) {
+        const podId = item.pod_id || item.pod?.id
+        const pod = podId ? podMap.get(podId) : undefined
+        const clusterId = item.pod?.cluster_id || pod?.cluster_id
+        if (!clusterId || !filters.clusterIds.includes(clusterId)) return false
       }
 
       if (fromDate || toDate) {
@@ -341,12 +382,29 @@ export const SupportManagement = () => {
   useEffect(() => {
     if (isScopeLoading) return
     fetchPods()
-  }, [isScopeLoading, clusters])
+  }, [isScopeLoading, clusters, refreshTrigger])
 
   useEffect(() => {
     if (isScopeLoading) return
     fetchSupportRequests()
-  }, [isScopeLoading, JSON.stringify(filters.statuses), clusters])
+  }, [isScopeLoading, JSON.stringify(filters.statuses), clusters, refreshTrigger])
+
+  useEffect(() => {
+    const socket = initUserSocket()
+    if (!socket) return
+
+    const handleNewData = () => {
+      setRefreshTrigger(prev => prev + 1)
+    }
+
+    socket.on('user:notification', handleNewData)
+    socket.on('dashboard:refresh', handleNewData)
+
+    return () => {
+      socket.off('user:notification', handleNewData)
+      socket.off('dashboard:refresh', handleNewData)
+    }
+  }, [])
 
   useEffect(() => {
     if (!detailRequestId) return
@@ -494,7 +552,7 @@ export const SupportManagement = () => {
   }
 
   const resetDraftFilters = () => {
-    setDraftFilters({ statuses: [], types: [], dateRange: [null, null] })
+    setDraftFilters({ statuses: [], types: [], clusterIds: [], dateRange: [null, null] })
   }
 
   const setStatusWithFallback = async (id: string, nextStatus: SupportRequestStatus) => {
@@ -688,8 +746,7 @@ export const SupportManagement = () => {
 
   const rawCandidates = detailRequest ? (roomChangeCandidatesByRequest[detailRequest.id] ?? []) : []
   const filteredCandidates = rawCandidates.filter((candidate) => {
-    const status = String(candidate.status || 'AVAILABLE').trim().toUpperCase()
-    if (status !== 'AVAILABLE') return false
+
     const scopeLevel = String((candidate as any).scope_level || '').trim().toUpperCase()
     if (scopeLevel && scopeLevel !== 'SAME_CLUSTER' && scopeLevel !== 'SAME_PARENT_LOCATION') return false
     return true
@@ -702,7 +759,10 @@ export const SupportManagement = () => {
     id: getCandidatePodId(c),
     code: getCandidatePodCode(c),
     name: getCandidatePodName(c),
-    status: c.status
+    status: c.status,
+    clusterName: (c as any).cluster_name || c.cluster_id,
+    scopeLevel: c.scope_level,
+    isSelectable: (c as any).is_selectable !== false
   }))
 
   const selectedCandidatePodId = detailRequest ? (selectedNewPodByRequest[detailRequest.id] || '') : ''
@@ -721,8 +781,8 @@ export const SupportManagement = () => {
     <div className="p-6 lg:p-8 bg-gray-50 min-h-screen">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Support Requests</h1>
-          <p className="text-gray-500 mt-1">Manage and process customer support requests in your scope.</p>
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Yêu cầu hỗ trợ</h1>
+          <p className="text-gray-500 mt-1">Quản lý và xử lý các yêu cầu hỗ trợ từ khách hàng trong phạm vi của bạn.</p>
         </div>
 
         <button
@@ -731,7 +791,7 @@ export const SupportManagement = () => {
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
         >
           <RefreshCw className={`w-4 h-4 ${(isScopeLoading || isPodsLoading || isSupportLoading) ? 'animate-spin' : ''}`} />
-          Refresh
+          Làm mới
         </button>
       </div>
 
@@ -739,12 +799,12 @@ export const SupportManagement = () => {
         <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="min-w-[220px] pr-4 xl:border-r xl:border-gray-200">
-              <p className="text-xs uppercase font-semibold tracking-wide text-gray-500">Total requests</p>
+              <p className="text-xs uppercase font-semibold tracking-wide text-gray-500">Tổng số yêu cầu</p>
               <p className="text-[34px] leading-tight font-bold text-gray-900 mt-1">{supportRequests.length}</p>
             </div>
 
             <div className="min-w-[650px] flex-1 py-1">
-              <p className="text-sm font-semibold text-gray-900 mb-1.5">{supportRequests.length} tickets</p>
+              <p className="text-sm font-semibold text-gray-900 mb-1.5">{supportRequests.length} phiếu</p>
               <div className="flex h-2.5 rounded-full overflow-hidden bg-gray-100 mb-1.5">
                 {statusSummary.map((item) => (
                   <div
@@ -758,7 +818,7 @@ export const SupportManagement = () => {
                 {statusSummary.filter((item) => item.count > 0).map((item) => (
                   <span key={item.status} className="inline-flex items-center gap-1 text-xs text-gray-600">
                     <span className={`w-2 h-2 rounded-full ${supportStatusDotClass(item.status)}`} />
-                    {item.status}: {item.count}
+                    {translateStatus(item.status)}: {item.count}
                   </span>
                 ))}
               </div>
@@ -773,7 +833,7 @@ export const SupportManagement = () => {
                 type="text"
                 value={supportSearch}
                 onChange={(event) => setSupportSearch(event.target.value)}
-                placeholder="Search request, user, booking..."
+                placeholder="Tìm kiếm yêu cầu, người dùng, đơn đặt..."
                 className="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
               />
             </div>
@@ -784,7 +844,7 @@ export const SupportManagement = () => {
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
             >
               <SlidersHorizontal className="w-4 h-4" />
-              Filters
+              Bộ lọc
             </button>
           </div>
         </div>
@@ -797,41 +857,41 @@ export const SupportManagement = () => {
               <tr>
                 <th className="px-6 py-4 text-left font-medium text-gray-500">
                   <button type="button" onClick={() => toggleSort('type')} className="inline-flex items-center gap-2 hover:text-gray-700">
-                    Request
+                    Yêu cầu
                     {sortKey === 'type' && (sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />)}
                   </button>
                 </th>
                 <th className="px-6 py-4 text-left font-medium text-gray-500">
                   <button type="button" onClick={() => toggleSort('user')} className="inline-flex items-center gap-2 hover:text-gray-700">
-                    User
+                    Người dùng
                     {sortKey === 'user' && (sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />)}
                   </button>
                 </th>
                 <th className="px-6 py-4 text-left font-medium text-gray-500">
                   <button type="button" onClick={() => toggleSort('pod')} className="inline-flex items-center gap-2 hover:text-gray-700">
-                    Pod
+                    Phòng/Vị trí
                     {sortKey === 'pod' && (sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />)}
                   </button>
                 </th>
                 <th className="px-6 py-4 text-left font-medium text-gray-500">
                   <button type="button" onClick={() => toggleSort('created_at')} className="inline-flex items-center gap-2 hover:text-gray-700">
-                    Created
+                    Ngày tạo
                     {sortKey === 'created_at' && (sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />)}
                   </button>
                 </th>
                 <th className="px-6 py-4 text-left font-medium text-gray-500">
                   <button type="button" onClick={() => toggleSort('status')} className="inline-flex items-center gap-2 hover:text-gray-700">
-                    Status
+                    Trạng thái
                     {sortKey === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />)}
                   </button>
                 </th>
-                <th className="px-6 py-4 text-left font-medium text-gray-500">Action</th>
+                <th className="px-6 py-4 text-left font-medium text-gray-500">Thao tác</th>
               </tr>
             </thead>
             <tbody>
               {!isSupportLoading && visibleSupportRequests.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-10 text-center text-gray-500">No support requests found</td>
+                  <td colSpan={6} className="px-6 py-10 text-center text-gray-500">Không tìm thấy yêu cầu hỗ trợ nào</td>
                 </tr>
               )}
               {visibleSupportRequests.map((item) => {
@@ -841,7 +901,7 @@ export const SupportManagement = () => {
                 return (
                   <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50/50">
                     <td className="px-6 py-4 align-top">
-                      <p className="font-medium text-gray-900">{item.type || 'Support request'}</p>
+                      <p className="font-medium text-gray-900">{translateType(item.type)}</p>
                       {item.description && (
                         <p className="text-xs text-gray-600 mt-1 max-w-md line-clamp-2">{item.description}</p>
                       )}
@@ -850,13 +910,18 @@ export const SupportManagement = () => {
                       <p>{item.user?.full_name || item.user?.email || compactId(item.user_id)}</p>
                     </td>
                     <td className="px-6 py-4 align-top text-gray-700">
-                      <p>{item.pod?.code || pod?.code || '—'}</p>
-                      <p className="text-xs text-gray-500 mt-1">{item.pod?.name || pod?.name || '—'}</p>
+                      <p className="font-medium">{item.pod?.code || pod?.code || '—'}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{item.pod?.name || pod?.name || '—'}</p>
+                      {(item.pod?.cluster_id || pod?.cluster?.name || pod?.cluster_id) && (
+                        <p className="text-[10px] uppercase font-bold text-blue-600 mt-1 bg-blue-50 w-fit px-1.5 py-0.5 rounded">
+                          {pod?.cluster?.name || item.pod?.cluster_id || pod?.cluster_id}
+                        </p>
+                      )}
                     </td>
                     <td className="px-6 py-4 align-top text-gray-700">{formatDateTime(getCreatedTimestamp(item))}</td>
                     <td className="px-6 py-4 align-top">
                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${supportStatusClass(currentStatus)}`}>
-                        {currentStatus}
+                        {translateStatus(currentStatus)}
                       </span>
                     </td>
                     <td className="px-6 py-4 align-top">
@@ -867,7 +932,7 @@ export const SupportManagement = () => {
                           disabled={updatingSupportId === item.id}
                           className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
                         >
-                          Receive
+                          Tiếp nhận
                         </button>
                       ) : (
                         <button
@@ -876,7 +941,7 @@ export const SupportManagement = () => {
                           className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
                         >
                           <Eye className="w-4 h-4" />
-                          View Detail
+                          Xem chi tiết
                         </button>
                       )}
                     </td>
@@ -902,8 +967,8 @@ export const SupportManagement = () => {
           <div className="h-full flex flex-col">
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
-                <p className="text-xs text-gray-500 mt-1">Filter by status, type, and date range.</p>
+                <h2 className="text-lg font-semibold text-gray-900">Bộ lọc</h2>
+                <p className="text-xs text-gray-500 mt-1">Lọc theo trạng thái, loại và ngày.</p>
               </div>
               <button
                 type="button"
@@ -919,8 +984,8 @@ export const SupportManagement = () => {
             <div className="flex-1 overflow-y-auto px-6 py-5 space-y-8">
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <label className="block text-sm font-semibold text-gray-900">Status</label>
-                  <span className="text-xs text-gray-500 whitespace-nowrap">Selected {draftFilters.statuses.length || 'All'}</span>
+                  <label className="block text-sm font-semibold text-gray-900">Trạng thái</label>
+                  <span className="text-xs text-gray-500 whitespace-nowrap">Đã chọn {draftFilters.statuses.length || 'Tất cả'}</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -929,7 +994,7 @@ export const SupportManagement = () => {
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftFilters.statuses.length === 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
                   >
                     {draftFilters.statuses.length === 0 && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
-                    All
+                    Tất cả
                   </button>
                   {SUPPORT_REQUEST_STATUSES.map(status => {
                     const isSelected = draftFilters.statuses.includes(status);
@@ -952,7 +1017,7 @@ export const SupportManagement = () => {
                         className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
                       >
                         {isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
-                        {status}
+                        {translateStatus(status)}
                       </button>
                     )
                   })}
@@ -961,8 +1026,8 @@ export const SupportManagement = () => {
 
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <label className="block text-sm font-semibold text-gray-900">Type request</label>
-                  <span className="text-xs text-gray-500 whitespace-nowrap">Selected {draftFilters.types.length || 'All'}</span>
+                  <label className="block text-sm font-semibold text-gray-900">Loại yêu cầu</label>
+                  <span className="text-xs text-gray-500 whitespace-nowrap">Đã chọn {draftFilters.types.length || 'Tất cả'}</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -971,7 +1036,7 @@ export const SupportManagement = () => {
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftFilters.types.length === 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
                   >
                     {draftFilters.types.length === 0 && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
-                    All
+                    Tất cả
                   </button>
                   {requestTypes.map(type => {
                     const isSelected = draftFilters.types.includes(type);
@@ -994,7 +1059,49 @@ export const SupportManagement = () => {
                         className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
                       >
                         {isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
-                        {type}
+                        {translateType(type)}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-sm font-semibold text-gray-900">Khu vực (Cluster)</label>
+                  <span className="text-xs text-gray-500 whitespace-nowrap">Đã chọn {draftFilters.clusterIds.length || 'Tất cả'}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDraftFilters(prev => ({ ...prev, clusterIds: [] }))}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftFilters.clusterIds.length === 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                  >
+                    {draftFilters.clusterIds.length === 0 && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
+                    Tất cả
+                  </button>
+                  {clusters.map(cluster => {
+                    const isSelected = draftFilters.clusterIds.includes(cluster.id);
+                    return (
+                      <button
+                        key={cluster.id}
+                        type="button"
+                        onClick={() => {
+                          setDraftFilters(prev => {
+                            if (isSelected) {
+                              return { ...prev, clusterIds: prev.clusterIds.filter(id => id !== cluster.id) }
+                            }
+                            const nextIds = [...prev.clusterIds, cluster.id]
+                            if (nextIds.length === clusters.length) {
+                              return { ...prev, clusterIds: [] }
+                            }
+                            return { ...prev, clusterIds: nextIds }
+                          })
+                        }}
+                        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                      >
+                        {isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
+                        {cluster.name}
                       </button>
                     )
                   })}
@@ -1021,7 +1128,7 @@ export const SupportManagement = () => {
                   .custom-calendar .react-datepicker__navigation-icon::before { border-color: #6b7280; border-width: 2px 2px 0 0; height: 8px; width: 8px; top: 1px; }
                 `}</style>
                 <div className="flex items-center justify-between mb-3">
-                  <label className="block text-sm font-semibold text-gray-900">Date Range</label>
+                  <label className="block text-sm font-semibold text-gray-900">Khoảng thời gian</label>
                 </div>
                 <div className="border border-gray-200 rounded-xl shadow-sm bg-white custom-calendar w-full overflow-hidden">
                   <div className="w-full p-4">
@@ -1041,14 +1148,14 @@ export const SupportManagement = () => {
                       onClick={() => setDraftFilters(prev => ({ ...prev, dateRange: [null, null] }))}
                       className="text-sm font-semibold text-gray-900 underline hover:text-gray-700 transition"
                     >
-                      Clear
+                      Xóa
                     </button>
                     <button
                       type="button"
                       onClick={applyFilters}
                       className="px-5 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition"
                     >
-                      Save
+                      Lưu
                     </button>
                   </div>
                 </div>
@@ -1061,7 +1168,7 @@ export const SupportManagement = () => {
                 onClick={resetDraftFilters}
                 className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
               >
-                Reset
+                Đặt lại
               </button>
               <div className="flex items-center gap-2">
                 <button
@@ -1069,14 +1176,14 @@ export const SupportManagement = () => {
                   onClick={() => setIsFilterPanelOpen(false)}
                   className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
                 >
-                  Cancel
+                  Hủy
                 </button>
                 <button
                   type="button"
                   onClick={applyFilters}
                   className="px-4 py-2.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
                 >
-                  Apply
+                  Áp dụng
                 </button>
               </div>
             </div>
@@ -1091,14 +1198,14 @@ export const SupportManagement = () => {
           onClick={closeDetailModal}
         />
         <div
-          className={`absolute right-0 top-0 h-full w-full max-w-[960px] bg-white shadow-2xl border-l border-gray-200 transform transition-transform duration-300 lg:right-4 lg:top-4 lg:bottom-4 lg:h-auto lg:w-[calc(100%-2rem)] lg:border lg:rounded-xl ${detailRequest ? 'translate-x-0' : 'translate-x-[110%]'}`}
+          className={`absolute right-0 top-0 h-full w-full max-w-[1400px] bg-white shadow-2xl border-l border-gray-200 transform transition-transform duration-300 lg:right-4 lg:top-4 lg:bottom-4 lg:h-auto lg:w-[calc(100%-2rem)] lg:border lg:rounded-xl ${detailRequest ? 'translate-x-0' : 'translate-x-[110%]'}`}
           role="dialog"
           aria-modal="true"
         >
           <div className="h-full flex flex-col">
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Request detail</h2>
+                <h2 className="text-lg font-semibold text-gray-900">Chi tiết yêu cầu</h2>
               </div>
               <button
                 type="button"
@@ -1111,269 +1218,307 @@ export const SupportManagement = () => {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-6">
+            <div className="flex-1 overflow-y-auto bg-gray-50/50">
               {detailRequest && (
-                <div className="space-y-6">
+                <div className="flex flex-col lg:flex-row h-full">
+                  {/* Left Column: Information */}
+                  <div className="w-full lg:w-[450px] shrink-0 p-6 lg:p-8 lg:border-r border-gray-100 overflow-y-auto">
+                    <div className="space-y-8 max-w-2xl">
+                      {/* Info Card */}
+                      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                        <h3 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wide">Chi tiết yêu cầu</h3>
+                        <div className="space-y-0 text-sm">
+                          <div className="flex justify-between items-center py-3 border-b border-gray-50">
+                            <span className="text-gray-500">Trạng thái</span>
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${detailCurrentStatus ? supportStatusClass(detailCurrentStatus as SupportRequestStatus) : ''}`}>
+                              {detailCurrentStatus ? translateStatus(detailCurrentStatus as SupportRequestStatus) : ''}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center py-3 border-b border-gray-50">
+                            <span className="text-gray-500">Loại</span>
+                            <span className="font-medium text-gray-900">{translateType(detailRequest.type)}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-3 border-b border-gray-50">
+                            <span className="text-gray-500">Thời gian tạo</span>
+                            <span className="font-medium text-gray-900">{formatDateTime(getCreatedTimestamp(detailRequest))}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-3 border-b border-gray-50 gap-4">
+                            <span className="text-gray-500">Người dùng</span>
+                            <span className="font-medium text-gray-900 truncate text-right flex-1" title={detailRequest.user?.email || detailRequest.user?.full_name || detailRequest.user_id || '—'}>
+                              {detailRequest.user?.email || detailRequest.user?.full_name || detailRequest.user_id || '—'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center py-3 gap-4">
+                            <span className="text-gray-500">Phòng/Vị trí</span>
+                            <span className="font-medium text-gray-900 truncate text-right flex-1">
+                              {detailCurrentPod?.code || detailCurrentPodId || '—'} {detailCurrentPod?.cluster?.name ? `(${detailCurrentPod.cluster.name})` : ''}
+                            </span>
+                          </div>
+                          {isMaintenanceRequest(detailRequest.type) && ['RESOLVED', 'REJECTED', 'CANCELED'].includes(detailCurrentStatus || '') && (
+                            <div className="flex justify-between items-center pt-3 border-t border-gray-50">
+                              <span className="text-gray-500">Mức độ</span>
+                              <span className="font-medium text-gray-900">{translateSeverity(detailSeverity)}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
 
-                  <div className="flex flex-col text-sm">
-                    <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                      <span className="text-gray-500">Status</span>
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${detailCurrentStatus ? supportStatusClass(detailCurrentStatus as SupportRequestStatus) : ''}`}>
-                        {detailCurrentStatus}
-                      </span>
+                      {/* Description Card */}
+                      <div>
+                        <h3 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wide">Mô tả</h3>
+                        <div className="bg-white text-sm text-gray-700 border border-gray-100 shadow-sm rounded-2xl p-5 whitespace-pre-wrap leading-relaxed">
+                          {detailRequest.description || <span className="text-gray-400 italic">Không có mô tả cho yêu cầu này.</span>}
+                        </div>
+                      </div>
+
+                      {/* Attachments */}
+                      {detailRequest.images && detailRequest.images.length > 0 && (
+                        <div>
+                          <h3 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wide">Tệp đính kèm</h3>
+                          <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
+                            {detailRequest.images.map((img, i) => (
+                              <div key={i} className="flex-shrink-0 group relative overflow-hidden rounded-xl border border-gray-200">
+                                <img src={img} alt={`Attachment ${i + 1}`} className="h-32 lg:h-40 w-auto object-cover group-hover:scale-105 transition-transform duration-300" />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                      <span className="text-gray-500">Type</span>
-                      <span className="font-medium text-gray-900">{detailRequest.type || '—'}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                      <span className="text-gray-500">Created</span>
-                      <span className="font-medium text-gray-900">{formatDateTime(getCreatedTimestamp(detailRequest))}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-4 border-b border-gray-100 gap-4">
-                      <span className="text-gray-500">User</span>
-                      <span className="font-medium text-gray-900 truncate text-right flex-1" title={detailRequest.user?.email || detailRequest.user?.full_name || detailRequest.user_id || '—'}>
-                        {detailRequest.user?.email || detailRequest.user?.full_name || detailRequest.user_id || '—'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center py-4 border-b border-gray-100 gap-4">
-                      <span className="text-gray-500">Pod</span>
-                      <span className="font-medium text-gray-900 truncate text-right flex-1">
-                        {detailCurrentPod?.code || detailCurrentPodId || '—'}
-                      </span>
-                    </div>
-                    {isMaintenanceRequest(detailRequest.type) && ['RESOLVED', 'REJECTED', 'CANCELED'].includes(detailCurrentStatus || '') && (
-                      <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                        <span className="text-gray-500">Severity</span>
-                        <span className="font-medium text-gray-900">{detailSeverity}</span>
+                  </div>
+
+                  {/* Right Column: Actions */}
+                  <div className="flex-1 min-w-0 bg-white p-6 lg:p-8 overflow-y-auto border-t lg:border-t-0 border-gray-100 flex flex-col gap-8 shadow-[-4px_0_24px_-16px_rgba(0,0,0,0.05)]">
+                    
+                    {/* Status Badge Concept */}
+                    {(() => {
+                      let bg = '', iconBg = '', title = '', desc = '', Icon = null;
+
+                      if (shouldHideManagerActions) {
+                        bg = 'from-rose-50/80 to-white border-rose-100';
+                        iconBg = 'bg-white text-rose-500 shadow-sm border border-rose-50';
+                        title = 'Booking đã hoàn tất';
+                        desc = 'Không thể chỉnh sửa do booking đã kết thúc.';
+                        Icon = <X className="w-6 h-6" />;
+                      } else if (detailCurrentStatus === 'RESOLVED') {
+                        bg = 'from-emerald-50/80 to-white border-emerald-100';
+                        iconBg = 'bg-white text-emerald-500 shadow-sm border border-emerald-50';
+                        title = 'Yêu cầu đã hoàn tất!';
+                        desc = `Phòng đã được bàn giao và giải quyết thành công.`;
+                        Icon = <Check className="w-6 h-6" />;
+                      } else if (detailCurrentStatus === 'PROCESSING' || detailCurrentStatus === 'IN_PROGRESS') {
+                        bg = 'from-purple-50/80 to-white border-purple-100';
+                        iconBg = 'bg-white text-purple-500 shadow-sm border border-purple-50';
+                        title = 'Đang trong tiến trình';
+                        desc = 'Hệ thống đang thực hiện công việc.';
+                        Icon = <Clock className="w-6 h-6" />;
+                      } else if (detailCurrentStatus === 'REJECTED' || detailCurrentStatus === 'CANCELED') {
+                        bg = 'from-rose-50/80 to-white border-rose-100';
+                        iconBg = 'bg-white text-rose-500 shadow-sm border border-rose-50';
+                        title = detailCurrentStatus === 'REJECTED' ? 'Đã bị từ chối!' : 'Đã bị huỷ!';
+                        desc = 'Yêu cầu này không thể tiếp tục thực hiện.';
+                        Icon = <X className="w-6 h-6" />;
+                      } else if (detailCurrentStatus === 'ESCALATED') {
+                        bg = 'from-amber-50/80 to-white border-amber-100';
+                        iconBg = 'bg-white text-amber-500 shadow-sm border border-amber-50';
+                        title = 'Đã chuyển cấp';
+                        desc = 'Yêu cầu đang chờ quản lý cấp cao xem xét.';
+                        Icon = <AlertCircle className="w-6 h-6" />;
+                      } else {
+                        bg = 'from-blue-50/80 to-white border-blue-100';
+                        iconBg = 'bg-white text-blue-500 shadow-sm border border-blue-50';
+                        title = 'Chờ tiếp nhận';
+                        desc = 'Yêu cầu đang chờ quản lý bắt đầu xử lý.';
+                        Icon = <Clock className="w-6 h-6" />;
+                      }
+
+                      return (
+                        <div className={`rounded-2xl p-6 flex flex-col items-center text-center bg-gradient-to-b border shadow-sm ${bg}`}>
+                          <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${iconBg}`}>
+                            {Icon}
+                          </div>
+                          <h3 className="text-lg font-bold text-gray-900 mb-1">{title}</h3>
+                          <p className="text-sm text-gray-600">{desc}</p>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Controls & Actions */}
+                    {!shouldHideManagerActions && (
+                      <div className="space-y-6">
+                        
+                        {isMaintenanceRequest(detailRequest.type) && !isCompletedReq && (
+                          <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
+                            <label className="block text-sm font-bold text-gray-900 mb-3 uppercase tracking-wide">Mức độ bảo trì</label>
+                            <select
+                              value={detailSeverity}
+                              onChange={(event) => setSelectedSeverityByRequest((prev) => ({ ...prev, [detailRequest.id]: event.target.value as SupportMaintenanceSeverity }))}
+                              className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-white font-medium shadow-sm transition-shadow appearance-none cursor-pointer"
+                            >
+                              {SUPPORT_MAINTENANCE_SEVERITIES.map((severity) => (
+                                <option key={severity} value={severity}>{translateSeverity(severity)}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        <div>
+                          <h3 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wide">Thao tác nhanh</h3>
+                          <div className="flex flex-col gap-3">
+                            {detailCanAccept && (
+                              <button
+                                type="button"
+                                onClick={() => handleStartMaintenanceProcessing(detailRequest)}
+                                disabled={updatingSupportId === detailRequest.id}
+                                className="w-full px-4 py-3 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 shadow-sm disabled:opacity-60 transition"
+                              >
+                                Tiếp nhận yêu cầu
+                              </button>
+                            )}
+
+                            {detailCanStartWork && (
+                              <button
+                                type="button"
+                                onClick={() => handleStartWork(detailRequest)}
+                                disabled={updatingSupportId === detailRequest.id}
+                                className="w-full px-4 py-3 rounded-xl bg-purple-600 text-white font-medium hover:bg-purple-700 shadow-sm disabled:opacity-60 transition"
+                              >
+                                Bắt đầu xử lý
+                              </button>
+                            )}
+
+                            {detailCanResolve && !isChangePodRequest(detailRequest.type) && (
+                              <button
+                                type="button"
+                                onClick={() => openStatusTransitionModal(detailRequest, 'RESOLVED')}
+                                disabled={updatingSupportId === detailRequest.id || !detailCanResolveByTasks}
+                                className="w-full px-4 py-3 rounded-xl bg-emerald-600 text-white font-medium hover:bg-emerald-700 shadow-sm disabled:opacity-60 transition flex items-center justify-center gap-2"
+                              >
+                                <Check className="w-4 h-4" /> Đánh dấu hoàn thành
+                              </button>
+                            )}
+
+                            <div className="flex gap-3">
+                              {detailCanReject && (
+                                <button
+                                  type="button"
+                                  onClick={() => openStatusTransitionModal(detailRequest, 'REJECTED')}
+                                  disabled={updatingSupportId === detailRequest.id}
+                                  className="flex-1 px-4 py-3 rounded-xl bg-white border-2 border-rose-100 text-rose-600 font-medium hover:bg-rose-50 shadow-sm disabled:opacity-60 transition"
+                                >
+                                  Từ chối
+                                </button>
+                              )}
+
+                              {detailCanEscalate && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleEscalateMaintenance(detailRequest)}
+                                  disabled={updatingSupportId === detailRequest.id}
+                                  className="flex-1 px-4 py-3 rounded-xl bg-amber-500 text-white font-medium hover:bg-amber-600 shadow-sm disabled:opacity-60 transition flex items-center justify-center gap-2"
+                                >
+                                  <AlertCircle className="w-4 h-4" /> Chuyển cấp
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {detailCanResolve && !detailCanResolveByTasks && (
+                            <p className="text-xs text-rose-600 mt-3 text-center bg-rose-50 p-2 rounded-lg border border-rose-100">Không thể hoàn tất: một số tác vụ liên quan chưa được xử lý xong.</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Room Change Section */}
+                    {detailSupportsRoomChange && !shouldHideManagerActions && (
+                      <div className="border-t border-gray-100 pt-8 mt-2">
+                        <div className="flex items-center gap-2 mb-4">
+                          <ArrowRightLeft className="w-5 h-5 text-emerald-600" />
+                          <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Đổi phòng khẩn cấp</h3>
+                        </div>
+
+                        <div className="space-y-5">
+                          {detailBookingId && loadingBookingId === detailBookingId && !detailBooking && (
+                            <div className="animate-pulse flex space-x-4"><div className="h-4 bg-gray-200 rounded w-3/4"></div></div>
+                          )}
+
+                          {loadingRoomChangeRequestId === detailRequest.id && (
+                            <div className="animate-pulse flex space-x-4"><div className="h-4 bg-gray-200 rounded w-1/2"></div></div>
+                          )}
+
+                          <div className="p-4 rounded-xl bg-blue-50/50 border border-blue-100 text-sm">
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-blue-600 font-medium">Hiện tại:</span>
+                              <span className="font-bold text-blue-900">{detailCurrentPod?.code || detailRequest.pod?.code || detailCurrentPodId || '—'} {detailCurrentPod?.cluster?.name ? `(${detailCurrentPod.cluster.name})` : ''}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-blue-600 font-medium">Đơn đặt:</span>
+                              <span className="font-mono text-xs px-2 py-1 bg-white rounded text-blue-700 font-bold border border-blue-100">{detailBooking?.status || detailRequest.booking?.status || '—'}</span>
+                            </div>
+                          </div>
+
+                          {!detailCanExecuteRoomChange && (
+                            <p className="text-sm text-rose-600 bg-rose-50 p-3 rounded-xl border border-rose-100">Trạng thái đơn đặt phải là <span className="font-bold">ĐANG SỬ DỤNG</span> để thực hiện đổi phòng.</p>
+                          )}
+
+                          {detailCurrentStatus !== 'IN_PROGRESS' ? (
+                            <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 text-center">
+                              <AlertCircle className="w-6 h-6 text-amber-500 mx-auto mb-2" />
+                              <p className="text-sm text-amber-800 font-medium">Bắt đầu tiến trình làm việc</p>
+                              <p className="text-xs text-amber-600 mt-1">Vui lòng click <b className="font-bold">Bắt đầu xử lý</b> bên trên để mở khóa danh sách phòng trống và thực hiện đổi phòng.</p>
+                            </div>
+                          ) : (
+                            <>
+                              <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">Chọn phòng thay thế</label>
+                                <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 max-h-[360px] overflow-y-auto custom-scrollbar">
+                                  <PodGridSelector
+                                    pods={candidatesForGrid}
+                                    selectedPodId={selectedCandidatePodId}
+                                    onSelect={(id) => setSelectedNewPodByRequest((prev) => ({ ...prev, [detailRequest.id]: id }))}
+                                  />
+                                </div>
+                                {filteredCandidates.length === 0 && (
+                                  <p className="text-xs text-amber-700 mt-2 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Không có phòng trống khả dụng.</p>
+                                )}
+                              </div>
+
+                              {showTierWarning && (
+                                <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-100">Cảnh báo: Phòng đã chọn có loại thấp hơn phòng hiện tại.</p>
+                              )}
+
+                              {selectedCandidate && hasTimeConflictWarning(selectedCandidate) && (
+                                <p className="text-xs text-rose-600 bg-rose-50 p-2 rounded-lg border border-rose-100">Cảnh báo xung đột: Phòng đã chọn sắp có đơn đặt tiếp theo.</p>
+                              )}
+
+                              <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">Ghi chú xử lý <span className="text-gray-400 font-normal">(Tùy chọn)</span></label>
+                                <textarea
+                                  rows={2}
+                                  value={roomChangeResolutionByRequest[detailRequest.id] || ''}
+                                  onChange={(event) => setRoomChangeResolutionByRequest((prev) => ({ ...prev, [detailRequest.id]: event.target.value }))}
+                                  placeholder="Ghi chú chi tiết nguyên nhân/cách giải quyết..."
+                                  className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm shadow-sm transition"
+                                />
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleChangePodFromRequest(detailRequest)}
+                                disabled={!detailCanExecuteRoomChange || !selectedCandidatePodId || isChangingPodRequestId === detailRequest.id}
+                                className={`w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl text-white font-bold transition shadow-sm ${!selectedCandidatePodId ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 hover:shadow'}`}
+                              >
+                                <ArrowRightLeft className="w-5 h-5" />
+                                {isChangingPodRequestId === detailRequest.id ? 'Đang xử lý...' : 'Xác nhận & Chuyển phòng'}
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
-
-                  {detailRequest.images && detailRequest.images.length > 0 && (
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Attached Images</p>
-                      <div className="flex gap-4 overflow-x-auto pb-2">
-                        {detailRequest.images.map((img, i) => (
-                          <img key={i} src={img} alt={`Attachment ${i + 1}`} className="h-24 w-auto rounded-lg border border-gray-200 object-cover" />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Description</p>
-                    <p className="text-sm text-gray-700 bg-gray-50 border border-gray-100 rounded-lg p-3 whitespace-pre-wrap">
-                      {detailRequest.description || 'No description provided'}
-                    </p>
-                  </div>
-
-                  {isMaintenanceRequest(detailRequest.type) && !isCompletedReq && !shouldHideManagerActions && (
-                    <div className="space-y-3 pt-2 border-t border-gray-100">
-                      <p className="text-sm font-semibold text-gray-900">Maintenance Controls</p>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Severity</label>
-                        <select
-                          value={detailSeverity}
-                          onChange={(event) => setSelectedSeverityByRequest((prev) => ({ ...prev, [detailRequest.id]: event.target.value as SupportMaintenanceSeverity }))}
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                        >
-                          {SUPPORT_MAINTENANCE_SEVERITIES.map((severity) => (
-                            <option key={severity} value={severity}>{severity}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  )}
-
-                  {!shouldHideManagerActions && (
-                    <div className="space-y-3 pt-2 border-t border-gray-100">
-                      <p className="text-sm font-semibold text-gray-900">Manager Actions</p>
-                      <div className="flex flex-wrap gap-2">
-                        {detailCanAccept && (
-                          <button
-                            type="button"
-                            onClick={() => handleStartMaintenanceProcessing(detailRequest)}
-                            disabled={updatingSupportId === detailRequest.id}
-                            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
-                          >
-                            Accept
-                          </button>
-                        )}
-
-                        {detailCanStartWork && (
-                          <button
-                            type="button"
-                            onClick={() => handleStartWork(detailRequest)}
-                            disabled={updatingSupportId === detailRequest.id}
-                            className="px-4 py-2 rounded-lg bg-cyan-600 text-white hover:bg-cyan-700 disabled:opacity-60"
-                          >
-                            Start Work
-                          </button>
-                        )}
-
-                        {detailCanResolve && !isChangePodRequest(detailRequest.type) && (
-                          <button
-                            type="button"
-                            onClick={() => openStatusTransitionModal(detailRequest, 'RESOLVED')}
-                            disabled={updatingSupportId === detailRequest.id || !detailCanResolveByTasks}
-                            className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
-                          >
-                            Done
-                          </button>
-                        )}
-
-                        {detailCanReject && (
-                          <button
-                            type="button"
-                            onClick={() => openStatusTransitionModal(detailRequest, 'REJECTED')}
-                            disabled={updatingSupportId === detailRequest.id}
-                            className="px-4 py-2 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-60"
-                          >
-                            Reject
-                          </button>
-                        )}
-
-                        {detailCanEscalate && (
-                          <button
-                            type="button"
-                            onClick={() => handleEscalateMaintenance(detailRequest)}
-                            disabled={updatingSupportId === detailRequest.id}
-                            className="px-4 py-2 rounded-lg bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-60"
-                          >
-                            Escalate Admin
-                          </button>
-                        )}
-                      </div>
-
-                      {detailCanResolve && !detailCanResolveByTasks && (
-                        <p className="text-xs text-rose-600">Cannot mark as done because related tasks are not DONE/COMPLETED.</p>
-                      )}
-                    </div>
-                  )}
-
-                  {(() => {
-                    let bg = '', iconBg = '', title = '', desc = '', Icon = null;
-
-                    if (shouldHideManagerActions) {
-                      bg = 'from-rose-50/80 to-white border-rose-100';
-                      iconBg = 'bg-white text-rose-500 shadow-sm border border-rose-50';
-                      title = 'Booking đã hoàn tất';
-                      desc = 'Không thể tiếp tục xử lý do booking đã hoàn tất.';
-                      Icon = <X className="w-6 h-6" />;
-                    } else if (detailCurrentStatus === 'RESOLVED') {
-                      bg = 'from-emerald-50/80 to-white border-emerald-100';
-                      iconBg = 'bg-white text-emerald-500 shadow-sm border border-emerald-50';
-                      title = 'Yêu cầu đã hoàn tất!';
-                      desc = `Yêu cầu đã được xử lí bởi ${detailRequest.handled_by || 'quản lý'}.`;
-                      Icon = <Check className="w-6 h-6" />;
-                    } else if (detailCurrentStatus === 'PROCESSING' || detailCurrentStatus === 'IN_PROGRESS') {
-                      bg = 'from-purple-50/80 to-white border-purple-100';
-                      iconBg = 'bg-white text-purple-500 shadow-sm border border-purple-50';
-                      title = 'Yêu cầu đang xử lý...';
-                      desc = 'Hệ thống đang trong quá trình thực hiện công việc.';
-                      Icon = <Clock className="w-6 h-6" />;
-                    } else if (detailCurrentStatus === 'REJECTED' || detailCurrentStatus === 'CANCELED') {
-                      bg = 'from-rose-50/80 to-white border-rose-100';
-                      iconBg = 'bg-white text-rose-500 shadow-sm border border-rose-50';
-                      title = detailCurrentStatus === 'REJECTED' ? 'Yêu cầu đã bị từ chối!' : 'Yêu cầu đã bị huỷ!';
-                      desc = 'Yêu cầu này không thể tiếp tục thực hiện.';
-                      Icon = <X className="w-6 h-6" />;
-                    } else if (detailCurrentStatus === 'ESCALATED') {
-                      bg = 'from-amber-50/80 to-white border-amber-100';
-                      iconBg = 'bg-white text-amber-500 shadow-sm border border-amber-50';
-                      title = 'Yêu cầu cần xử lý cấp cao';
-                      desc = 'Yêu cầu này đang được xem xét (Escalated).';
-                      Icon = <AlertCircle className="w-6 h-6" />;
-                    } else {
-                      bg = 'from-blue-50/80 to-white border-blue-100';
-                      iconBg = 'bg-white text-blue-500 shadow-sm border border-blue-50';
-                      title = 'Chờ tiếp nhận';
-                      desc = 'Yêu cầu vừa được gửi và đang chờ quản lý bắt đầu xử lý.';
-                      Icon = <Clock className="w-6 h-6" />;
-                    }
-
-                    return (
-                      <div className={`rounded-2xl p-8 flex flex-col items-center text-center bg-gradient-to-b border shadow-sm ${bg}`}>
-                        <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-4 ${iconBg}`}>
-                          {Icon}
-                        </div>
-                        <h3 className="text-xl font-bold text-gray-900 mb-2">{title}</h3>
-                        <p className="text-sm text-gray-600 max-w-sm">{desc}</p>
-                      </div>
-                    )
-                  })()}
-
-                  {detailSupportsRoomChange && !shouldHideManagerActions && (
-                    <div className="space-y-3 pt-2 border-t border-gray-100">
-                      <p className="text-sm font-semibold text-gray-900">Room Change</p>
-
-                      {detailBookingId && loadingBookingId === detailBookingId && !detailBooking && (
-                        <p className="text-xs text-gray-500">Loading booking detail...</p>
-                      )}
-
-                      {loadingRoomChangeRequestId === detailRequest.id && (
-                        <p className="text-xs text-gray-500">Loading replacement pods...</p>
-                      )}
-
-                      <div className="p-3 rounded-lg bg-gray-50 border border-gray-100 text-sm text-gray-700">
-                        <p>Current pod: {detailCurrentPod?.code || detailRequest.pod?.code || detailCurrentPodId || '—'}</p>
-                        <p className="mt-1">Booking status: {detailBooking?.status || detailRequest.booking?.status || '—'}</p>
-                      </div>
-
-                      {!detailCanExecuteRoomChange && (
-                        <p className="text-xs text-rose-600">Room change is only allowed when booking is IN_USE.</p>
-                      )}
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">New Pod</label>
-                        <PodGridSelector
-                          pods={candidatesForGrid}
-                          selectedPodId={selectedCandidatePodId}
-                          onSelect={(id) => setSelectedNewPodByRequest((prev) => ({ ...prev, [detailRequest.id]: id }))}
-                        />
-                        {filteredCandidates.length === 0 && (
-                          <p className="text-xs text-amber-700 mt-2">No AVAILABLE replacement pod in the same parent location.</p>
-                        )}
-                      </div>
-
-                      {showTierWarning && (
-                        <p className="text-xs text-amber-700">Tier warning: selected pod appears lower tier than current pod. Please confirm with customer.</p>
-                      )}
-
-                      {selectedCandidate && hasTimeConflictWarning(selectedCandidate) && (
-                        <p className="text-xs text-rose-600">Time conflict warning: selected pod has an upcoming booking in the remaining window.</p>
-                      )}
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Resolution Note (optional)</label>
-                        <textarea
-                          rows={2}
-                          value={roomChangeResolutionByRequest[detailRequest.id] || ''}
-                          onChange={(event) => setRoomChangeResolutionByRequest((prev) => ({ ...prev, [detailRequest.id]: event.target.value }))}
-                          placeholder="Room change note shown in request history"
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleChangePodFromRequest(detailRequest)}
-                        disabled={!detailCanExecuteRoomChange || !selectedCandidatePodId || isChangingPodRequestId === detailRequest.id || detailCurrentStatus === 'PROCESSING'}
-                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white transition ${detailCurrentStatus === 'PROCESSING' ? 'bg-gray-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'}`}
-                        title={detailCurrentStatus === 'PROCESSING' ? "You must click 'Start Work' before confirming room change." : ''}
-                      >
-                        <ArrowRightLeft className="w-4 h-4" />
-                        {isChangingPodRequestId === detailRequest.id ? 'Changing room...' : 'Confirm Room Change & Mark Done'}
-                      </button>
-
-                      {detailCurrentStatus === 'PROCESSING' && (
-                        <p className="text-xs text-amber-600 mt-2">
-                          * Please check pod availability and click <b>Start Work</b> above to begin the change process.
-                        </p>
-                      )}
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -1384,24 +1529,24 @@ export const SupportManagement = () => {
       <Modal
         isOpen={statusModal.isOpen}
         onClose={closeStatusTransitionModal}
-        title={`Update Status: ${statusModal.targetStatus}`}
+        title={`Cập nhật trạng thái: ${translateStatus(statusModal.targetStatus as SupportRequestStatus)}`}
         size="md"
       >
         <div className="space-y-4">
           <div className="text-sm text-gray-600">
-            Request: <span className="font-medium text-gray-900">{compactId(statusModal.request?.id)}</span>
+            Yêu cầu: <span className="font-medium text-gray-900">{compactId(statusModal.request?.id)}</span>
           </div>
 
           {statusModal.request && isMaintenanceRequest(statusModal.request.type) && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Severity</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Mức độ</label>
               <select
                 value={statusModal.severity}
                 onChange={(event) => setStatusModal((prev) => ({ ...prev, severity: event.target.value as SupportMaintenanceSeverity }))}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               >
                 {SUPPORT_MAINTENANCE_SEVERITIES.map((severity) => (
-                  <option key={severity} value={severity}>{severity}</option>
+                  <option key={severity} value={severity}>{translateSeverity(severity)}</option>
                 ))}
               </select>
             </div>
@@ -1409,26 +1554,26 @@ export const SupportManagement = () => {
 
           {statusModal.targetStatus === 'ESCALATED' ? (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Escalation Note</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Ghi chú chuyển cấp</label>
               <textarea
                 rows={4}
                 value={statusModal.escalationNote}
                 onChange={(event) => setStatusModal((prev) => ({ ...prev, escalationNote: event.target.value }))}
-                placeholder="Explain why this request must be escalated to admin"
+                placeholder="Giải thích lý do yêu cầu này cần được quản trị viên xử lý tiếp"
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <p className="text-xs text-gray-500 mt-2">Use this when HIGH/CRITICAL maintenance needs admin support after customer room change.</p>
+              <p className="text-xs text-gray-500 mt-2">Sử dụng khi sự cố NGHIÊM TRỌNG cần sự can thiệp của cấp quản trị cao nhất.</p>
             </div>
           ) : (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                {statusModal.targetStatus === 'REJECTED' ? 'Reject Reason' : 'Resolution Note'}
+                {statusModal.targetStatus === 'REJECTED' ? 'Lý do từ chối' : 'Ghi chú giải quyết'}
               </label>
               <textarea
                 rows={4}
                 value={statusModal.resolutionNote}
                 onChange={(event) => setStatusModal((prev) => ({ ...prev, resolutionNote: event.target.value }))}
-                placeholder={statusModal.targetStatus === 'REJECTED' ? 'Enter reject reason (more than 10 characters)' : 'Provide resolution details for audit history'}
+                placeholder={statusModal.targetStatus === 'REJECTED' ? 'Nhập lý do từ chối (ít nhất 10 ký tự)' : 'Cung cấp chi tiết cách giải quyết để lưu lịch sử'}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -1440,7 +1585,7 @@ export const SupportManagement = () => {
               onClick={closeStatusTransitionModal}
               className="px-4 py-2 border rounded-lg text-gray-600 hover:bg-gray-50"
             >
-              Cancel
+              Hủy
             </button>
             <button
               type="button"
@@ -1448,7 +1593,7 @@ export const SupportManagement = () => {
               disabled={updatingSupportId === statusModal.request?.id}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60"
             >
-              Confirm
+              Xác nhận
             </button>
           </div>
         </div>
@@ -1457,7 +1602,7 @@ export const SupportManagement = () => {
       <Modal
         isOpen={Boolean(roomChangeResult)}
         onClose={() => setRoomChangeResult(null)}
-        title="Room Change Confirmed!"
+        title="Đã xác nhận đổi phòng!"
         size="md"
       >
         <div className="space-y-4 pb-2">
@@ -1467,33 +1612,19 @@ export const SupportManagement = () => {
                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
             </div>
-            <h3 className="text-lg font-bold text-gray-900">Room Moved Successfully</h3>
-            <p className="text-sm text-gray-500">Booking and Smart Keys have been mapped.</p>
+            <h3 className="text-lg font-bold text-gray-900">Đổi phòng thành công</h3>
+            <p className="text-sm text-gray-500">Đơn đặt phòng và Khóa thông minh đã được cấu hình lại.</p>
           </div>
 
           <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-center">
-            <p className="text-xs text-gray-500 font-semibold mb-1 uppercase">New Pod Information</p>
+            <p className="text-xs text-gray-500 font-semibold mb-1 uppercase">Thông tin phòng mới</p>
             <p className="font-bold text-gray-900 text-xl">{roomChangeResult?.new_pod?.code || '—'}</p>
             <p className="text-sm text-gray-600 mt-1">{roomChangeResult?.new_pod?.name || '—'}</p>
           </div>
 
           <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-center">
-            <p className="text-xs text-blue-800 font-semibold mb-3 uppercase flex items-center justify-center gap-1">
-              <Eye className="w-3.5 h-3.5" /> Check-in Token For User
-            </p>
-            {roomChangeResult?.new_pod_qr_token ? (
-              <div className="flex flex-col items-center gap-2">
-                <div className="px-6 py-3 bg-white border-2 border-dashed border-blue-200 rounded-lg w-full max-w-xs cursor-pointer hover:border-blue-400 transition" onClick={() => {
-                  navigator.clipboard.writeText(roomChangeResult.new_pod_qr_token!)
-                  toast.success('Copied token to clipboard!')
-                }}>
-                  <p className="font-mono text-xl tracking-widest text-blue-900 font-bold uppercase">{roomChangeResult.new_pod_qr_token}</p>
-                </div>
-                <p className="text-xs text-blue-700 mt-2">Mobile App already received this via notification.</p>
-              </div>
-            ) : (
-              <p className="text-sm text-amber-700">No active QR found for this pod! App check-in required.</p>
-            )}
+            <p className="text-sm font-semibold text-blue-800 mb-2">Đã mở cửa từ xa</p>
+            <p className="text-xs text-blue-700">Khách hàng đã nhận được thông báo về phòng mới trên ứng dụng.</p>
           </div>
 
           <div className="mt-6 flex justify-center border-t border-gray-100 pt-5">
@@ -1501,7 +1632,7 @@ export const SupportManagement = () => {
               onClick={() => setRoomChangeResult(null)}
               className="px-8 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium"
             >
-              Done & Close
+              Hoàn tất & Đóng
             </button>
           </div>
         </div>

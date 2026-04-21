@@ -27,6 +27,7 @@ import {
   type InventoryActionType,
   type InventoryCheckoutLogItem
 } from '../../api/lib/inventoryCheckoutLogApi'
+import { initUserSocket } from '../../lib/socket'
 
 type InventoryTab = 'warehouseSetup' | 'items' | 'stocks' | 'checkoutLogs'
 
@@ -138,6 +139,7 @@ export const InventoryWarehouseManagement: React.FC = () => {
   const [editLogActionType, setEditLogActionType] = useState<InventoryActionType>('CHECKOUT')
   const [editLogReason, setEditLogReason] = useState('')
   const [isSavingCheckoutLogEdit, setIsSavingCheckoutLogEdit] = useState(false)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const locationMap = useMemo(() => new Map(locations.map((x) => [x.id, x])), [locations])
   const warehouseMap = useMemo(() => new Map(warehouses.map((x) => [x.id, x])), [warehouses])
@@ -309,12 +311,29 @@ export const InventoryWarehouseManagement: React.FC = () => {
   useEffect(() => {
     loadDependencies()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [refreshTrigger])
 
   useEffect(() => {
     refreshActiveTab()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab])
+  }, [activeTab, refreshTrigger])
+
+  useEffect(() => {
+    const socket = initUserSocket()
+    if (!socket) return
+
+    const handleNewData = () => {
+      setRefreshTrigger(prev => prev + 1)
+    }
+
+    socket.on('user:notification', handleNewData)
+    socket.on('dashboard:refresh', handleNewData)
+
+    return () => {
+      socket.off('user:notification', handleNewData)
+      socket.off('dashboard:refresh', handleNewData)
+    }
+  }, [])
 
   useEffect(() => {
     if (activeTab === 'warehouseSetup') fetchWarehouses()

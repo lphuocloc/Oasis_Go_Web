@@ -22,6 +22,7 @@ import {
   type DashboardPod
 } from '../../api/lib/dashboardApi'
 import { adminStatsApi, type AdminStatsResponse } from '../../api/lib/statsApi'
+import { initUserSocket } from '../../lib/socket'
 import {
   TrendingUp, AlertCircle, Calendar, Package,
   RefreshCw, ChevronDown, DollarSign,
@@ -219,8 +220,7 @@ const mapDateLabelToVietnamese = (label: string, groupBy: string) => {
   if (groupBy === 'day') {
     const date = new Date(label)
     if (!Number.isNaN(date.getTime())) {
-      const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7']
-      return days[date.getDay()]
+      return date.toLocaleDateString('vi-VN')
     }
   }
   return label
@@ -351,6 +351,7 @@ export const AdminDashboard = () => {
   const [analyticsRange, setAnalyticsRange] = useState<RangeOption>('week')
   const [showKpiRangePicker, setShowKpiRangePicker] = useState(false)
   const [showAnalyticsRangePicker, setShowAnalyticsRangePicker] = useState(false)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const fetchKpiData = async (selectedRange: RangeOption) => {
     setIsKpiLoading(true)
@@ -399,12 +400,29 @@ export const AdminDashboard = () => {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchKpiData(kpiRange)
-  }, [kpiRange])
+  }, [kpiRange, refreshTrigger])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchAnalyticsData(analyticsRange)
-  }, [analyticsRange])
+  }, [analyticsRange, refreshTrigger])
+
+  useEffect(() => {
+    const socket = initUserSocket()
+    if (!socket) return
+
+    const handleNewData = () => {
+      setRefreshTrigger(prev => prev + 1)
+    }
+
+    socket.on('user:notification', handleNewData)
+    socket.on('dashboard:refresh', handleNewData)
+
+    return () => {
+      socket.off('user:notification', handleNewData)
+      socket.off('dashboard:refresh', handleNewData)
+    }
+  }, [])
 
   const isLoading = isKpiLoading || isAnalyticsLoading
 

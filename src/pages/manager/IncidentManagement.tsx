@@ -13,6 +13,7 @@ import {
 } from '../../api/lib/incidentApi'
 import { podApi, type PodItem } from '../../api/lib/podApi'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
+import { initUserSocket } from '../../lib/socket'
 
 const statusBadgeClass = (status: IncidentStatus) => {
   switch (status) {
@@ -68,6 +69,7 @@ export const IncidentManagement = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | IncidentStatus>('all')
   const [severityFilter, setSeverityFilter] = useState<'all' | IncidentSeverity>('all')
   const [pendingOnly, setPendingOnly] = useState(true)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
@@ -115,7 +117,24 @@ export const IncidentManagement = () => {
   useEffect(() => {
     fetchPrimaryData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clusterFilter, statusFilter, severityFilter, pendingOnly, clusters])
+  }, [clusterFilter, statusFilter, severityFilter, pendingOnly, clusters, refreshTrigger])
+
+  useEffect(() => {
+    const socket = initUserSocket()
+    if (!socket) return
+
+    const handleNewData = () => {
+      setRefreshTrigger(prev => prev + 1)
+    }
+
+    socket.on('user:notification', handleNewData)
+    socket.on('dashboard:refresh', handleNewData)
+
+    return () => {
+      socket.off('user:notification', handleNewData)
+      socket.off('dashboard:refresh', handleNewData)
+    }
+  }, [])
 
   const podMap = useMemo(() => new Map(pods.map((pod) => [pod.id, pod])), [pods])
   const clusterMap = useMemo(() => new Map(clusters.map((cluster) => [cluster.id, cluster])), [clusters])

@@ -5,6 +5,9 @@ export interface PodGridItem {
   code: string
   name: string
   status?: string
+  clusterName?: string
+  scopeLevel?: string
+  isSelectable?: boolean
 }
 
 interface PodGridSelectorProps {
@@ -23,7 +26,7 @@ export const PodGridSelector: React.FC<PodGridSelectorProps> = ({
   allOptionLabel = 'Tất cả phòng'
 }) => {
   const groupedPods = useMemo(() => {
-    const areasMap: Record<string, Record<string, { upper?: PodGridItem; lower?: PodGridItem; others: PodGridItem[] }>> = {}
+    const areasMap: Record<string, Record<string, { upper?: PodGridItem; lower?: PodGridItem; others: PodGridItem[], scopeLevel?: string }>> = {}
     
     pods.forEach(pod => {
       const code = (pod.code || '').trim()
@@ -43,8 +46,10 @@ export const PodGridSelector: React.FC<PodGridSelectorProps> = ({
          area = areaCodeMatch ? areaCodeMatch[1].toUpperCase() : 'Khác'
       }
       
+      area = pod.clusterName || `Khu ${area}`
+
       if (!areasMap[area]) areasMap[area] = {}
-      if (!areasMap[area][base]) areasMap[area][base] = { others: [] }
+      if (!areasMap[area][base]) areasMap[area][base] = { others: [], scopeLevel: pod.scopeLevel }
       
       if (tier === 'U') {
          areasMap[area][base].upper = pod
@@ -96,51 +101,57 @@ export const PodGridSelector: React.FC<PodGridSelectorProps> = ({
         {groupedPods.map(group => (
           <div key={group.area} className="bg-gray-50 rounded-xl border border-gray-200 p-3 flex flex-col gap-3">
             <div className="text-sm font-bold text-gray-700 uppercase tracking-wider border-b border-gray-200/80 pb-1.5 flex items-center justify-between">
-              <span>Khu {group.area}</span>
-              <span className="text-[10px] text-gray-400 font-normal normal-case">Cuộn ngang để xem thêm</span>
+              <div className="flex items-center gap-2">
+                <span>{group.area}</span>
+                {group.bases[0]?.scopeLevel === 'SAME_CLUSTER' && (
+                  <span className="bg-emerald-100 text-emerald-700 text-[10px] px-2 py-0.5 rounded-full font-semibold normal-case">
+                    (Cùng nhóm - Gần nhất)
+                  </span>
+                )}
+              </div>
             </div>
             
-            <div className="flex gap-2.5 overflow-x-auto pb-2 content-start custom-scrollbar">
+            <div className="flex flex-row overflow-x-auto custom-scrollbar gap-3 pb-3">
               {group.bases.map(b => (
-                <div key={b.baseCode} className="flex flex-col gap-2 min-w-[100px] flex-shrink-0">
+                <div key={b.baseCode} className="flex flex-col gap-2 min-w-[110px] shrink-0">
                   <div className="text-[10px] text-center font-semibold text-gray-400 mb-[-4px]">{b.baseCode}</div>
                   {(b.upper || b.lower) ? (
                     <>
                       {b.upper ? (
                         <button
                           type="button"
-                          onClick={() => onSelect(b.upper!.id)}
+                          onClick={() => b.upper!.isSelectable !== false && onSelect(b.upper!.id)}
+                          disabled={b.upper!.isSelectable === false}
                           title={b.upper!.name}
-                          className={`w-full py-2 px-2 text-center rounded-lg text-sm font-bold transition-all border shadow-sm flex-1 ${
-                            isSelected(b.upper!.id)
-                              ? 'bg-blue-600 text-white border-blue-600 ring-2 ring-blue-600/20' 
-                              : 'bg-white text-gray-800 border-gray-200 hover:border-blue-400 hover:text-blue-700 hover:shadow-md'
+                          className={`w-full py-3 px-2 text-center rounded-lg text-sm font-bold transition-all border shadow-sm flex-1 ${
+                            b.upper!.isSelectable === false
+                              ? 'bg-gray-100/50 text-gray-400 border-gray-200 cursor-not-allowed opacity-60'
+                              : isSelected(b.upper!.id)
+                                ? 'bg-blue-600 text-white border-blue-600 ring-2 ring-blue-600/20' 
+                                : 'bg-white text-gray-800 border-gray-200 hover:border-blue-400 hover:text-blue-700 hover:shadow-md'
                           }`}
                         >
-                          <span className={`text-[10px] uppercase font-semibold block mb-0.5 ${isSelected(b.upper!.id) ? 'text-blue-200' : 'text-gray-500'}`}>
-                            Tầng Trên {b.upper!.status ? ` • ${b.upper!.status}` : ''}
-                          </span>
-                          {b.upper!.code}
+                          <span className="block">{b.upper!.code}</span>
                         </button>
-                      ) : <div className="min-h-[56px] flex-1 border border-dashed border-gray-200 rounded-lg flex items-center justify-center bg-gray-50/50"><span className="text-[10px] text-gray-400">Trống</span></div>}
+                      ) : <div className="min-h-[46px] flex-1 border border-dashed border-gray-200 rounded-lg flex items-center justify-center bg-gray-50/50"><span className="text-[10px] text-gray-400">Trống</span></div>}
                       
                       {b.lower ? (
                         <button
                           type="button"
-                          onClick={() => onSelect(b.lower!.id)}
+                          onClick={() => b.lower!.isSelectable !== false && onSelect(b.lower!.id)}
+                          disabled={b.lower!.isSelectable === false}
                           title={b.lower!.name}
-                          className={`w-full py-2 px-2 text-center rounded-lg text-sm font-bold transition-all border shadow-sm flex-1 ${
-                            isSelected(b.lower!.id)
-                              ? 'bg-blue-600 text-white border-blue-600 ring-2 ring-blue-600/20' 
-                              : 'bg-white text-gray-800 border-gray-200 hover:border-blue-400 hover:text-blue-700 hover:shadow-md'
+                          className={`w-full py-3 px-2 text-center rounded-lg text-sm font-bold transition-all border shadow-sm flex-1 ${
+                            b.lower!.isSelectable === false
+                              ? 'bg-gray-100/50 text-gray-400 border-gray-200 cursor-not-allowed opacity-60'
+                              : isSelected(b.lower!.id)
+                                ? 'bg-blue-600 text-white border-blue-600 ring-2 ring-blue-600/20' 
+                                : 'bg-white text-gray-800 border-gray-200 hover:border-blue-400 hover:text-blue-700 hover:shadow-md'
                           }`}
                         >
-                          <span className={`text-[10px] uppercase font-semibold block mb-0.5 ${isSelected(b.lower!.id) ? 'text-blue-200' : 'text-gray-500'}`}>
-                            Tầng Dưới {b.lower!.status ? ` • ${b.lower!.status}` : ''}
-                          </span>
-                          {b.lower!.code}
+                          <span className="block">{b.lower!.code}</span>
                         </button>
-                      ) : <div className="min-h-[56px] flex-1 border border-dashed border-gray-200 rounded-lg flex items-center justify-center bg-gray-50/50"><span className="text-[10px] text-gray-400">Trống</span></div>}
+                      ) : <div className="min-h-[46px] flex-1 border border-dashed border-gray-200 rounded-lg flex items-center justify-center bg-gray-50/50"><span className="text-[10px] text-gray-400">Trống</span></div>}
                     </>
                   ) : null}
 
@@ -148,18 +159,18 @@ export const PodGridSelector: React.FC<PodGridSelectorProps> = ({
                     <button
                       key={pod.id}
                       type="button"
-                      onClick={() => onSelect(pod.id)}
+                      onClick={() => pod.isSelectable !== false && onSelect(pod.id)}
+                      disabled={pod.isSelectable === false}
                       title={pod.name}
-                      className={`w-full py-2 px-2 text-center rounded-lg text-sm font-bold transition-all border shadow-sm ${
-                        isSelected(pod.id)
-                          ? 'bg-blue-600 text-white border-blue-600 ring-2 ring-blue-600/20' 
-                          : 'bg-white text-gray-800 border-gray-200 hover:border-blue-400 hover:text-blue-700 hover:shadow-md'
+                      className={`w-full py-3 px-2 text-center rounded-lg text-sm font-bold transition-all border shadow-sm ${
+                        pod.isSelectable === false
+                          ? 'bg-gray-100/50 text-gray-400 border-gray-200 cursor-not-allowed opacity-60'
+                          : isSelected(pod.id)
+                            ? 'bg-blue-600 text-white border-blue-600 ring-2 ring-blue-600/20' 
+                            : 'bg-white text-gray-800 border-gray-200 hover:border-blue-400 hover:text-blue-700 hover:shadow-md'
                       }`}
                     >
-                      <span className={`text-[10px] uppercase font-semibold block mb-0.5 ${isSelected(pod.id) ? 'text-blue-200' : 'text-gray-500'}`}>
-                        {pod.status || 'Phòng'}
-                      </span>
-                      {pod.code}
+                      <span className="block">{pod.code}</span>
                     </button>
                   ))}
                 </div>

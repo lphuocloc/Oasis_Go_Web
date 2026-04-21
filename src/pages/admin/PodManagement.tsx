@@ -12,6 +12,7 @@ import {
   type PodStatus,
   type UpdatePodPayload
 } from '../../api/lib/podApi'
+import { initUserSocket } from '../../lib/socket'
 
 type CreateMode = 'single' | 'grid'
 
@@ -96,6 +97,7 @@ export const AdminPodManagement = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | PodStatus>('all')
   const [clusterFilter, setClusterFilter] = useState('all')
   const [selectedPodId, setSelectedPodId] = useState<string | null>(null)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [createMode, setCreateMode] = useState<CreateMode>('single')
@@ -137,7 +139,24 @@ export const AdminPodManagement = () => {
 
     init()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clusterFilter, statusFilter])
+  }, [clusterFilter, statusFilter, refreshTrigger])
+
+  useEffect(() => {
+    const socket = initUserSocket()
+    if (!socket) return
+
+    const handleNewData = () => {
+      setRefreshTrigger(prev => prev + 1)
+    }
+
+    socket.on('user:notification', handleNewData)
+    socket.on('dashboard:refresh', handleNewData)
+
+    return () => {
+      socket.off('user:notification', handleNewData)
+      socket.off('dashboard:refresh', handleNewData)
+    }
+  }, [])
 
   const clusterMap = useMemo(
     () => new Map(clusters.map((cluster) => [cluster.id, cluster])),

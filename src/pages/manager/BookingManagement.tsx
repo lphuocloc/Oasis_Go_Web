@@ -39,6 +39,7 @@ import {
 import { podApi, type PodItem } from '../../api/lib/podApi'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
 import { PodGridSelector } from '../../components/common/PodGridSelector'
+import { initUserSocket } from '../../lib/socket'
 
 type ActiveTab = 'bookings' | 'orders'
 
@@ -147,6 +148,8 @@ export const BookingManagement = () => {
     limit: 20,
     pages: 1
   })
+
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false)
   const [draftBookingFilters, setDraftBookingFilters] = useState<{
@@ -289,12 +292,29 @@ export const BookingManagement = () => {
   useEffect(() => {
     fetchBookings(bookingPage)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookingPage, bookingStatusFilter, bookingPodFilter, bookingOrderFilter, bookingStartFilter, bookingEndFilter])
+  }, [bookingPage, bookingStatusFilter, bookingPodFilter, bookingOrderFilter, bookingStartFilter, bookingEndFilter, refreshTrigger])
 
   useEffect(() => {
     fetchOrders(orderPage)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderPage, orderStatusFilter, orderPodFilter, orderStartFilter, orderEndFilter])
+  }, [orderPage, orderStatusFilter, orderPodFilter, orderStartFilter, orderEndFilter, refreshTrigger])
+
+  useEffect(() => {
+    const socket = initUserSocket()
+    if (!socket) return
+
+    const handleNewData = () => {
+      setRefreshTrigger(prev => prev + 1)
+    }
+
+    socket.on('user:notification', handleNewData)
+    socket.on('dashboard:refresh', handleNewData)
+
+    return () => {
+      socket.off('user:notification', handleNewData)
+      socket.off('dashboard:refresh', handleNewData)
+    }
+  }, [])
 
   const handleRefresh = async () => {
     try {

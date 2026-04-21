@@ -48,11 +48,13 @@ const ManagerSidebar: React.FC<{ userName?: string; userRole?: string }> = ({
       path: '/manager/support',
       icon: <LifeBuoy className="w-6 h-6" />
     },
+    /*
     {
       label: 'Shifts',
       path: '/manager/shifts',
       icon: <Clock className="w-6 h-6" />
     }
+    */
   ]
 
   return <Sidebar navItems={navItems} userName={userName} userRole={userRole} profilePath="/manager/profile" />

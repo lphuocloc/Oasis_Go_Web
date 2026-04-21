@@ -47,6 +47,7 @@ import {
   selectLocationsLoading
 } from '../../store/slices/locationsSlice'
 import { fetchLocations, updateLocation } from '../../store/thunks/locationsThunks'
+import { initUserSocket } from '../../lib/socket'
 
 interface LocationFormState {
   name: string
@@ -150,6 +151,7 @@ export const LocationManagement = () => {
   const [childLocations, setChildLocations] = useState<LocationItem[]>([])
   const [occupancyRateByLocation, setOccupancyRateByLocation] = useState<Record<string, LocationPodOccupancyRate>>({})
   const [form, setForm] = useState<LocationFormState>(createEmptyForm())
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [showMainSkeleton, setShowMainSkeleton] = useState(false)
   const [showChildSkeleton, setShowChildSkeleton] = useState(false)
   const mainLoadingStartedAtRef = useRef<number | null>(null)
@@ -199,7 +201,24 @@ export const LocationManagement = () => {
 
   useEffect(() => {
     dispatch(fetchLocations())
-  }, [dispatch])
+  }, [dispatch, refreshTrigger])
+
+  useEffect(() => {
+    const socket = initUserSocket()
+    if (!socket) return
+
+    const handleNewData = () => {
+      setRefreshTrigger(prev => prev + 1)
+    }
+
+    socket.on('user:notification', handleNewData)
+    socket.on('dashboard:refresh', handleNewData)
+
+    return () => {
+      socket.off('user:notification', handleNewData)
+      socket.off('dashboard:refresh', handleNewData)
+    }
+  }, [])
 
   useEffect(() => {
     if (!locationsError) return
@@ -311,7 +330,7 @@ export const LocationManagement = () => {
     return () => {
       isCancelled = true
     }
-  }, [occupancyRateByLocation, visibleLocations])
+  }, [occupancyRateByLocation, visibleLocations, refreshTrigger])
 
   const activeChildrenCount = useMemo(
     () => childLocations.filter((location) => location.isActive).length,
@@ -359,6 +378,13 @@ export const LocationManagement = () => {
       setIsLoadingChildren(false)
     }
   }
+
+  useEffect(() => {
+    if (selectedLocation) {
+      locationApi.getAll({ parent_id: selectedLocation.id }).then(res => setChildLocations(res.data)).catch(() => { })
+      locationApi.getPodOccupancyRate(selectedLocation.id).then(res => setOccupancyRateByLocation(prev => ({ ...prev, [selectedLocation.id]: res.data }))).catch(() => { })
+    }
+  }, [selectedLocation, refreshTrigger])
 
   const handleBackToList = () => {
     setSelectedLocation(null)

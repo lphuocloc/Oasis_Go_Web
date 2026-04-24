@@ -154,8 +154,7 @@ export const StaffManagement = () => {
     <div className="p-8 bg-gray-50 min-h-screen">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <Shield className="w-8 h-8 text-indigo-600" />
+          <h1 className="text-3xl font-bold text-gray-900">
             Quản Lý Nhân Sự
           </h1>
           <p className="text-gray-500 mt-1">Quản lý đội ngũ Quản lý chi nhánh và Nhân viên vệ sinh.</p>

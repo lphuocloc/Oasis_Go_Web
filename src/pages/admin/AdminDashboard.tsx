@@ -27,7 +27,7 @@ import {
   TrendingUp, AlertCircle, Calendar, Package,
   RefreshCw, ChevronDown, DollarSign,
   Star, Tag, MapPin, ShieldCheck, Clock, ShoppingCart,
-  ArrowUpRight, ArrowDownRight
+  ArrowUpRight, ArrowDownRight, MessageSquare
 } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { DatePicker, ConfigProvider } from 'antd'
@@ -1004,17 +1004,17 @@ export const AdminDashboard = () => {
               </div>
             </div>
 
-            {/* Reviews Moderation */}
+            {/* Latest Reviews */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                <h2 className="text-base font-semibold text-gray-900">Đánh giá chờ duyệt</h2>
+                <h2 className="text-base font-semibold text-gray-900">Đánh giá mới nhất</h2>
                 <div className="flex items-center gap-2">
-                  {analyticsStatsData && analyticsStatsData.reviews.pendingModeration > 0 && (
+                  {analyticsStatsData && analyticsStatsData.reviews.totalHidden > 0 && (
                     <span className="px-2 py-0.5 bg-rose-100 text-rose-700 rounded-full text-xs font-semibold">
-                      {analyticsStatsData.reviews.pendingModeration} pending
+                      {analyticsStatsData.reviews.totalHidden} hidden
                     </span>
                   )}
-                  <ShieldCheck className="w-4 h-4 text-gray-400" />
+                  <MessageSquare className="w-4 h-4 text-gray-400" />
                 </div>
               </div>
               <div className="overflow-x-auto">
@@ -1040,7 +1040,7 @@ export const AdminDashboard = () => {
                         </tr>
                       ))
                     ) : (
-                      <tr><td colSpan={4} className="px-6 py-10 text-center text-gray-400">Không có đánh giá nào chờ duyệt</td></tr>
+                      <tr><td colSpan={4} className="px-6 py-10 text-center text-gray-400">Không có đánh giá mới nào</td></tr>
                     )}
                   </tbody>
                 </table>

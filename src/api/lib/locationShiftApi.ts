@@ -1,11 +1,13 @@
 import { api } from '../api'
-import type { StaffShiftItem, StaffShiftRole } from './staffShiftApi'
+import type { StaffShiftItem } from './staffShiftApi'
 
 export interface LocationShiftItem {
   id: string
   location_id: string
   shift_id: string
   created_at?: string
+  location?: { id: string; name?: string; type?: string; parent_id?: string | null }
+  shift?: StaffShiftItem
 }
 
 export interface LocationShiftCreatePayload {
@@ -16,7 +18,7 @@ export interface LocationShiftCreatePayload {
 export interface WorkingStaffFilters {
   target_date?: string
   work_date?: string
-  role?: StaffShiftRole
+  role?: string
   include_assigned?: boolean
 }
 

@@ -1,14 +1,10 @@
 import { api } from '../api'
 
-export const STAFF_SHIFT_ROLES = ['CLEANER', 'MANAGER'] as const
-export type StaffShiftRole = (typeof STAFF_SHIFT_ROLES)[number]
-
 export const STAFF_SHIFT_NAMES = ['CA SÁNG', 'CA CHIỀU', 'CA TỐI', 'CA ĐÊM'] as const
 export type StaffShiftName = (typeof STAFF_SHIFT_NAMES)[number]
 
 export interface StaffShiftItem {
   id: string
-  role: StaffShiftRole
   shift_name: StaffShiftName
   start_time: string
   end_time: string
@@ -17,7 +13,6 @@ export interface StaffShiftItem {
 }
 
 export interface StaffShiftCreatePayload {
-  role: StaffShiftRole
   shift_name: StaffShiftName
   start_time: string
   end_time: string
@@ -25,7 +20,6 @@ export interface StaffShiftCreatePayload {
 }
 
 export interface StaffShiftUpdatePayload {
-  role?: StaffShiftRole
   shift_name?: StaffShiftName
   start_time?: string
   end_time?: string
@@ -33,7 +27,6 @@ export interface StaffShiftUpdatePayload {
 }
 
 export interface StaffShiftFilters {
-  role?: StaffShiftRole
   is_active?: boolean
 }
 
@@ -56,10 +49,6 @@ interface StaffShiftDeleteResponse {
 
 const buildParams = (filters?: StaffShiftFilters): URLSearchParams => {
   const params = new URLSearchParams()
-
-  if (filters?.role) {
-    params.append('role', filters.role)
-  }
 
   if (typeof filters?.is_active === 'boolean') {
     params.append('is_active', String(filters.is_active))

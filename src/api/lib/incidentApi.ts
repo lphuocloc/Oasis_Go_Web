@@ -16,7 +16,7 @@ export const INCIDENT_SEVERITIES = [
 export type IncidentStatus = (typeof INCIDENT_STATUSES)[number]
 export type IncidentSeverity = (typeof INCIDENT_SEVERITIES)[number]
 export type IncidentDetailType = 'ITEM' | 'SERVICE'
-export type IncidentType = 'OPERATIONAL' | 'DAMAGE_REPORT'
+export type IncidentType = 'OPERATIONAL' | 'DAMAGE_REPORT' | 'REPLENISHMENT_REQUEST'
 
 export interface IncidentDetailLine {
   type: IncidentDetailType
@@ -41,6 +41,7 @@ export interface DamageReportContext {
   pod_id?: string | null
   pod_name?: string | null
   booking_id?: string | null
+  booking_order_id?: string | null
   cleaning_task_id?: string | null
   reported_by?: string | null
   user_id?: string | null
@@ -70,7 +71,7 @@ export interface IncidentItem {
 
 export interface DamageReportItem {
   report_id: string
-  incident_type: 'DAMAGE_REPORT'
+  incident_type: IncidentType
   status: IncidentStatus
   severity: IncidentSeverity
   description: string

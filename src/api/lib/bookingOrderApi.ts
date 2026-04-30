@@ -1,5 +1,6 @@
 import { api } from '../api'
 import type { BookingItem } from './bookingApi'
+import type { IncidentItem, IncidentStatus, IncidentSeverity } from './incidentApi'
 
 export const BOOKING_ORDER_STATUSES = [
   'PENDING',
@@ -65,6 +66,21 @@ interface BookingOrderListPayload {
   pagination: BookingOrderPagination
 }
 
+export interface OrderIncidentItem {
+  id: string
+  booking_id: string
+  pod_id: string
+  description: string
+  status: IncidentStatus
+  severity: IncidentSeverity
+  incident_type: string
+  photo_urls: string[]
+  created_at: string
+  items?: string[]
+  total_amount_value?: number
+  resolution_note?: string
+}
+
 const buildParams = (filters?: BookingOrderListFilters): URLSearchParams => {
   const params = new URLSearchParams()
 
@@ -91,5 +107,14 @@ export const bookingOrderApi = {
   getById: async (id: string): Promise<BookingOrderDetail> => {
     const response = await api.get<ApiResponse<BookingOrderDetail>>(`/booking-orders/${id}`)
     return response.data.data
+  },
+
+  getOrderIncidents: async (id: string): Promise<OrderIncidentItem[]> => {
+    const response = await api.get<ApiResponse<OrderIncidentItem[]>>(`/booking-orders/${id}/incidents`)
+    return response.data.data
+  },
+
+  createOrderDamageBill: async (id: string): Promise<void> => {
+    await api.post(`/booking-orders/${id}/create-damage-bill`)
   }
 }

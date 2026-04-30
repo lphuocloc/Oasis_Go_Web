@@ -3,31 +3,33 @@ import { api } from '../api'
 export interface StaffWorkRosterItem {
   id: string
   staff_id: string
-  location_shift_id: string
-  day_of_week: number
+  shift_id: string
+  location_id: string | null
+  cluster_id: string | null
   is_active: boolean
   created_at?: string
 }
 
 export interface StaffWorkRosterCreatePayload {
   staff_id: string
-  location_shift_id: string
-  day_of_week?: number
-  days_of_week?: number[]
+  shift_id: string
+  location_id?: string
+  cluster_id?: string
   is_active?: boolean
 }
 
 export interface StaffWorkRosterUpdatePayload {
-  staff_id?: string
-  location_shift_id?: string
-  day_of_week?: number
+  shift_id?: string
+  location_id?: string
+  cluster_id?: string
   is_active?: boolean
 }
 
 export interface StaffWorkRosterFilters {
   staff_id?: string
-  location_shift_id?: string
-  day_of_week?: number
+  shift_id?: string
+  location_id?: string
+  cluster_id?: string
   is_active?: boolean
 }
 
@@ -51,21 +53,11 @@ interface StaffWorkRosterDeleteResponse {
 const buildParams = (filters?: StaffWorkRosterFilters): URLSearchParams => {
   const params = new URLSearchParams()
 
-  if (filters?.staff_id) {
-    params.append('staff_id', filters.staff_id)
-  }
-
-  if (filters?.location_shift_id) {
-    params.append('location_shift_id', filters.location_shift_id)
-  }
-
-  if (typeof filters?.day_of_week === 'number') {
-    params.append('day_of_week', String(filters.day_of_week))
-  }
-
-  if (typeof filters?.is_active === 'boolean') {
-    params.append('is_active', String(filters.is_active))
-  }
+  if (filters?.staff_id) params.append('staff_id', filters.staff_id)
+  if (filters?.shift_id) params.append('shift_id', filters.shift_id)
+  if (filters?.location_id) params.append('location_id', filters.location_id)
+  if (filters?.cluster_id) params.append('cluster_id', filters.cluster_id)
+  if (typeof filters?.is_active === 'boolean') params.append('is_active', String(filters.is_active))
 
   return params
 }

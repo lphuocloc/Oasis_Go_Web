@@ -1,924 +1,584 @@
-// import React, { useEffect, useMemo, useState } from 'react'
-// import { Clock, MapPin, Calendar, CalendarDays, Plus, Edit2, Trash2, RefreshCw } from 'lucide-react'
-// import { DatePicker, TimePicker } from 'antd'
-// import dayjs from 'dayjs'
-// import type { Dayjs } from 'dayjs'
-// import { toast } from 'react-toastify'
-// import Modal from '../../components/common/Modal'
+import React, { useEffect, useState } from 'react'
+import { Clock, MapPin, CalendarDays, Plus, Trash2, RefreshCw, LogIn, LogOut, ChevronLeft, ChevronRight } from 'lucide-react'
+import dayjs from 'dayjs'
+import { toast } from 'react-toastify'
+import Modal from '../../components/common/Modal'
 
-// import { staffShiftApi, type StaffShiftItem, type StaffShiftName } from '../../api/lib/staffShiftApi'
-// import { locationShiftApi, type LocationShiftItem } from '../../api/lib/locationShiftApi'
-// import { staffWorkRosterApi, type StaffWorkRosterItem } from '../../api/lib/staffWorkRosterApi'
-// import { staffShiftAssignmentApi, type StaffShiftAssignmentItem } from '../../api/lib/staffShiftAssignmentApi'
-// import { userApi, type UserListItem } from '../../api/lib/userApi'
-// import { locationApi, type LocationItem } from '../../api/lib/locationApi'
-// import { initUserSocket } from '../../lib/socket'
+import { staffShiftApi, type StaffShiftItem } from '../../api/lib/staffShiftApi'
+import { locationShiftApi, type LocationShiftItem } from '../../api/lib/locationShiftApi'
+import { staffWorkRosterApi, type StaffWorkRosterItem } from '../../api/lib/staffWorkRosterApi'
+import { staffAttendanceLogApi, type StaffAttendanceLogItem } from '../../api/lib/staffAttendanceLogApi'
+import { userApi, type UserListItem } from '../../api/lib/userApi'
+import { locationApi, type LocationItem } from '../../api/lib/locationApi'
+import { initUserSocket } from '../../lib/socket'
 
-// type TabType = 'STAFF_SHIFTS' | 'LOCATION_SHIFTS' | 'ROSTERS' | 'ASSIGNMENTS'
+type TabType = 'STAFF_SHIFTS' | 'LOCATION_SHIFTS' | 'ROSTERS' | 'ATTENDANCE'
 
-// const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-
-// function SectionHeader({ title, description, onRefresh, isLoading, rightAction }: any) {
-//   return (
-//     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-//       <div>
-//         <h2 className="text-xl font-bold text-gray-900">{title}</h2>
-//         <p className="text-sm text-gray-500 mt-1">{description}</p>
-//       </div>
-//       <div className="flex items-center gap-3">
-//         <button
-//           onClick={onRefresh}
-//           disabled={isLoading}
-//           className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
-//         >
-//           <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-//         </button>
-//         {rightAction}
-//       </div>
-//     </div>
-//   )
-// }
-
-// const toTimePickerValue = (timeValue: string): Dayjs | null => {
-//   if (!timeValue) return null
-//   const [hourRaw, minuteRaw] = timeValue.split(':')
-//   const hour = Number(hourRaw)
-//   const minute = Number(minuteRaw)
-//   if (Number.isNaN(hour) || Number.isNaN(minute)) return null
-//   return dayjs().hour(hour).minute(minute).second(0).millisecond(0)
-// }
-
-// function StaffShiftsTab({ refreshTrigger }: { refreshTrigger: number }) {
-//   const [shifts, setShifts] = useState<StaffShiftItem[]>([])
-//   const [isLoading, setIsLoading] = useState(false)
-//   const [isModalOpen, setIsModalOpen] = useState(false)
-//   const [isSaving, setIsSaving] = useState(false)
-//   const [editId, setEditId] = useState<string | null>(null)
-
-//   const [formData, setFormData] = useState<{ shift_name: StaffShiftName; start_time: string; end_time: string }>({
-//     shift_name: 'CA SÁNG',
-//     start_time: '',
-//     end_time: ''
-//   })
-
-//   const fetchShifts = async () => {
-//     try {
-//       setIsLoading(true)
-//       const res = await staffShiftApi.getAll({ role: 'MANAGER' })
-//       setShifts(res.data)
-//     } catch {
-//       toast.error('Failed to load manager shifts')
-//     } finally {
-//       setIsLoading(false)
-//     }
-//   }
-
-//   useEffect(() => {
-//     fetchShifts()
-//   }, [refreshTrigger])
-
-//   const handleOpen = (shift?: StaffShiftItem) => {
-//     if (shift) {
-//       setEditId(shift.id)
-//       setFormData({ shift_name: shift.shift_name, start_time: shift.start_time, end_time: shift.end_time })
-//     } else {
-//       setEditId(null)
-//       setFormData({ shift_name: 'CA SÁNG', start_time: '', end_time: '' })
-//     }
-//     setIsModalOpen(true)
-//   }
-
-//   const handleSubmit = async () => {
-//     if (!formData.shift_name) {
-//       toast.error('Vui lòng chọn tên ca')
-//       return
-//     }
-
-try {
-  setIsSaving(true)
-  const times: Record<string, { start: string, end: string }> = {
-    'CA SÁNG': { start: '06:00', end: '12:00' },
-    'CA CHIỀU': { start: '12:00', end: '18:00' },
-    'CA TỐI': { start: '18:00', end: '00:00' },
-    'CA ĐÊM': { start: '00:00', end: '06:00' }
-  }
-  const finalData = { ...formData, ...times[formData.shift_name], role: 'MANAGER' }
-
-  if (editId) {
-    await staffShiftApi.update(editId, finalData)
-    toast.success('Shift updated')
-  } else {
-    await staffShiftApi.create(finalData)
-    toast.success('Shift created')
-  }
-  setIsModalOpen(false)
-  fetchShifts()
-} catch {
-  toast.error('Failed to save shift')
-} finally {
-  setIsSaving(false)
+const getShiftColor = (name: string) => {
+  const n = name.toUpperCase()
+  if (n.includes('SÁNG') || n.includes('MORNING')) return { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' }
+  if (n.includes('CHIỀU') || n.includes('AFTERNOON')) return { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' }
+  if (n.includes('TỐI') || n.includes('NIGHT')) return { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' }
+  return { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200' }
 }
+
+const SectionHeader = ({ title, description, onRefresh, isLoading, rightAction }: any) => (
+  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+    <div>
+      <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+        {title} {isLoading && <RefreshCw className="w-4 h-4 animate-spin text-indigo-500" />}
+      </h2>
+      <p className="text-sm text-gray-500 mt-1">{description}</p>
+    </div>
+    <div className="flex items-center gap-3">
+      <button onClick={onRefresh} className="p-2.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
+        <RefreshCw className="w-5 h-5" />
+      </button>
+      {rightAction}
+    </div>
+  </div>
+)
+
+// ========== TAB 1: STAFF SHIFTS (CRUD) ==========
+const FIXED_SHIFTS = {
+  'CA SÁNG':  { start_time: '06:00', end_time: '12:00' },
+  'CA CHIỀU': { start_time: '12:00', end_time: '18:00' },
+  'CA TỐI':   { start_time: '18:00', end_time: '00:00' },
+  'CA ĐÊM':   { start_time: '00:00', end_time: '06:00' },
+} as const
+
+const StaffShiftsTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
+  const [shifts, setShifts] = useState<StaffShiftItem[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedName, setSelectedName] = useState<keyof typeof FIXED_SHIFTS>('CA SÁNG')
+
+  const fetchShifts = async () => {
+    try { setIsLoading(true); const r = await staffShiftApi.getAll(); setShifts(r.data || []) }
+    catch { toast.error('Lỗi tải ca') } finally { setIsLoading(false) }
+  }
+  useEffect(() => { fetchShifts() }, [refreshTrigger])
+
+  const existingNames = shifts.map(s => s.shift_name)
+  const availableToCreate = (Object.keys(FIXED_SHIFTS) as (keyof typeof FIXED_SHIFTS)[]).filter(n => !existingNames.includes(n as any))
+
+  const handleCreate = async () => {
+    const times = FIXED_SHIFTS[selectedName]
+    try {
+      await staffShiftApi.create({ shift_name: selectedName as any, ...times })
+      toast.success('Đã tạo ca'); setIsModalOpen(false); fetchShifts()
+    } catch (e: any) { toast.error(e.response?.data?.message || 'Lỗi') }
+  }
+  const handleDelete = async (id: string) => {
+    if (!confirm('Xóa ca này?')) return
+    try { await staffShiftApi.delete(id); toast.success('Đã xóa'); fetchShifts() } catch { toast.error('Lỗi') }
   }
 
-//   const handleDeleteStaffShift = async (id: string) => {
-//     if (!confirm('Bạn có chắc chắn muốn xoá ca làm việc này?')) return
-//     try {
-//       await staffShiftApi.delete(id)
-//       toast.success('Đã xoá ca làm việc')
-//       fetchShifts()
-//     } catch {
-//       toast.error('Xoá ca làm việc thất bại')
-//     }
-//   }
+  return (
+    <div>
+      <SectionHeader title="Mẫu Ca Làm Việc" description="4 ca cố định (6 tiếng/ca). Tạo sẵn các ca để gán cho Location." onRefresh={fetchShifts} isLoading={isLoading}
+        rightAction={
+          availableToCreate.length > 0
+            ? <button onClick={() => { setSelectedName(availableToCreate[0]); setIsModalOpen(true) }} className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"><Plus className="w-4 h-4" /> Tạo Ca</button>
+            : <span className="text-xs text-gray-400 italic">Đã đủ 4 ca</span>
+        }
+      />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {(Object.entries(FIXED_SHIFTS) as [keyof typeof FIXED_SHIFTS, {start_time:string,end_time:string}][]).map(([name, times]) => {
+          const existing = shifts.find(s => s.shift_name === name)
+          const c = getShiftColor(name)
+          return (
+            <div key={name} className={`p-5 rounded-xl border ${existing ? c.border+' '+c.bg : 'border-dashed border-gray-200 bg-white opacity-60'}`}>
+              <div className="flex justify-between items-start mb-3">
+                <span className={`text-xs font-semibold uppercase tracking-wider ${existing ? c.text : 'text-gray-400'}`}>{existing ? 'Đã tạo' : 'Chưa tạo'}</span>
+                {existing && <button onClick={() => handleDelete(existing.id)} className="p-1 text-gray-300 hover:text-red-500 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>}
+              </div>
+              <h3 className={`text-base font-bold ${existing ? c.text : 'text-gray-400'}`}>{name}</h3>
+              <div className="text-xl font-mono font-bold text-gray-700 mt-1">{times.start_time} – {times.end_time}</div>
+            </div>
+          )
+        })}
+      </div>
 
-//   return (
-//     <div>
-//       <SectionHeader
-//         title="Quản lý Ca làm việc (Quản lý cụm)"
-//         description="Định nghĩa các mẫu ca cố định dành cho cấp quản lý."
-//         onRefresh={fetchShifts}
-//         isLoading={isLoading}
-//         rightAction={
-//           <button
-//             onClick={() => handleOpen()}
-//             className="inline-flex items-center gap-2 px-5 py-2.5 text-base font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-//           >
-//             <Plus className="w-4 h-4" /> Tạo Ca Mới
-//           </button>
-//         }
-//       />
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">Tạo Ca Làm Việc</h2>
+            <div className="space-y-2 mb-6">
+              <label className="text-sm font-medium text-gray-700">Chọn ca</label>
+              <select value={selectedName} onChange={e => setSelectedName(e.target.value as any)} className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                {availableToCreate.map(n => <option key={n} value={n}>{n} ({FIXED_SHIFTS[n].start_time}–{FIXED_SHIFTS[n].end_time})</option>)}
+              </select>
+              <p className="text-xs text-gray-400">Khung giờ được tạo sẵn cố định, không thể chỉnh.</p>
+            </div>
+            <div className="flex justify-end gap-3 border-t pt-4">
+              <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg">Hủy</button>
+              <button onClick={handleCreate} className="px-5 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg">Tạo Ca</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
-//       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-//         {shifts.map((shift) => (
-//           <div key={shift.id} className="bg-white border text-left border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md transition">
-//             <div className="flex justify-between items-start mb-3">
-//               <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full font-medium">{shift.shift_name}</span>
-//             </div>
-//             <div className="flex items-center gap-2 text-gray-600 text-sm mb-4">
-//               <Clock className="w-4 h-4 text-blue-500" />
-//               <span>{shift.start_time} - {shift.end_time}</span>
-//             </div>
-//             <div className="flex justify-end gap-2 pt-3 border-t border-gray-50">
-//               <button onClick={() => handleDeleteStaffShift(shift.id)} className="text-gray-400 hover:text-red-600 transition p-1" title="Xoá ca">
-//                 <Trash2 className="w-4 h-4" />
-//               </button>
-//               <button onClick={() => handleOpen(shift)} className="text-gray-400 hover:text-blue-600 transition p-1" title="Sửa ca">
-//                 <Edit2 className="w-4 h-4" />
-//               </button>
-//             </div>
-//           </div>
-//         ))}
-//       </div>
 
-//       {shifts.length === 0 && !isLoading && (
-//         <div className="bg-white border border-dashed border-gray-200 rounded-xl p-8 text-center text-gray-500">Không tìm thấy ca làm việc nào</div>
-//       )}
+// ========== TAB 2: LOCATION SHIFTS (Assign shifts to parent locations) ==========
+const LocationShiftsTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
+  const [locShifts, setLocShifts] = useState<LocationShiftItem[]>([])
+  const [locations, setLocations] = useState<LocationItem[]>([])
+  const [shifts, setShifts] = useState<StaffShiftItem[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [bulkLocIds, setBulkLocIds] = useState<string[]>([])
+  const [bulkShiftIds, setBulkShiftIds] = useState<string[]>([])
 
-//       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editId ? 'Sửa Ca Làm Việc' : 'Tạo Ca Làm Việc'} size="sm">
-//         <div className="space-y-4">
-//           <div>
-//             <label className="block text-sm font-medium text-gray-700 mb-1">Tên Ca</label>
-//             <select
-//               value={formData.shift_name}
-//               onChange={(e) => setFormData({ ...formData, shift_name: e.target.value as StaffShiftName, start_time: '', end_time: '' })}
-//               className="w-full px-4 py-2.5 text-base border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
-//             >
-//               <option value="CA SÁNG">Ca Sáng (06:00 - 12:00)</option>
-//               <option value="CA CHIỀU">Ca Chiều (12:00 - 18:00)</option>
-//               <option value="CA TỐI">Ca Tối (18:00 - 00:00)</option>
-//               <option value="CA ĐÊM">Ca Đêm (00:00 - 06:00)</option>
-//             </select>
-//           </div>
-//           <div className="pt-4 flex justify-end gap-2">
-//             <button disabled={isSaving} onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-base border rounded-lg text-gray-600 hover:bg-gray-50">
-//               Hủy
-//             </button>
-//             <button disabled={isSaving} onClick={handleSubmit} className="px-5 py-2.5 text-base font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-//               Lưu
-//             </button>
-//           </div>
-//         </div>
-//       </Modal>
-//     </div>
-//   )
-// }
+  const fetchAll = async () => {
+    try {
+      setIsLoading(true)
+      const [lsR, locR, sR] = await Promise.all([
+        locationShiftApi.getAll(),
+        locationApi.getAll({ isActive: 'true' }),
+        staffShiftApi.getAll()
+      ])
+      setLocShifts(lsR.data || [])
+      setLocations(locR.data || [])
+      setShifts(sR.data || [])
+    } catch { toast.error('Lỗi tải dữ liệu') } finally { setIsLoading(false) }
+  }
+  useEffect(() => { fetchAll() }, [refreshTrigger])
 
-// function LocationShiftsTab({ refreshTrigger }: { refreshTrigger: number }) {
-//   const [items, setItems] = useState<LocationShiftItem[]>([])
-//   const [locations, setLocations] = useState<LocationItem[]>([])
-//   const [shifts, setShifts] = useState<StaffShiftItem[]>([])
-//   const [isLoading, setIsLoading] = useState(false)
-//   const [isModalOpen, setIsModalOpen] = useState(false)
-//   const [formData, setFormData] = useState({ location_id: '', shift_id: '' })
+  const parentLocations = locations.filter(l => !l.parent_id)
 
-//   const fetchAll = async () => {
-//     try {
-//       setIsLoading(true)
-//       const [resLocShift, resShift, resLocation] = await Promise.all([
-//         locationShiftApi.getAll(),
-//         staffShiftApi.getAll({ role: 'MANAGER' }),
-//         locationApi.getAll({ isActive: 'true' })
-//       ])
+  // Group locShifts by location_id (only parent locations)
+  const grouped = parentLocations.map(loc => {
+    const assigned = locShifts.filter(ls => ls.location_id === loc.id)
+    const assignedShifts = assigned.map(ls => ({
+      lsId: ls.id,
+      shift: shifts.find(s => s.id === ls.shift_id)
+    })).filter(x => x.shift)
+    return { loc, assignedShifts }
+  }).filter(g => g.assignedShifts.length > 0)
 
-//       setItems(resLocShift.data)
-//       setShifts(resShift.data)
-//       setLocations(resLocation.data)
-//     } catch {
-//       toast.error('Failed to load location shift data')
-//     } finally {
-//       setIsLoading(false)
-//     }
-//   }
+  const handleBulkCreate = async () => {
+    if (bulkLocIds.length === 0 || bulkShiftIds.length === 0) return toast.error('Vui lòng chọn ít nhất 1 location và 1 ca')
+    try {
+      setIsLoading(true)
+      // Create a list of assignments to create, avoiding duplicates if already exists
+      const tasks: any[] = []
+      bulkLocIds.forEach(lId => {
+        bulkShiftIds.forEach(sId => {
+          // Check if this pair already exists
+          const exists = locShifts.some(ls => ls.location_id === lId && ls.shift_id === sId)
+          if (!exists) {
+            tasks.push(locationShiftApi.create({ location_id: lId, shift_id: sId }))
+          }
+        })
+      })
 
-//   useEffect(() => {
-//     fetchAll()
-//   }, [refreshTrigger])
+      if (tasks.length === 0) {
+        toast.info('Tất cả các ca chọn đã được gán trước đó.')
+        setIsModalOpen(false)
+        return
+      }
 
-//   const handleDelete = async (id: string) => {
-//     if (!confirm('Remove this shift mapping?')) return
-//     try {
-//       await locationShiftApi.delete(id)
-//       toast.success('Removed mapping')
-//       fetchAll()
-//     } catch {
-//       toast.error('Failed to remove')
-//     }
-//   }
+      await Promise.all(tasks)
+      toast.success(`Đã gán thành công ${tasks.length} ca trực`)
+      setIsModalOpen(false)
+      fetchAll()
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || 'Có lỗi khi gán ca')
+    } finally {
+      fetchAll()
+    }
+  }
 
-//   const handleSubmit = async () => {
-//     if (!formData.location_id || !formData.shift_id) {
-//       toast.error('Fill all fields')
-//       return
-//     }
+  const toggleLoc = (id: string) => setBulkLocIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  const toggleShift = (id: string) => setBulkShiftIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  const handleDelete = async (id: string) => {
+    if (!confirm('Gỡ gán ca này?')) return
+    try { await locationShiftApi.delete(id); toast.success('Đã gỡ'); fetchAll() } catch { toast.error('Lỗi') }
+  }
 
-//     try {
-//       await locationShiftApi.create(formData)
-//       toast.success('Location shift created')
-//       setIsModalOpen(false)
-//       fetchAll()
-//     } catch {
-//       toast.error('Failed to create location shift')
-//     }
-//   }
 
-//   const rows = useMemo(
-//     () => items.filter((item) => shifts.some((shift) => shift.id === item.shift_id)),
-//     [items, shifts]
-//   )
 
-//   return (
-//     <div>
-//       <SectionHeader
-//         title="Location Bindings"
-//         description="Bind manager shift templates to locations."
-//         onRefresh={fetchAll}
-//         isLoading={isLoading}
-//         rightAction={
-//           <button
-//             onClick={() => {
-//               setFormData({ location_id: locations[0]?.id || '', shift_id: shifts[0]?.id || '' })
-//               setIsModalOpen(true)
-//             }}
-//             className="inline-flex items-center gap-2 px-5 py-2.5 text-base font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
-//           >
-//             <Plus className="w-4 h-4" /> Bind Location
-//           </button>
-//         }
-//       />
+  return (
+    <div>
+      <SectionHeader
+        title="Gán Ca → Location Cha"
+        description="Mỗi Location cha có thể gán nhiều ca. Location con kế thừa."
+        onRefresh={fetchAll}
+        isLoading={isLoading}
+        rightAction={
+          <button
+            onClick={() => { setBulkLocIds([]); setBulkShiftIds([]); setIsModalOpen(true) }}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Gán Ca
+          </button>
+        }
+      />
 
-//       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-//         <table className="w-full text-sm text-left">
-//           <thead className="bg-gray-50 border-b border-gray-100">
-//             <tr>
-//               <th className="px-6 py-5 font-medium text-gray-500">Location</th>
-//               <th className="px-6 py-5 font-medium text-gray-500">Shift Name</th>
-//               <th className="px-6 py-5 font-medium text-gray-500">Time Range</th>
-//               <th className="px-6 py-5 text-right font-medium text-gray-500">Actions</th>
-//             </tr>
-//           </thead>
-//           <tbody className="divide-y divide-gray-50">
-//             {rows.map((item) => {
-//               const location = locations.find((l) => l.id === item.location_id)
-//               const shift = shifts.find((s) => s.id === item.shift_id)
-//               return (
-//                 <tr key={item.id} className="hover:bg-gray-50">
-//                   <td className="px-6 py-5 font-medium text-gray-900">{location?.name || 'Unknown Location'}</td>
-//                   <td className="px-6 py-5">{shift?.shift_name || 'Unknown Shift'}</td>
-//                   <td className="px-6 py-5 text-gray-500">{shift ? `${shift.start_time} - ${shift.end_time}` : '-'}</td>
-//                   <td className="px-6 py-5 text-right">
-//                     <button onClick={() => handleDelete(item.id)} className="text-gray-400 hover:text-red-600 p-1">
-//                       <Trash2 className="w-4 h-4" />
-//                     </button>
-//                   </td>
-//                 </tr>
-//               )
-//             })}
-//             {rows.length === 0 && !isLoading && (
-//               <tr>
-//                 <td colSpan={4} className="p-8 text-center text-gray-400">No manager location bindings found</td>
-//               </tr>
-//             )}
-//           </tbody>
-//         </table>
-//       </div>
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <table className="w-full text-sm text-left border-collapse">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-100">
+              <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Location Cha</th>
+              <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Ca Đã Gán</th>
+              <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Thao Tác</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {isLoading ? (
+              [1, 2, 3].map(i => (
+                <tr key={i} className="animate-pulse">
+                  <td colSpan={3} className="px-6 py-5"><div className="h-4 bg-gray-100 rounded w-full" /></td>
+                </tr>
+              ))
+            ) : grouped.length === 0 ? (
+              <tr><td colSpan={3} className="px-6 py-12 text-center text-gray-400">Chưa gán ca nào</td></tr>
+            ) : (
+              grouped.map(({ loc, assignedShifts }) => (
+                <tr key={loc.id} className="hover:bg-gray-50/50 transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="font-semibold text-gray-900">{loc.name}</div>
+                    <div className="text-xs text-gray-400 mt-0.5">{loc.type}</div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-wrap gap-2">
+                      {assignedShifts.map(({ lsId, shift }) => {
+                        const c = getShiftColor(shift!.shift_name)
+                        return (
+                          <span key={lsId} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${c.bg} ${c.text} ${c.border}`}>
+                            {shift!.shift_name}
+                            <button onClick={() => handleDelete(lsId)} className="ml-0.5 hover:text-red-600 transition-colors">×</button>
+                          </span>
+                        )
+                      })}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <button
+                      onClick={() => { setBulkLocIds([loc.id]); setBulkShiftIds([]); setIsModalOpen(true) }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
+                    >
+                      <Plus className="w-3 h-3" /> Thêm ca
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
 
-//       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Bind Shift to Location" size="sm">
-//         <div className="space-y-4">
-//           <div>
-//             <label className="block text-sm font-medium text-gray-700 mb-1">Target Location</label>
-//             <select
-//               value={formData.location_id}
-//               onChange={(e) => setFormData({ ...formData, location_id: e.target.value })}
-//               className="w-full px-4 py-2.5 text-base border rounded-lg outline-none focus:ring-2 focus:ring-purple-500"
-//             >
-//               <option value="" disabled>
-//                 Choose Location
-//               </option>
-//               {locations.map((loc) => (
-//                 <option key={loc.id} value={loc.id}>
-//                   {loc.name}
-//                 </option>
-//               ))}
-//             </select>
-//           </div>
-//           <div>
-//             <label className="block text-sm font-medium text-gray-700 mb-1">Shift Template</label>
-//             <select
-//               value={formData.shift_id}
-//               onChange={(e) => setFormData({ ...formData, shift_id: e.target.value })}
-//               className="w-full px-4 py-2.5 text-base border rounded-lg outline-none focus:ring-2 focus:ring-purple-500"
-//             >
-//               <option value="" disabled>
-//                 Choose Shift
-//               </option>
-//               {shifts.map((s) => (
-//                 <option key={s.id} value={s.id}>
-//                   {s.shift_name} ({s.start_time}-{s.end_time})
-//                 </option>
-//               ))}
-//             </select>
-//           </div>
-//           <div className="pt-4 flex justify-end gap-2">
-//             <button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-base border rounded-lg text-gray-600">
-//               Cancel
-//             </button>
-//             <button onClick={handleSubmit} className="px-5 py-2.5 text-base font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700">
-//               Submit
-//             </button>
-//           </div>
-//         </div>
-//       </Modal>
-//     </div>
-//   )
-// }
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 overflow-hidden flex flex-col max-h-[90vh]">
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Gán Ca Làm Việc</h2>
+            <p className="text-sm text-gray-500 mb-6">Chọn nhiều khu vực và nhiều ca để gán hàng loạt.</p>
 
-// function AssignmentsTab({ refreshTrigger }: { refreshTrigger: number }) {
-//   const [assignments, setAssignments] = useState<StaffShiftAssignmentItem[]>([])
-//   const [managers, setManagers] = useState<UserListItem[]>([])
-//   const [locShifts, setLocShifts] = useState<LocationShiftItem[]>([])
-//   const [locations, setLocations] = useState<LocationItem[]>([])
-//   const [shifts, setShifts] = useState<StaffShiftItem[]>([])
-//   const [isLoading, setIsLoading] = useState(false)
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 overflow-hidden">
+              <div className="flex flex-col overflow-hidden">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">1. Chọn Khu Vực ({parentLocations.length})</label>
+                  <button onClick={() => setBulkLocIds(bulkLocIds.length === parentLocations.length ? [] : parentLocations.map(l => l.id))} className="text-xs text-indigo-600 font-bold hover:underline">
+                    {bulkLocIds.length === parentLocations.length ? 'Bỏ chọn hết' : 'Chọn tất cả'}
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto space-y-1 pr-2 custom-scrollbar border border-gray-100 rounded-xl p-3 bg-gray-50/50">
+                  {parentLocations.map(loc => (
+                    <label key={loc.id} className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors ${bulkLocIds.includes(loc.id) ? 'bg-white shadow-sm border-indigo-100 border' : 'hover:bg-gray-100 border border-transparent'}`}>
+                      <input type="checkbox" checked={bulkLocIds.includes(loc.id)} onChange={() => toggleLoc(loc.id)} className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300" />
+                      <div className="flex-1">
+                        <div className="text-sm font-semibold text-gray-800">{loc.name}</div>
+                        <div className="text-[10px] text-gray-400 uppercase font-bold tracking-tight">{loc.type}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
 
-//   const [dateFilter, setDateFilter] = useState({ start: '', end: '' })
-//   const [isModalOpen, setIsModalOpen] = useState(false)
-//   const [formData, setFormData] = useState({ staff_id: '', location_shift_id: '', start_date: '', end_date: '' })
+              <div className="flex flex-col">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">2. Chọn Ca Trực ({shifts.length})</label>
+                <div className="space-y-3">
+                  {shifts.sort((a,b) => a.start_time.localeCompare(b.start_time)).map(s => {
+                    const c = getShiftColor(s.shift_name)
+                    const isSelected = bulkShiftIds.includes(s.id)
+                    return (
+                      <label key={s.id} className={`flex items-center gap-4 p-4 rounded-xl cursor-pointer border-2 transition-all group ${isSelected ? `${c.border} ${c.bg} shadow-md` : 'border-gray-100 bg-white hover:border-gray-200'}`}>
+                        <input type="checkbox" checked={isSelected} onChange={() => toggleShift(s.id)} className="sr-only" />
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected ? `bg-indigo-600 border-indigo-600` : 'border-gray-200'}`}>
+                          {isSelected && <div className="w-2 h-2 bg-white rounded-full" />}
+                        </div>
+                        <div className="flex-1">
+                          <div className={`text-base font-bold ${isSelected ? c.text : 'text-gray-700'}`}>{s.shift_name}</div>
+                          <div className={`text-xs font-mono font-bold ${isSelected ? c.text : 'text-gray-400'}`}>{s.start_time} - {s.end_time}</div>
+                        </div>
+                        <Clock className={`w-5 h-5 transition-colors ${isSelected ? c.text : 'text-gray-200 group-hover:text-gray-400'}`} />
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
 
-//   const fetchAll = async () => {
-//     try {
-//       setIsLoading(true)
-//       const [uRes, lsRes, sRes, locRes, aRes] = await Promise.all([
-//         userApi.getActiveUsers('manager'),
-//         locationShiftApi.getAll(),
-//         staffShiftApi.getAll({ role: 'MANAGER' }),
-//         locationApi.getAll({ isActive: 'true' }),
-//         staffShiftAssignmentApi.getAll()
-//       ])
+            <div className="flex justify-end gap-3 border-t border-gray-100 pt-6 mt-8">
+              <button onClick={() => setIsModalOpen(false)} className="px-6 py-2.5 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-xl transition-all">Hủy</button>
+              <button onClick={handleBulkCreate} disabled={bulkLocIds.length === 0 || bulkShiftIds.length === 0} className="px-10 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all disabled:opacity-50 disabled:shadow-none">
+                Gán {bulkLocIds.length * bulkShiftIds.length > 0 ? `(${bulkLocIds.length * bulkShiftIds.length} ca)` : ''}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
-//       const managerShiftIds = new Set(sRes.data.map((s) => s.id))
-//       const managerLocShifts = lsRes.data.filter((ls) => managerShiftIds.has(ls.shift_id))
-//       const managerLocShiftIds = new Set(managerLocShifts.map((ls) => ls.id))
 
-//       setManagers(uRes.data)
-//       setShifts(sRes.data)
-//       setLocations(locRes.data)
-//       setLocShifts(managerLocShifts)
-//       setAssignments(aRes.data.filter((a) => managerLocShiftIds.has(a.location_shift_id)))
-//     } catch {
-//       toast.error('Failed to load assignments')
-//     } finally {
-//       setIsLoading(false)
-//     }
-//   }
 
-//   useEffect(() => {
-//     fetchAll()
-//   }, [refreshTrigger])
 
-//   const handleDelete = async (id: string) => {
-//     if (!confirm('Confirm delete assignment?')) return
-//     try {
-//       await staffShiftAssignmentApi.delete(id)
-//       toast.success('Deleted')
-//       fetchAll()
-//     } catch {
-//       toast.error('Failed to delete assignment')
-//     }
-//   }
 
-//   const handleSubmit = async () => {
-//     if (!formData.staff_id || !formData.location_shift_id || !formData.start_date || !formData.end_date) {
-//       toast.error('Fill required fields')
-//       return
-//     }
+const RostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
+  const [rosters, setRosters] = useState<StaffWorkRosterItem[]>([])
+  const [managers, setManagers] = useState<UserListItem[]>([])
+  const [locations, setLocations] = useState<LocationItem[]>([])
+  const [locShifts, setLocShifts] = useState<LocationShiftItem[]>([])
+  const [shifts, setShifts] = useState<StaffShiftItem[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [formData, setFormData] = useState({ staff_id: '', location_id: '', shift_id: '' })
 
-//     if (dayjs(formData.start_date).isAfter(dayjs(formData.end_date))) {
-//       toast.error('Start date cannot be after end date')
-//       return
-//     }
+  const fetchData = async () => {
+    try {
+      setIsLoading(true)
+      const [rR, mR, lR, lsR, sR] = await Promise.all([
+        staffWorkRosterApi.getAll(), userApi.getActiveUsers('manager'),
+        locationApi.getAll({ isActive: 'true' }), locationShiftApi.getAll(), staffShiftApi.getAll()
+      ])
+      setRosters(rR.data || []); setManagers(mR.data || [])
+      setLocations(lR.data || []); setLocShifts(lsR.data || []); setShifts(sR.data || [])
+    } catch { toast.error('Lỗi tải dữ liệu') } finally { setIsLoading(false) }
+  }
+  useEffect(() => { fetchData() }, [refreshTrigger])
 
-//     try {
-//       await staffShiftAssignmentApi.create(formData)
-//       toast.success('Assignment created')
-//       setIsModalOpen(false)
-//       fetchAll()
-//     } catch {
-//       toast.error('Failed to create assignment')
-//     }
-//   }
+  // Chỉ location con (có parent_id) mới được gán roster
+  const childLocations = locations.filter(l => l.parent_id)
 
-//   const filteredAssignments = useMemo(() => {
-//     return assignments.filter((a) => {
-//       if (dateFilter.start && a.start_date < dateFilter.start) return false
-//       if (dateFilter.end && a.start_date > dateFilter.end) return false
-//       return true
-//     })
-//   }, [assignments, dateFilter])
+  // Khi chọn location con → tìm parent → lọc ca đã gán cho parent
+  const getAvailableShifts = () => {
+    if (!formData.location_id) return []
+    const child = locations.find(l => l.id === formData.location_id)
+    if (!child?.parent_id) return shifts
+    const parentShiftIds = locShifts.filter(ls => ls.location_id === child.parent_id).map(ls => ls.shift_id)
+    return shifts.filter(s => parentShiftIds.includes(s.id))
+  }
 
-//   return (
-//     <div>
-//       <SectionHeader
-//         title="Manager Assignments"
-//         description="Assign manager users to location shifts by date range."
-//         onRefresh={fetchAll}
-//         isLoading={isLoading}
-//         rightAction={
-//           <button
-//             onClick={() => {
-//               setFormData({
-//                 staff_id: managers[0]?.id || managers[0]?._id || '',
-//                 location_shift_id: locShifts[0]?.id || '',
-//                 start_date: '',
-//                 end_date: ''
-//               })
-//               setIsModalOpen(true)
-//             }}
-//             className="inline-flex items-center gap-2 px-5 py-2.5 text-base font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition"
-//           >
-//             <Plus className="w-4 h-4" /> Create Assignment
-//           </button>
-//         }
-//       />
+  const handleDelete = async (id: string) => {
+    if (!confirm('Xóa roster?')) return
+    try { await staffWorkRosterApi.delete(id); toast.success('Đã xóa'); fetchData() } catch { toast.error('Lỗi') }
+  }
+  const handleSubmit = async () => {
+    if (!formData.staff_id || !formData.location_id || !formData.shift_id) return toast.error('Chọn đủ thông tin')
+    try { await staffWorkRosterApi.create(formData); toast.success('Đã tạo roster'); setIsModalOpen(false); fetchData() }
+    catch (e: any) { toast.error(e.response?.data?.message || 'Lỗi') }
+  }
 
-//       <div className="flex gap-4 mb-4 items-center">
-//         <DatePicker
-//                 needConfirm={false}
-//                 size="large"
-//           value={dateFilter.start ? dayjs(dateFilter.start) : null}
-//           format="YYYY-MM-DD"
-//           onChange={(value) => setDateFilter((prev) => ({ ...prev, start: value ? value.format('YYYY-MM-DD') : '' }))}
-//         />
-//         <span className="self-center text-gray-500 text-sm">to</span>
-//         <DatePicker
-//                 needConfirm={false}
-//                 size="large"
-//           value={dateFilter.end ? dayjs(dateFilter.end) : null}
-//           format="YYYY-MM-DD"
-//           onChange={(value) => setDateFilter((prev) => ({ ...prev, end: value ? value.format('YYYY-MM-DD') : '' }))}
-//         />
-//       </div>
+  return (
+    <div>
+      <SectionHeader title="Roster Manager" description="Gán Manager vào Location con + Ca trực (kế thừa từ Location cha)." onRefresh={fetchData} isLoading={isLoading}
+        rightAction={
+          <button onClick={() => { setFormData({ staff_id: '', location_id: '', shift_id: '' }); setIsModalOpen(true) }} 
+            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors">
+            <Plus className="w-4 h-4" /> Thêm Roster
+          </button>
+        }
+      />
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <table className="w-full text-sm text-left">
+          <thead className="bg-gray-50 border-b border-gray-100">
+            <tr>
+              <th className="px-6 py-4 font-bold text-gray-700">Manager</th>
+              <th className="px-6 py-4 font-bold text-gray-700">Location</th>
+              <th className="px-6 py-4 font-bold text-gray-700">Ca Trực</th>
+              <th className="px-6 py-4 font-bold text-gray-700 text-right">Xóa</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {rosters.filter(r => r.location_id).map(r => {
+              const m = managers.find(x => x.id === r.staff_id || x._id === r.staff_id)
+              const loc = locations.find(x => x.id === r.location_id)
+              const s = shifts.find(x => x.id === r.shift_id)
+              const c = getShiftColor(s?.shift_name || '')
+              return (
+                <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4"><div className="font-bold text-gray-900">{m?.name || r.staff_id}</div><div className="text-xs text-gray-500">{m?.email}</div></td>
+                  <td className="px-6 py-4 font-medium text-gray-700">{loc?.name || 'N/A'}</td>
+                  <td className="px-6 py-4">{s ? <span className={`px-3 py-1 rounded-full text-xs font-bold border ${c.bg} ${c.text} ${c.border}`}>{s.shift_name} ({s.start_time}-{s.end_time})</span> : 'N/A'}</td>
+                  <td className="px-6 py-4 text-right"><button onClick={() => handleDelete(r.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button></td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">Tạo Roster Manager</h2>
+            <div className="space-y-4 mb-6">
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-gray-700">Manager</label>
+                <select value={formData.staff_id} onChange={e => setFormData({...formData, staff_id: e.target.value})} className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm">
+                  <option value="">-- Chọn --</option>
+                  {managers.map(m => <option key={m.id || m._id} value={m.id || m._id}>{m.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-gray-700">Location Con</label>
+                <select value={formData.location_id} onChange={e => setFormData({...formData, location_id: e.target.value, shift_id: ''})} className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm">
+                  <option value="">-- Chọn --</option>
+                  {childLocations.map(l => <option key={l.id} value={l.id}>{l.name} ({l.type})</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-gray-700">Ca Trực {formData.location_id && `(${getAvailableShifts().length} ca từ Location cha)`}</label>
+                <select disabled={!formData.location_id} value={formData.shift_id} onChange={e => setFormData({...formData, shift_id: e.target.value})} className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm disabled:opacity-50">
+                  <option value="">-- Chọn --</option>
+                  {getAvailableShifts().map(s => <option key={s.id} value={s.id}>{s.shift_name} ({s.start_time}-{s.end_time})</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 border-t pt-4">
+              <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg">Hủy</button>
+              <button onClick={handleSubmit} className="px-5 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg">Tạo Roster</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
-//       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-//         <table className="w-full text-sm text-left">
-//           <thead className="bg-gray-50 border-b border-gray-100">
-//             <tr>
-//               <th className="px-6 py-5 font-medium text-gray-500">Manager</th>
-//               <th className="px-6 py-5 font-medium text-gray-500">Dates</th>
-//               <th className="px-6 py-5 font-medium text-gray-500">Location Shift</th>
-//               <th className="px-6 py-5 font-medium text-gray-500">Status</th>
-//               <th className="px-6 py-5 text-right font-medium text-gray-500">Actions</th>
-//             </tr>
-//           </thead>
-//           <tbody className="divide-y divide-gray-50">
-//             {filteredAssignments.map((a) => {
-//               const manager = managers.find((m) => m.id === a.staff_id || m._id === a.staff_id)
-//               const locShift = locShifts.find((ls) => ls.id === a.location_shift_id)
-//               const location = locations.find((opt) => opt.id === locShift?.location_id)
-//               const shift = shifts.find((s) => s.id === locShift?.shift_id)
 
-//               return (
-//                 <tr key={a.id} className="hover:bg-gray-50">
-//                   <td className="px-6 py-5 font-medium text-gray-900">{manager?.name || 'Unknown'}</td>
-//                   <td className="px-6 py-5 text-gray-600">
-//                     {new Date(a.start_date).toLocaleDateString()} - {new Date(a.end_date).toLocaleDateString()}
-//                   </td>
-//                   <td className="px-6 py-5">
-//                     <div className="font-medium text-gray-900">{location?.name || 'Unknown'}</div>
-//                     <div className="text-xs text-gray-500">{shift?.shift_name}</div>
-//                   </td>
-//                   <td className="px-6 py-5">
-//                     <span
-//                       className={`px-2.5 py-1 text-xs rounded-full font-semibold ${
-//                         a.status === 'ASSIGNED'
-//                           ? 'bg-amber-50 text-amber-700'
-//                           : a.status === 'COMPLETED'
-//                           ? 'bg-emerald-50 text-emerald-700'
-//                           : a.status === 'CHECKED_IN'
-//                           ? 'bg-blue-50 text-blue-700'
-//                           : 'bg-rose-50 text-rose-700'
-//                       }`}
-//                     >
-//                       {a.status}
-//                     </span>
-//                   </td>
-//                   <td className="px-6 py-5 text-right">
-//                     <button onClick={() => handleDelete(a.id)} className="text-gray-400 hover:text-red-600 p-1">
-//                       <Trash2 className="w-4 h-4" />
-//                     </button>
-//                   </td>
-//                 </tr>
-//               )
-//             })}
-//             {filteredAssignments.length === 0 && !isLoading && (
-//               <tr>
-//                 <td colSpan={5} className="p-8 text-center text-gray-400">No matching assignments</td>
-//               </tr>
-//             )}
-//           </tbody>
-//         </table>
-//       </div>
+// ========== TAB 4: ATTENDANCE (Live Logs) ==========
+const AttendanceTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
+  const [logs, setLogs] = useState<StaffAttendanceLogItem[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'))
 
-//       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create Manager Assignment" size="md">
-//         <div className="space-y-4">
-//           <div>
-//             <label className="block text-sm font-medium text-gray-700 mb-1">Manager</label>
-//             <select
-//               value={formData.staff_id}
-//               onChange={(e) => setFormData({ ...formData, staff_id: e.target.value })}
-//               className="w-full px-4 py-2.5 text-base border rounded-lg bg-white"
-//             >
-//               <option value="" disabled>
-//                 Select Manager
-//               </option>
-//               {managers.map((m) => (
-//                 <option key={m.id || m._id} value={m.id || m._id}>
-//                   {m.name}
-//                 </option>
-//               ))}
-//             </select>
-//           </div>
-//           <div>
-//             <label className="block text-sm font-medium text-gray-700 mb-1">Location Shift</label>
-//             <select
-//               value={formData.location_shift_id}
-//               onChange={(e) => setFormData({ ...formData, location_shift_id: e.target.value })}
-//               className="w-full px-4 py-2.5 text-base border rounded-lg bg-white"
-//             >
-//               <option value="" disabled>
-//                 Select Shift
-//               </option>
-//               {locShifts.map((ls) => {
-//                 const location = locations.find((x) => x.id === ls.location_id)
-//                 const shift = shifts.find((x) => x.id === ls.shift_id)
-//                 return (
-//                   <option key={ls.id} value={ls.id}>
-//                     {location?.name} - {shift?.shift_name}
-//                   </option>
-//                 )
-//               })}
-//             </select>
-//           </div>
-//           <div className="grid grid-cols-2 gap-4">
-//             <div>
-//               <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-//               <DatePicker
-//                 needConfirm={false}
-//                 size="large"
-//                 value={formData.start_date ? dayjs(formData.start_date) : null}
-//                 format="YYYY-MM-DD"
-//                 onChange={(value) => setFormData({ ...formData, start_date: value ? value.format('YYYY-MM-DD') : '' })}
-//                 className="w-full text-base"
-//               />
-//             </div>
-//             <div>
-//               <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-//               <DatePicker
-//                 needConfirm={false}
-//                 size="large"
-//                 value={formData.end_date ? dayjs(formData.end_date) : null}
-//                 format="YYYY-MM-DD"
-//                 onChange={(value) => setFormData({ ...formData, end_date: value ? value.format('YYYY-MM-DD') : '' })}
-//                 className="w-full text-base"
-//               />
-//             </div>
-//           </div>
-//           <div className="pt-4 flex justify-end gap-2">
-//             <button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-base border rounded-lg text-gray-600">
-//               Cancel
-//             </button>
-//             <button onClick={handleSubmit} className="px-5 py-2.5 text-base font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">
-//               Submit
-//             </button>
-//           </div>
-//         </div>
-//       </Modal>
-//     </div>
-//   )
-// }
+  const fetchLogs = async () => {
+    try {
+      setIsLoading(true)
+      const res = await staffAttendanceLogApi.getAll({ date: selectedDate, limit: 100 })
+      setLogs(res.data || [])
+    } catch { toast.error('Lỗi tải nhật ký điểm danh') } finally { setIsLoading(false) }
+  }
 
-// function RostersTab({ refreshTrigger }: { refreshTrigger: number }) {
-//   const [rosters, setRosters] = useState<StaffWorkRosterItem[]>([])
-//   const [managers, setManagers] = useState<UserListItem[]>([])
-//   const [locShifts, setLocShifts] = useState<LocationShiftItem[]>([])
-//   const [locations, setLocations] = useState<LocationItem[]>([])
-//   const [shifts, setShifts] = useState<StaffShiftItem[]>([])
-//   const [isLoading, setIsLoading] = useState(false)
-//   const [isModalOpen, setIsModalOpen] = useState(false)
+  useEffect(() => { fetchLogs() }, [selectedDate, refreshTrigger])
 
-//   const [formData, setFormData] = useState<{ staff_id: string; location_shift_id: string; days_of_week: number[] }>({
-//     staff_id: '',
-//     location_shift_id: '',
-//     days_of_week: []
-//   })
+  const groupedLogs = logs.reduce((acc: any, log) => {
+    const key = log.staff_id
+    if (!acc[key]) acc[key] = { staff: log.staff, checkin: null, checkout: null, area: '' }
+    if (log.action === 'CHECKIN') acc[key].checkin = log
+    if (log.action === 'CHECKOUT') acc[key].checkout = log
+    acc[key].area = log.location?.name || log.cluster?.name || 'N/A'
+    return acc
+  }, {})
 
-//   const fetchAll = async () => {
-//     try {
-//       setIsLoading(true)
-//       const [uRes, lsRes, sRes, locRes, rRes] = await Promise.all([
-//         userApi.getActiveUsers('manager'),
-//         locationShiftApi.getAll(),
-//         staffShiftApi.getAll({ role: 'MANAGER' }),
-//         locationApi.getAll({ isActive: 'true' }),
-//         staffWorkRosterApi.getAll()
-//       ])
+  return (
+    <div>
+      <SectionHeader title="Nhật Ký Điểm Danh" description="Theo dõi trạng thái check-in/out của nhân viên trong ngày." onRefresh={fetchLogs} isLoading={isLoading}
+        rightAction={
+          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200">
+            <CalendarDays className="w-4 h-4 text-gray-400" />
+            <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="bg-transparent border-none text-sm font-medium text-gray-700 focus:ring-0 p-0" />
+          </div>
+        }
+      />
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <table className="w-full text-sm text-left">
+          <thead className="bg-gray-50 border-b border-gray-100">
+            <tr>
+              <th className="px-6 py-4 font-bold text-gray-700">Nhân Viên</th>
+              <th className="px-6 py-4 font-bold text-gray-700">Khu Vực / Cluster</th>
+              <th className="px-6 py-4 font-bold text-gray-700 text-center">Check-in</th>
+              <th className="px-6 py-4 font-bold text-gray-700 text-center">Check-out</th>
+              <th className="px-6 py-4 font-bold text-gray-700 text-right">Tổng Giờ</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {Object.values(groupedLogs).map((entry: any, idx: number) => {
+              const duration = entry.checkin && entry.checkout ? dayjs(entry.checkout.created_at).diff(dayjs(entry.checkin.created_at), 'hour', true).toFixed(1) : '-'
+              return (
+                <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="font-bold text-gray-900">{entry.staff?.name || 'N/A'}</div>
+                    <div className="text-xs text-gray-400 uppercase font-bold">{entry.staff?.role}</div>
+                  </td>
+                  <td className="px-6 py-4 font-medium text-gray-600">{entry.area}</td>
+                  <td className="px-6 py-4 text-center">
+                    {entry.checkin ? <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-50 text-green-700 rounded-lg font-bold border border-green-100 text-xs"><LogIn className="w-3 h-3" /> {dayjs(entry.checkin.created_at).format('HH:mm')}</span> : <span className="text-gray-300">-</span>}
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    {entry.checkout ? <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-50 text-rose-700 rounded-lg font-bold border border-rose-100 text-xs"><LogOut className="w-3 h-3" /> {dayjs(entry.checkout.created_at).format('HH:mm')}</span> : <span className="text-gray-300">-</span>}
+                  </td>
+                  <td className="px-6 py-4 text-right font-mono font-bold text-indigo-600">{duration !== '-' ? `${duration}h` : '-'}</td>
+                </tr>
+              )
+            })}
+            {Object.keys(groupedLogs).length === 0 && !isLoading && <tr><td colSpan={5} className="p-12 text-center text-gray-400">Không có dữ liệu điểm danh ngày {selectedDate}</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
 
-//       const managerShiftIds = new Set(sRes.data.map((s) => s.id))
-//       const managerLocShifts = lsRes.data.filter((ls) => managerShiftIds.has(ls.shift_id))
-//       const managerLocShiftIds = new Set(managerLocShifts.map((ls) => ls.id))
+export const AdminShiftManagement = () => {
+  const [activeTab, setActiveTab] = useState<TabType>('STAFF_SHIFTS')
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
-//       setManagers(uRes.data)
-//       setShifts(sRes.data)
-//       setLocations(locRes.data)
-//       setLocShifts(managerLocShifts)
-//       setRosters(rRes.data.filter((r) => managerLocShiftIds.has(r.location_shift_id)))
-//     } catch {
-//       toast.error('Failed to load roster data')
-//     } finally {
-//       setIsLoading(false)
-//     }
-//   }
+  useEffect(() => {
+    const socket = initUserSocket()
+    if (!socket) return
+    const handleRefresh = () => setRefreshTrigger(p => p + 1)
+    socket.on('dashboard:refresh', handleRefresh)
+    return () => { socket.off('dashboard:refresh', handleRefresh) }
+  }, [])
 
-//   useEffect(() => {
-//     fetchAll()
-//   }, [refreshTrigger])
+  const TABS: { id: TabType; label: string; icon: any }[] = [
+    { id: 'STAFF_SHIFTS', label: 'Mẫu Ca', icon: <Clock className="w-4 h-4" /> },
+    { id: 'LOCATION_SHIFTS', label: 'Khu Vực', icon: <MapPin className="w-4 h-4" /> },
+    { id: 'ROSTERS', label: 'Roster Manager', icon: <CalendarDays className="w-4 h-4" /> },
+    { id: 'ATTENDANCE', label: 'Điểm Danh', icon: <LogIn className="w-4 h-4" /> },
+  ]
 
-//   const handleDelete = async (id: string) => {
-//     if (!confirm('Delete roster entry?')) return
-//     try {
-//       await staffWorkRosterApi.delete(id)
-//       toast.success('Deleted')
-//       fetchAll()
-//     } catch {
-//       toast.error('Failed to delete roster')
-//     }
-//   }
+  return (
+    <div className="p-8 bg-gray-50 min-h-screen">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Quản Lý Phân Ca & Roster</h1>
+          <p className="text-gray-500 mt-1">Thiết lập lịch trực cố định và theo dõi điểm danh thời gian thực.</p>
+        </div>
 
-//   const toggleDay = (dayIndex: number) => {
-//     setFormData((prev) => {
-//       const days = prev.days_of_week.includes(dayIndex)
-//         ? prev.days_of_week.filter((d) => d !== dayIndex)
-//         : [...prev.days_of_week, dayIndex]
-//       return { ...prev, days_of_week: days }
-//     })
-//   }
+        <div className="flex gap-2 p-1 bg-white border border-gray-200 rounded-xl mb-8 w-fit shadow-sm">
+          {TABS.map(t => (
+            <button key={t.id} onClick={() => setActiveTab(t.id)}
+              className={`flex items-center gap-2 px-6 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === t.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'text-gray-500 hover:bg-gray-50'}`}>
+              {t.icon} {t.label}
+            </button>
+          ))}
+        </div>
 
-//   const handleSubmit = async () => {
-//     if (!formData.staff_id || !formData.location_shift_id || formData.days_of_week.length === 0) {
-//       toast.error('Fill required fields')
-//       return
-//     }
-//     try {
-//       await staffWorkRosterApi.create(formData)
-//       toast.success('Roster created')
-//       setIsModalOpen(false)
-//       fetchAll()
-//     } catch {
-//       toast.error('Failed to create roster')
-//     }
-//   }
-
-//   return (
-//     <div>
-//       <SectionHeader
-//         title="Weekly Rosters"
-//         description="Set recurring weekly schedules for manager staff."
-//         onRefresh={fetchAll}
-//         isLoading={isLoading}
-//         rightAction={
-//           <button
-//             onClick={() => {
-//               setFormData({
-//                 staff_id: managers[0]?.id || managers[0]?._id || '',
-//                 location_shift_id: locShifts[0]?.id || '',
-//                 days_of_week: []
-//               })
-//               setIsModalOpen(true)
-//             }}
-//             className="inline-flex items-center gap-2 px-5 py-2.5 text-base font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
-//           >
-//             <CalendarDays className="w-4 h-4" /> Assign Roster
-//           </button>
-//         }
-//       />
-
-//       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-//         <table className="w-full text-sm text-left">
-//           <thead className="bg-gray-50 border-b border-gray-100">
-//             <tr>
-//               <th className="px-6 py-5 font-medium text-gray-500">Manager</th>
-//               <th className="px-6 py-5 font-medium text-gray-500">Location Shift</th>
-//               <th className="px-6 py-5 font-medium text-gray-500">Day of Week</th>
-//               <th className="px-6 py-5 text-right font-medium text-gray-500">Actions</th>
-//             </tr>
-//           </thead>
-//           <tbody className="divide-y divide-gray-50">
-//             {rosters.map((r) => {
-//               const manager = managers.find((m) => m.id === r.staff_id || m._id === r.staff_id)
-//               const locShift = locShifts.find((ls) => ls.id === r.location_shift_id)
-//               const location = locations.find((loc) => loc.id === locShift?.location_id)
-//               const shift = shifts.find((s) => s.id === locShift?.shift_id)
-//               return (
-//                 <tr key={r.id} className="hover:bg-gray-50">
-//                   <td className="px-6 py-5 font-medium text-gray-900">{manager?.name || 'Unknown'}</td>
-//                   <td className="px-6 py-5">
-//                     <div className="font-medium text-gray-900">{location?.name || 'Unknown'}</div>
-//                     <div className="text-xs text-gray-500">{shift?.shift_name} ({shift?.start_time}-{shift?.end_time})</div>
-//                   </td>
-//                   <td className="px-6 py-5">
-//                     <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 font-semibold rounded text-xs">
-//                       {DAYS_OF_WEEK[r.day_of_week]}
-//                     </span>
-//                   </td>
-//                   <td className="px-6 py-5 text-right">
-//                     <button onClick={() => handleDelete(r.id)} className="text-gray-400 hover:text-red-600 p-1">
-//                       <Trash2 className="w-4 h-4" />
-//                     </button>
-//                   </td>
-//                 </tr>
-//               )
-//             })}
-//             {rosters.length === 0 && !isLoading && (
-//               <tr>
-//                 <td colSpan={4} className="p-8 text-center text-gray-400">No rosters set</td>
-//               </tr>
-//             )}
-//           </tbody>
-//         </table>
-//       </div>
-
-//       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create Weekly Roster" size="md">
-//         <div className="space-y-4">
-//           <div>
-//             <label className="block text-sm font-medium text-gray-700 mb-1">Manager</label>
-//             <select
-//               value={formData.staff_id}
-//               onChange={(e) => setFormData({ ...formData, staff_id: e.target.value })}
-//               className="w-full px-4 py-2.5 text-base border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-//             >
-//               <option value="" disabled>
-//                 Select Manager
-//               </option>
-//               {managers.map((m) => (
-//                 <option key={m.id || m._id} value={m.id || m._id}>
-//                   {m.name}
-//                 </option>
-//               ))}
-//             </select>
-//           </div>
-//           <div>
-//             <label className="block text-sm font-medium text-gray-700 mb-1">Location Shift</label>
-//             <select
-//               value={formData.location_shift_id}
-//               onChange={(e) => setFormData({ ...formData, location_shift_id: e.target.value })}
-//               className="w-full px-4 py-2.5 text-base border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-//             >
-//               <option value="" disabled>
-//                 Select Shift
-//               </option>
-//               {locShifts.map((ls) => {
-//                 const location = locations.find((x) => x.id === ls.location_id)
-//                 const shift = shifts.find((x) => x.id === ls.shift_id)
-//                 return (
-//                   <option key={ls.id} value={ls.id}>
-//                     {location?.name} - {shift?.shift_name} ({shift?.start_time})
-//                   </option>
-//                 )
-//               })}
-//             </select>
-//           </div>
-//           <div>
-//             <label className="block text-sm font-medium text-gray-700 mb-2">Days of Week</label>
-//             <div className="flex flex-wrap gap-2">
-//               {DAYS_OF_WEEK.map((day, idx) => (
-//                 <button
-//                   key={day}
-//                   type="button"
-//                   onClick={() => toggleDay(idx)}
-//                   className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-//                     formData.days_of_week.includes(idx)
-//                       ? 'bg-indigo-600 text-white border-indigo-600'
-//                       : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-//                   }`}
-//                 >
-//                   {day}
-//                 </button>
-//               ))}
-//             </div>
-//           </div>
-//           <div className="pt-4 flex justify-end gap-2">
-//             <button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-base border rounded-lg text-gray-600">
-//               Cancel
-//             </button>
-//             <button onClick={handleSubmit} className="px-5 py-2.5 text-base font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
-//               Submit
-//             </button>
-//           </div>
-//         </div>
-//       </Modal>
-//     </div>
-//   )
-// }
-
-// export const AdminShiftManagement = () => {
-//   const [activeTab, setActiveTab] = useState<TabType>('STAFF_SHIFTS')
-//   const [refreshTrigger, setRefreshTrigger] = useState(0)
-
-//   useEffect(() => {
-//     const socket = initUserSocket()
-//     if (!socket) return
-
-//     const handleNewData = () => {
-//       setRefreshTrigger(prev => prev + 1)
-//     }
-
-//     socket.on('user:notification', handleNewData)
-//     socket.on('dashboard:refresh', handleNewData)
-
-//     return () => {
-//       socket.off('user:notification', handleNewData)
-//       socket.off('dashboard:refresh', handleNewData)
-//     }
-//   }, [])
-
-//   const tabs: { id: TabType; label: string; icon: React.ReactNode }[] = [
-//     { id: 'STAFF_SHIFTS', label: 'Shift Templates', icon: <Clock className="w-4 h-4" /> },
-//     { id: 'LOCATION_SHIFTS', label: 'Location Bindings', icon: <MapPin className="w-4 h-4" /> },
-//     { id: 'ROSTERS', label: 'Weekly Roster', icon: <CalendarDays className="w-4 h-4" /> },
-//     { id: 'ASSIGNMENTS', label: 'Manager Assignments', icon: <Calendar className="w-4 h-4" /> }
-//   ]
-
-//   return (
-//     <div className="min-h-screen bg-gray-50 flex flex-col">
-//       <div className="bg-white border-b border-gray-200 px-8 py-8 pt-12">
-//         <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Manager Shift Management</h1>
-//         <p className="text-gray-500 mt-2 max-w-2xl text-base">
-//           Create manager shift templates, bind shifts to locations, and assign managers by date range.
-//         </p>
-
-//         <div className="mt-8 flex gap-2 border-b border-gray-200">
-//           {tabs.map((tab) => (
-//             <button
-//               key={tab.id}
-//               onClick={() => setActiveTab(tab.id)}
-//               className={`pb-4 px-4 flex items-center gap-2 font-medium text-sm transition-all border-b-2 ${
-//                 activeTab === tab.id
-//                   ? 'border-blue-600 text-blue-600'
-//                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-//               }`}
-//             >
-//               {tab.icon}
-//               {tab.label}
-//             </button>
-//           ))}
-//         </div>
-//       </div>
-
-//       <div className="p-8 flex-1">
-//         {activeTab === 'STAFF_SHIFTS' && <StaffShiftsTab refreshTrigger={refreshTrigger} />}
-//         {activeTab === 'LOCATION_SHIFTS' && <LocationShiftsTab refreshTrigger={refreshTrigger} />}
-//         {activeTab === 'ROSTERS' && <RostersTab refreshTrigger={refreshTrigger} />}
-//         {activeTab === 'ASSIGNMENTS' && <AssignmentsTab refreshTrigger={refreshTrigger} />}
-//       </div>
-//     </div>
-//   )
-// }
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {activeTab === 'STAFF_SHIFTS' && <StaffShiftsTab refreshTrigger={refreshTrigger} />}
+          {activeTab === 'LOCATION_SHIFTS' && <LocationShiftsTab refreshTrigger={refreshTrigger} />}
+          {activeTab === 'ROSTERS' && <RostersTab refreshTrigger={refreshTrigger} />}
+          {activeTab === 'ATTENDANCE' && <AttendanceTab refreshTrigger={refreshTrigger} />}
+        </div>
+      </div>
+    </div>
+  )
+}

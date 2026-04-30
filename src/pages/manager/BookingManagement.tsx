@@ -34,7 +34,8 @@ import {
   type BookingOrderDetail,
   type BookingOrderItem,
   type BookingOrderPagination,
-  type BookingOrderStatus
+  type BookingOrderStatus,
+  type OrderIncidentItem
 } from '../../api/lib/bookingOrderApi'
 import { podApi, type PodItem } from '../../api/lib/podApi'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
@@ -113,6 +114,53 @@ const orderStatusBgColor = (status: string) => {
   }
 }
 
+const incidentStatusBadgeClass = (status: string) => {
+  switch (status) {
+    case 'PENDING':
+      return 'bg-amber-50 text-amber-700 border border-amber-200'
+    case 'RESOLVED':
+      return 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+    case 'DISMISSED':
+      return 'bg-rose-50 text-rose-700 border border-rose-200'
+    default:
+      return 'bg-gray-100 text-gray-700 border border-gray-200'
+  }
+}
+
+const translateIncidentStatus = (status: string) => {
+  switch (status) {
+    case 'PENDING': return 'Chờ xử lý'
+    case 'RESOLVED': return 'Đã giải quyết'
+    case 'DISMISSED': return 'Đã từ chối'
+    default: return status
+  }
+}
+
+const translateIncidentSeverity = (severity: string) => {
+  switch (severity) {
+    case 'LOW': return 'Thấp'
+    case 'MEDIUM': return 'Trung bình'
+    case 'HIGH': return 'Cao'
+    case 'CRITICAL': return 'Nghiêm trọng'
+    default: return severity
+  }
+}
+
+const incidentSeverityBadgeClass = (severity: string) => {
+  switch (severity) {
+    case 'LOW':
+      return 'bg-slate-100 text-slate-700'
+    case 'MEDIUM':
+      return 'bg-yellow-100 text-yellow-800'
+    case 'HIGH':
+      return 'bg-orange-100 text-orange-800'
+    case 'CRITICAL':
+      return 'bg-rose-100 text-rose-800 font-semibold'
+    default:
+      return 'bg-gray-100 text-gray-700'
+  }
+}
+
 export const BookingManagement = () => {
   const { clusters, isLoading: isScopeLoading, refreshScope } = useManagerScope()
 
@@ -185,6 +233,9 @@ export const BookingManagement = () => {
   const [isOrderDetailOpen, setIsOrderDetailOpen] = useState(false)
   const [isOrderDetailLoading, setIsOrderDetailLoading] = useState(false)
   const [selectedOrderDetail, setSelectedOrderDetail] = useState<BookingOrderDetail | null>(null)
+  const [selectedOrderIncidents, setSelectedOrderIncidents] = useState<OrderIncidentItem[]>([])
+  const [isOrderIncidentsLoading, setIsOrderIncidentsLoading] = useState(false)
+  const [isCreatingDamageBill, setIsCreatingDamageBill] = useState(false)
 
   const [updatingCleanerAccessId, setUpdatingCleanerAccessId] = useState<string | null>(null)
 
@@ -401,15 +452,36 @@ export const BookingManagement = () => {
     setIsOrderDetailOpen(true)
     setIsOrderDetailLoading(true)
     setSelectedOrderDetail(null)
+    setIsOrderIncidentsLoading(true)
+    setSelectedOrderIncidents([])
 
     try {
       const detail = await bookingOrderApi.getById(orderId)
       setSelectedOrderDetail(detail)
+      const incidents = await bookingOrderApi.getOrderIncidents(orderId)
+      setSelectedOrderIncidents(incidents)
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Failed to load booking order detail')
       setIsOrderDetailOpen(false)
     } finally {
       setIsOrderDetailLoading(false)
+      setIsOrderIncidentsLoading(false)
+    }
+  }
+
+  const handleCreateDamageBill = async () => {
+    if (!selectedOrderDetail) return
+    try {
+      setIsCreatingDamageBill(true)
+      await bookingOrderApi.createOrderDamageBill(selectedOrderDetail.order.id)
+      toast.success('Damage Bill created successfully for the order')
+
+      const refreshedIncidents = await bookingOrderApi.getOrderIncidents(selectedOrderDetail.order.id)
+      setSelectedOrderIncidents(refreshedIncidents)
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to create damage bill')
+    } finally {
+      setIsCreatingDamageBill(false)
     }
   }
 
@@ -753,10 +825,6 @@ export const BookingManagement = () => {
         </>
       ) : (
         <>
-          <div className="bg-amber-50 rounded-xl shadow-sm border border-amber-100 p-3 mb-6 inline-flex items-center gap-2 text-amber-800 text-sm font-medium">
-            <ShieldOff className="w-4 h-4" />
-            Owner actions are blocked in manager view
-          </div>
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -1263,15 +1331,31 @@ export const BookingManagement = () => {
                   )
                 })()}
 
-                <div className="p-4 rounded-xl bg-amber-50 border border-amber-100 text-amber-800 text-sm flex gap-3">
-                  <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shrink-0 border border-amber-200">
-                    <ShieldOff className="w-4 h-4 text-amber-500" />
+                {selectedOrderDetail.order.damage_payment_status && selectedOrderDetail.order.damage_payment_status !== 'NO_INCIDENT' && (
+                  <div className={`rounded-xl overflow-hidden shadow-sm border ${selectedOrderDetail.order.damage_payment_status === 'PAID' ? 'border-emerald-200' : 'border-rose-200'}`}>
+                    <div className={`px-4 py-3 border-b flex items-center justify-between ${selectedOrderDetail.order.damage_payment_status === 'PAID' ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
+                      <h3 className={`font-semibold flex items-center gap-2 ${selectedOrderDetail.order.damage_payment_status === 'PAID' ? 'text-emerald-800' : 'text-rose-800'}`}>
+                        <CreditCard className="w-4 h-4" />
+                        Hóa Đơn Đền Bù Sự Cố
+                      </h3>
+                      <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${selectedOrderDetail.order.damage_payment_status === 'PAID' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-200 text-rose-800'
+                        }`}>
+                        {selectedOrderDetail.order.damage_payment_status === 'PAID' ? 'ĐÃ THANH TOÁN (PAID)' : 'CHỜ THANH TOÁN (PENDING)'}
+                      </span>
+                    </div>
+                    <div className="p-4 bg-white flex justify-between items-center">
+                      <div>
+                        <p className="text-sm text-gray-600">Trạng thái thanh toán hóa đơn đền bù của đơn hàng này.</p>
+                      </div>
+                      {selectedOrderDetail.order.damage_payment_status !== 'PAID' && (
+                        <div className="text-right">
+                          <p className="text-sm text-gray-500 mb-1">Số tiền cần thanh toán</p>
+                          <p className="text-xl font-bold text-rose-600">{formatMoney(selectedOrderDetail.order.outstanding_damage_amount || 0)}</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="font-semibold mb-1">Owner actions are blocked for manager view</h4>
-                    <p className="text-amber-700/80">Cancel, checkout and repay are owner-only flows. This screen is for monitoring and detail tracking.</p>
-                  </div>
-                </div>
+                )}
 
                 <div className="flex flex-col text-sm">
                   <div className="flex justify-between items-center py-4 border-b border-gray-100">
@@ -1304,18 +1388,12 @@ export const BookingManagement = () => {
                             <div>
                               <p className="text-xs text-gray-500 uppercase">Pod</p>
                               <p className="font-medium text-gray-900">{booking.pod?.code ?? podMap.get(booking.pod_id)?.code ?? compactId(booking.pod_id)}</p>
-                              <p className="text-xs text-gray-500 uppercase">Pod</p>
-                              <p className="font-medium text-gray-900">{booking.pod?.code ?? podMap.get(booking.pod_id)?.code ?? compactId(booking.pod_id)}</p>
                             </div>
                             <div>
                               <p className="text-xs text-gray-500 uppercase">Start Time</p>
                               <p className="font-medium text-gray-900">{formatDateTime(booking.start_time)}</p>
-                              <p className="text-xs text-gray-500 uppercase">Start Time</p>
-                              <p className="font-medium text-gray-900">{formatDateTime(booking.start_time)}</p>
                             </div>
                             <div>
-                              <p className="text-xs text-gray-500 uppercase">End Time</p>
-                              <p className="font-medium text-gray-900">{formatDateTime(booking.end_time)}</p>
                               <p className="text-xs text-gray-500 uppercase">End Time</p>
                               <p className="font-medium text-gray-900">{formatDateTime(booking.end_time)}</p>
                             </div>
@@ -1331,11 +1409,53 @@ export const BookingManagement = () => {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <button type="button" disabled className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-400 bg-gray-50 cursor-not-allowed">Cancel (Owner only)</button>
-                  <button type="button" disabled className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-400 bg-gray-50 cursor-not-allowed">Checkout (Owner only)</button>
-                  <button type="button" disabled className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-400 bg-gray-50 cursor-not-allowed">Repay (Owner only)</button>
+                <div className="border-t border-gray-100 pt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-gray-900">Sự cố của đơn hàng này</h3>
+                    <button
+                      onClick={handleCreateDamageBill}
+                      disabled={isCreatingDamageBill || selectedOrderIncidents.some(i => i.status === 'PENDING') || selectedOrderIncidents.filter(i => i.status === 'RESOLVED').length === 0}
+                      className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      {isCreatingDamageBill ? 'Đang tạo Hóa đơn...' : 'Tạo hóa đơn đền bù cho đơn hàng'}
+                    </button>
+                  </div>
+
+                  {isOrderIncidentsLoading ? (
+                    <div className="flex justify-center py-4 text-gray-400">Đang tải sự cố của đơn hàng...</div>
+                  ) : selectedOrderIncidents.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-gray-200 p-4 text-sm text-gray-500">Không có sự cố nào khác trong đơn hàng này.</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {selectedOrderIncidents.map(inc => (
+                        <div key={inc.id} className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 p-3">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900">{inc.description}</p>
+                            <div className="mt-1 flex flex-wrap gap-2 text-xs text-gray-500">
+                              <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-gray-200">Pod: {inc.pod_id?.slice(0, 8)}...</span>
+                              {inc.items && inc.items.length > 0 && (
+                                <span className="bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded border border-rose-100">
+                                  {inc.items.join(', ')}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-2 ml-4">
+                            <div className="flex items-center gap-2">
+                              <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${incidentStatusBadgeClass(inc.status)}`}>{translateIncidentStatus(inc.status)}</span>
+                              <span className={`inline-flex rounded-md px-2 py-1 text-[10px] uppercase tracking-wider ${incidentSeverityBadgeClass(inc.severity)}`}>{translateIncidentSeverity(inc.severity)}</span>
+                            </div>
+                            {inc.total_amount_value !== undefined && (
+                              <span className="text-sm font-bold text-gray-900">{formatMoney(inc.total_amount_value)}</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
+
+
               </div>
             )}
           </div>

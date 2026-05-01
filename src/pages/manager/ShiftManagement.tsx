@@ -14,6 +14,8 @@ import { userApi, type UserListItem } from '../../api/lib/userApi'
 import { podClusterApi, type PodClusterItem } from '../../api/lib/podClusterApi'
 import { initUserSocket } from '../../lib/socket'
 import { locationApi, type LocationItem } from '../../api/lib/locationApi'
+import { shiftHandoverApi } from '../../api/lib/shiftHandoverApi'
+import { FileText, ClipboardList } from 'lucide-react'
 
 const LocationSelector = () => {
   const { locationOptions, selectedLocationId, setSelectedLocationId, isLoading } = useManagerScope()
@@ -80,9 +82,13 @@ const ManagerAttendanceWidget = () => {
     checked_out_today: boolean
     latest_checkin_at: string | null
     latest_checkout_at: string | null
+    has_handover: boolean
+    shift_ids: string[]
   } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isActing, setIsActing] = useState(false)
+  const [showHandoverModal, setShowHandoverModal] = useState(false)
+  const [handoverNote, setHandoverNote] = useState('')
 
   const fetchStatus = async (bustCache = true) => {
     try {
@@ -92,6 +98,24 @@ const ManagerAttendanceWidget = () => {
   }
 
   useEffect(() => { fetchStatus(true) }, [])
+
+  const handleHandover = async () => {
+    if (!handoverNote.trim()) return toast.warning('Vui lòng nhập nội dung bàn giao')
+    if (!status?.shift_ids?.length) return toast.error('Không tìm thấy ca trực để bàn giao')
+
+    setIsActing(true)
+    try {
+      await shiftHandoverApi.create({
+        note_text: handoverNote
+      })
+      toast.success('Đã gửi bàn giao ca thành công!')
+      setHandoverNote('')
+      setShowHandoverModal(false)
+      fetchStatus()
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || 'Gửi bàn giao thất bại')
+    } finally { setIsActing(false) }
+  }
 
   const handleCheckout = async () => {
     setIsActing(true)
@@ -114,32 +138,71 @@ const ManagerAttendanceWidget = () => {
   if (!status?.checked_in_today) return null // Gate handles the unchecked-in state
 
   const isActive = status.checked_in_today && !status.checked_out_today
+  const needsHandover = isActive && !status.has_handover
 
   return (
-    <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-5 py-4 rounded-2xl border-2 mb-6 ${
-      isActive ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
-    }`}>
-      <div className="flex items-center gap-3">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isActive ? 'bg-green-100' : 'bg-gray-100'}`}>
-          {isActive ? <CheckCircle className="w-5 h-5 text-green-600" /> : <Clock className="w-5 h-5 text-gray-500" />}
+    <>
+      <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-5 py-4 rounded-2xl border-2 mb-6 ${
+        isActive ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
+      }`}>
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isActive ? 'bg-green-100' : 'bg-gray-100'}`}>
+            {isActive ? <CheckCircle className="w-5 h-5 text-green-600" /> : <Clock className="w-5 h-5 text-gray-500" />}
+          </div>
+          <div>
+            <div className={`text-sm font-bold ${isActive ? 'text-green-700' : 'text-gray-500'}`}>
+              {isActive ? '🟢 Đang làm việc' : '⚪ Đã kết thúc ca'}
+            </div>
+            <div className="text-xs text-gray-400">
+              Check-in: <strong>{dayjs(status.latest_checkin_at).format('HH:mm')}</strong>
+              {status.latest_checkout_at && <> · Check-out: <strong>{dayjs(status.latest_checkout_at).format('HH:mm')}</strong></>}
+            </div>
+          </div>
         </div>
-        <div>
-          <div className={`text-sm font-bold ${isActive ? 'text-green-700' : 'text-gray-500'}`}>
-            {isActive ? '🟢 Đang làm việc' : '⚪ Đã kết thúc ca'}
-          </div>
-          <div className="text-xs text-gray-400">
-            Check-in: <strong>{dayjs(status.latest_checkin_at).format('HH:mm')}</strong>
-            {status.latest_checkout_at && <> · Check-out: <strong>{dayjs(status.latest_checkout_at).format('HH:mm')}</strong></>}
-          </div>
+
+        <div className="flex items-center gap-3">
+          {needsHandover && (
+            <button onClick={() => setShowHandoverModal(true)} disabled={isActing}
+              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm transition shadow-lg shadow-blue-100 disabled:opacity-60">
+              <ClipboardList className="w-4 h-4" /> Bàn Giao Công Việc
+            </button>
+          )}
+
+          {isActive && status.has_handover && (
+            <button onClick={handleCheckout} disabled={isActing}
+              className="flex items-center gap-2 px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-sm transition shadow-lg shadow-rose-100 disabled:opacity-60">
+              <LogOut className="w-4 h-4" /> Kết Thúc Ca (Check-out)
+            </button>
+          )}
         </div>
       </div>
-      {isActive && (
-        <button onClick={handleCheckout} disabled={isActing}
-          className="flex items-center gap-2 px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-sm transition shadow-lg shadow-rose-100 disabled:opacity-60">
-          <LogOut className="w-4 h-4" /> Kết Thúc Ca (Check-out)
-        </button>
-      )}
-    </div>
+
+      <Modal
+        isOpen={showHandoverModal}
+        onClose={() => setShowHandoverModal(false)}
+        title="Bàn Giao Ca Trực"
+        footer={(
+          <div className="flex justify-end gap-3">
+            <button onClick={() => setShowHandoverModal(false)} className="px-4 py-2 text-gray-500 font-bold">Hủy</button>
+            <button onClick={handleHandover} disabled={isActing} className="px-6 py-2 bg-blue-600 text-white rounded-xl font-bold disabled:opacity-50">
+              Gửi Bàn Giao
+            </button>
+          </div>
+        )}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500">
+            Vui lòng nhập tóm tắt công việc đã thực hiện, các vấn đề phát sinh hoặc lưu ý cho ca sau.
+          </p>
+          <textarea
+            className="w-full h-32 p-4 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all resize-none text-sm"
+            placeholder="Ví dụ: Đã kiểm tra các Pod tầng 1, có một vòi nước rò rỉ tại khu B..."
+            value={handoverNote}
+            onChange={e => setHandoverNote(e.target.value)}
+          />
+        </div>
+      </Modal>
+    </>
   )
 }
 
@@ -152,21 +215,29 @@ const LocationShiftsTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
   const [cleaners, setCleaners] = useState<UserListItem[]>([])
   const [clusters, setClusters] = useState<PodClusterItem[]>([])
   const [allLocations, setAllLocations] = useState<LocationItem[]>([])
+  const [attendanceLogs, setAttendanceLogs] = useState<StaffAttendanceLogItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
   const fetchData = async () => {
     if (!locationId) return
     try {
       setIsLoading(true)
-      const [lsRes, sRes, rRes, cRes, mRes, lAllRes, clRes] = await Promise.all([
+      const [lsRes, sRes, rRes, cRes, mRes, lAllRes, clRes, attRes] = await Promise.all([
         locationShiftApi.getAll().catch(() => ({ data: [] })),
         staffShiftApi.getAll().catch(() => ({ data: [] })),
         staffWorkRosterApi.getAll().catch(() => ({ data: [] })),
         userApi.getActiveUsers('cleaner').catch(() => ({ data: [] })),
         userApi.getActiveUsers('manager').catch(() => ({ data: [] })),
         locationApi.getAll().catch(() => ({ data: [] })),
-        podClusterApi.getAll(locationId).catch(() => ({ data: [] }))
+        podClusterApi.getAll(locationId).catch(() => ({ data: [] })),
+        staffAttendanceLogApi.getAll({ 
+          location_id: locationId, 
+          from_date: dayjs().startOf('day').toISOString(),
+          to_date: dayjs().endOf('day').toISOString() 
+        }).catch(() => ({ data: [] }))
       ])
+
+      setAttendanceLogs(attRes.data || [])
 
       const locations = lAllRes.data || []
       setAllLocations(locations)
@@ -245,13 +316,59 @@ const LocationShiftsTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
                         .map(r => {
                           const c = cleaners.find(x => x.id === r.staff_id || x._id === r.staff_id)
                           const cl = clusters.find(x => x.id === r.cluster_id)
+                          
+                          // Determine actual status from logs
+                          const logs = attendanceLogs.filter(l => l.staff_id === r.staff_id && l.shift_id === r.shift_id)
+                          const hasCheckin = logs.some(l => l.action === 'CHECKIN')
+                          const hasCheckout = logs.some(l => l.action === 'CHECKOUT')
+                          
+                          // Time check
+                          const now = dayjs()
+                          let isPastEnd = false
+                          if (shift) {
+                            const [eh, em] = (shift.end_time || '00:00').split(':').map(Number)
+                            let end = dayjs().hour(eh).minute(em).second(0)
+                            if (shift.start_time && shift.end_time && shift.end_time <= shift.start_time) {
+                              // Crosses midnight
+                              if (now.hour() >= 12) end = end.add(1, 'day')
+                              else end = end.subtract(0, 'day') // Current day early morning
+                            }
+                            isPastEnd = now.isAfter(end)
+                          }
+
+                          let statusColor = 'bg-gray-300' // Default: Not in shift
+                          let statusText = ''
+
+                          if (hasCheckout) {
+                            statusColor = 'bg-blue-400'
+                            statusText = 'Đã hoàn thành'
+                          } else if (hasCheckin) {
+                            if (isPastEnd) {
+                              statusColor = 'bg-rose-500 animate-pulse'
+                              statusText = 'Quá giờ / Chưa tan ca'
+                            } else {
+                              statusColor = 'bg-green-500'
+                              statusText = 'Đang trực'
+                            }
+                          } else if (isPastEnd) {
+                            statusColor = 'bg-gray-400'
+                            statusText = 'Vắng mặt'
+                          }
+
                           return (
-                            <div key={r.id} className="flex flex-col gap-0.5 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-100">
+                            <div key={r.id} className="flex flex-col gap-0.5 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-100 group relative">
                               <div className="flex items-center gap-1.5">
-                                <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                                <div className={`w-1.5 h-1.5 rounded-full ${statusColor}`} title={statusText} />
                                 <span className="text-xs font-bold text-gray-900">{c?.name || 'Unknown'}</span>
                               </div>
                               {cl && <span className="text-[10px] text-gray-400 font-bold ml-3 uppercase">{cl.name}</span>}
+                              
+                              {/* Tooltip on hover */}
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10">
+                                <div className="bg-gray-900 text-white text-[10px] py-1 px-2 rounded whitespace-nowrap shadow-xl">
+                                  {statusText || 'Chưa vào ca'}
+                                </div>
+                              </div>
                             </div>
                           )
                         })}

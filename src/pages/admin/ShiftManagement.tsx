@@ -413,8 +413,8 @@ const ManagerRostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
             {rosters
               .filter(r => {
                 const staff = managers.find(x => x.id === r.staff_id || x._id === r.staff_id);
-                // Only show managers in this tab
-                return staff?.role === 'manager';
+                // Only show managers with VALID location and shift
+                return staff?.role === 'manager' && r.location_id && r.shift_id;
               })
               .map(r => {
                 const m = managers.find(x => x.id === r.staff_id || x._id === r.staff_id)

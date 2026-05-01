@@ -9,6 +9,7 @@ import { useAuth } from '../../contexts/AuthContext'
 interface CheckinStatus {
   checked_in_today: boolean
   checked_out_today: boolean
+  can_checkin: boolean
   latest_checkin_at: string | null
 }
 
@@ -92,17 +93,23 @@ export const ManagerCheckinGate: React.FC<ManagerCheckinGateProps> = ({ children
     )
   }
 
-  // No roster assigned = let them through (manager may not have shift yet)
+  // Practical Business Logic:
+  // 1. If user is CURRENTLY working (checked in but not checked out), let them through to finish their work
+  if (status?.checked_in_today && !status?.checked_out_today) {
+    return <>{children}</>
+  }
+
+  // 2. If it's NOT the user's shift time (cannot check-in), let them through to see dashboard/info
+  if (status && !status.can_checkin) {
+    return <>{children}</>
+  }
+
+  // 3. If there's NO roster assigned, let them through
   if (noRoster) {
     return <>{children}</>
   }
 
-  // Already checked in today = allow through
-  if (status?.checked_in_today) {
-    return <>{children}</>
-  }
-
-  // NOT checked in = show blocking gate
+  // ONLY show the gate if they HAVE a shift right now (can_checkin is true) AND they haven't checked in yet
   return (
     <>
       {/* Blurred background content */}
@@ -117,16 +124,6 @@ export const ManagerCheckinGate: React.FC<ManagerCheckinGateProps> = ({ children
           <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
             {/* Top Banner */}
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-8 text-center relative">
-              {/* Logout button in top-right */}
-              <button
-                onClick={handleLogout}
-                title="Đăng xuất"
-                className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl transition-all backdrop-blur-sm"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                Đăng xuất
-              </button>
-
               <div className="w-20 h-20 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
                 <Shield className="w-10 h-10 text-white" />
               </div>

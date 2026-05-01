@@ -68,11 +68,13 @@ export const staffAttendanceLogApi = {
       date: string
       checked_in_today: boolean
       checked_out_today: boolean
+      can_checkin: boolean
       checkin_count: number
       checkout_count: number
       latest_checkin_at: string | null
       latest_checkout_at: string | null
       shift_ids: string[]
+      has_handover: boolean
     } }>('/staff-attendance-logs/me/today-status', {
       params: bustCache ? { _t: Date.now() } : undefined
     }).then((r) => r.data),

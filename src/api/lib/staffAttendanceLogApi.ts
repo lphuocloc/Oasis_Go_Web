@@ -62,4 +62,24 @@ export const staffAttendanceLogApi = {
 
   getById: (id: string) =>
     api.get<StaffAttendanceLogSingleResponse>(`/staff-attendance-logs/${id}`).then((r) => r.data),
+
+  getTodayStatus: (bustCache?: boolean) =>
+    api.get<{ success: boolean; data: {
+      date: string
+      checked_in_today: boolean
+      checked_out_today: boolean
+      checkin_count: number
+      checkout_count: number
+      latest_checkin_at: string | null
+      latest_checkout_at: string | null
+      shift_ids: string[]
+    } }>('/staff-attendance-logs/me/today-status', {
+      params: bustCache ? { _t: Date.now() } : undefined
+    }).then((r) => r.data),
+
+  checkin: () =>
+    api.post<{ success: boolean; message: string; data: StaffAttendanceLogItem }>('/staff-attendance-logs/checkin').then((r) => r.data),
+
+  checkout: () =>
+    api.post<{ success: boolean; message: string; data: StaffAttendanceLogItem }>('/staff-attendance-logs/checkout').then((r) => r.data),
 }

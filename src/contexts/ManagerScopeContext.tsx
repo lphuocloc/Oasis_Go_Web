@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { podClusterApi, type PodClusterItem } from '../api/lib/podClusterApi'
-import { locationShiftApi, type LocationShiftItem } from '../api/lib/locationShiftApi'
 import { locationApi } from '../api/lib/locationApi'
+import { staffWorkRosterApi } from '../api/lib/staffWorkRosterApi'
 
 interface ScopeLocationOption {
   id: string
@@ -28,26 +28,34 @@ export const ManagerScopeProvider: React.FC<{ children: ReactNode }> = ({ childr
   const refreshScope = useCallback(async () => {
     try {
       setIsLoading(true)
-      const locationShiftsResponse = await locationShiftApi.getAll()
 
-      const assignmentLocationIds = Array.from(new Set(locationShiftsResponse.data
-        .map((ls: LocationShiftItem) => ls.location_id)
-        .filter((id): id is string => Boolean(id))))
+      // Fetch rosters for the current logged-in manager (no filter = backend returns only theirs)
+      const rosterResponse = await staffWorkRosterApi.getAll()
+      const myRosters = rosterResponse.data || []
 
-      if (assignmentLocationIds.length === 0) {
+      // Collect all location IDs from the manager's own rosters
+      const myLocationIds = Array.from(new Set(
+        myRosters
+          .map(r => r.location_id)
+          .filter((id): id is string => Boolean(id))
+      ))
+
+      if (myLocationIds.length === 0) {
+        // No location assigned → no clusters
         setClusters([])
         return
       }
 
+      // For each location the manager is assigned to, fetch its descendants
       const descendantResponses = await Promise.all(
-        assignmentLocationIds.map((locationId) => locationApi.getDescendants(locationId))
+        myLocationIds.map((locationId) => locationApi.getDescendants(locationId))
       )
 
       const descendantLocationIds = descendantResponses
         .flatMap((response) => response.data)
         .map((location) => location.id)
 
-      const scopedLocationIds = Array.from(new Set([...assignmentLocationIds, ...descendantLocationIds]))
+      const scopedLocationIds = Array.from(new Set([...myLocationIds, ...descendantLocationIds]))
 
       const clusterResponses = await Promise.all(
         scopedLocationIds.map((locationId) => podClusterApi.getAll(locationId))

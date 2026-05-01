@@ -99,7 +99,14 @@ const ManagerAttendanceWidget = () => {
       await staffAttendanceLogApi.checkout()
       toast.success('Đã check-out thành công! Hẹn gặp lại.')
       fetchStatus()
-    } catch (e: any) { toast.error(e.response?.data?.message || 'Check-out thất bại') }
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || ''
+      if (msg.toLowerCase().includes('ngoài khung giờ') || msg.toLowerCase().includes('outside') || e?.response?.status === 400) {
+        toast.error(`⏰ ${msg || 'Thời điểm hiện tại nằm ngoài khung giờ ca trực'}. Vui lòng check-out trong giờ ca của bạn.`)
+      } else {
+        toast.error(msg || 'Check-out thất bại')
+      }
+    }
     finally { setIsActing(false) }
   }
 

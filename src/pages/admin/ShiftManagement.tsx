@@ -353,11 +353,15 @@ const ManagerRostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
   const fetchData = async () => {
     try {
       setIsLoading(true)
-      const [rR, mR, lR, lsR, sR] = await Promise.all([
-        staffWorkRosterApi.getAll(), userApi.getActiveUsers('manager'),
+      const [rR, mR, cR, lR, lsR, sR] = await Promise.all([
+        staffWorkRosterApi.getAll(), 
+        userApi.getActiveUsers('manager'),
+        userApi.getActiveUsers('cleaner'),
         locationApi.getAll({ isActive: 'true' }), locationShiftApi.getAll(), staffShiftApi.getAll()
       ])
-      setRosters(rR.data || []); setManagers(mR.data || [])
+      // Merge managers + cleaners so we can resolve names for ANY staff_id
+      const allStaff = [...(mR.data || []), ...(cR.data || [])]
+      setRosters(rR.data || []); setManagers(allStaff)
       setLocations(lR.data || []); setLocShifts(lsR.data || []); setShifts(sR.data || [])
     } catch { toast.error('Lỗi tải dữ liệu') } finally { setIsLoading(false) }
   }
@@ -406,20 +410,32 @@ const ManagerRostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {rosters.filter(r => r.location_id).map(r => {
-              const m = managers.find(x => x.id === r.staff_id || x._id === r.staff_id)
-              const loc = locations.find(x => x.id === r.location_id)
-              const s = shifts.find(x => x.id === r.shift_id)
-              const c = getShiftColor(s?.shift_name || '')
-              return (
-                <tr key={r.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4"><div className="font-bold text-gray-900">{m?.name || r.staff_id}</div><div className="text-xs text-gray-500">{m?.email}</div></td>
-                  <td className="px-6 py-4 font-medium text-gray-700">{loc?.name || 'N/A'}</td>
-                  <td className="px-6 py-4">{s ? <span className={`px-3 py-1 rounded-full text-xs font-bold border ${c.bg} ${c.text} ${c.border}`}>{s.shift_name} ({s.start_time}-{s.end_time})</span> : 'N/A'}</td>
-                  <td className="px-6 py-4 text-right"><button onClick={() => handleDelete(r.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button></td>
-                </tr>
-              )
-            })}
+            {rosters
+              .filter(r => {
+                const staff = managers.find(x => x.id === r.staff_id || x._id === r.staff_id);
+                // Only show managers in this tab
+                return staff?.role === 'manager';
+              })
+              .map(r => {
+                const m = managers.find(x => x.id === r.staff_id || x._id === r.staff_id)
+                const loc = locations.find(x => x.id === r.location_id)
+                const s = shifts.find(x => x.id === r.shift_id)
+                const c = getShiftColor(s?.shift_name || '')
+                return (
+                  <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <div className="font-bold text-gray-900">{m?.name || <span className="text-red-400 font-mono text-xs">{r.staff_id}</span>}</div>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider bg-blue-100 text-blue-700">manager</span>
+                      </div>
+                      <div className="text-xs text-gray-500">{m?.email}</div>
+                    </td>
+                    <td className="px-6 py-4 font-medium text-gray-700">{loc?.name || 'N/A'}</td>
+                    <td className="px-6 py-4">{s ? <span className={`px-3 py-1 rounded-full text-xs font-bold border ${c.bg} ${c.text} ${c.border}`}>{s.shift_name} ({s.start_time}-{s.end_time})</span> : 'N/A'}</td>
+                    <td className="px-6 py-4 text-right"><button onClick={() => handleDelete(r.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button></td>
+                  </tr>
+                )
+              })}
           </tbody>
         </table>
       </div>

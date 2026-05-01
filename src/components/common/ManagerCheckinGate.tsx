@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react'
-import { LogIn, Clock, Shield, RefreshCw } from 'lucide-react'
+import { LogIn, Clock, Shield, RefreshCw, LogOut, User, AlertTriangle } from 'lucide-react'
 import { toast } from 'react-toastify'
 import dayjs from 'dayjs'
 import { useNavigate } from 'react-router-dom'
 import { staffAttendanceLogApi } from '../../api/lib/staffAttendanceLogApi'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface CheckinStatus {
   checked_in_today: boolean
@@ -14,12 +15,15 @@ interface CheckinStatus {
 interface ManagerCheckinGateProps {
   children: React.ReactNode
 }
+
 export const ManagerCheckinGate: React.FC<ManagerCheckinGateProps> = ({ children }) => {
   const [status, setStatus] = useState<CheckinStatus | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isActing, setIsActing] = useState(false)
   const [noRoster, setNoRoster] = useState<boolean | null>(null)
+  const [checkinError, setCheckinError] = useState<string | null>(null)
   const navigate = useNavigate()
+  const { logout, user } = useAuth()
 
   const fetchStatus = async (bustCache = true) => {
     try {
@@ -43,19 +47,37 @@ export const ManagerCheckinGate: React.FC<ManagerCheckinGateProps> = ({ children
 
   const handleCheckin = async () => {
     setIsActing(true)
+    setCheckinError(null)
     try {
       await staffAttendanceLogApi.checkin()
       toast.success('✅ Check-in thành công! Chào mừng bạn vào ca trực.')
-      // Force fresh fetch with cache buster after checkin
       await fetchStatus(true)
-      // Redirect to dashboard after check-in
       navigate('/manager')
     } catch (e: any) {
-      const msg = e?.response?.data?.message || 'Check-in thất bại'
-      toast.error(msg)
+      const status = e?.response?.status
+      const serverMsg = e?.response?.data?.message
+
+      let userMsg: string
+      if (status === 404) {
+        userMsg = 'Không tìm thấy ca làm việc cho hôm nay. Hãy liên hệ Admin để được phân ca, hoặc kiểm tra lại tài khoản đang đăng nhập.'
+      } else if (status === 403) {
+        userMsg = 'Bạn không có quyền check-in. Vui lòng đăng nhập đúng tài khoản Manager.'
+      } else if (status === 400) {
+        userMsg = serverMsg || 'Bạn đã check-in hôm nay rồi.'
+      } else {
+        userMsg = serverMsg || 'Check-in thất bại. Vui lòng thử lại.'
+      }
+
+      setCheckinError(userMsg)
+      toast.error(userMsg)
     } finally {
       setIsActing(false)
     }
+  }
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
   }
 
   // Loading state
@@ -94,7 +116,17 @@ export const ManagerCheckinGate: React.FC<ManagerCheckinGateProps> = ({ children
           {/* Card */}
           <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
             {/* Top Banner */}
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-8 text-center">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-8 text-center relative">
+              {/* Logout button in top-right */}
+              <button
+                onClick={handleLogout}
+                title="Đăng xuất"
+                className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl transition-all backdrop-blur-sm"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                Đăng xuất
+              </button>
+
               <div className="w-20 h-20 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
                 <Shield className="w-10 h-10 text-white" />
               </div>
@@ -103,7 +135,21 @@ export const ManagerCheckinGate: React.FC<ManagerCheckinGateProps> = ({ children
             </div>
 
             {/* Body */}
-            <div className="px-8 py-7 space-y-5">
+            <div className="px-8 py-7 space-y-4">
+              {/* Logged-in user info */}
+              {user && (
+                <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
+                  <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shrink-0">
+                    <User className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-blue-500 uppercase tracking-wide">Đang đăng nhập</div>
+                    <div className="text-sm font-bold text-blue-900 truncate">{user.name}</div>
+                    <div className="text-xs text-blue-400 truncate">{user.email}</div>
+                  </div>
+                </div>
+              )}
+
               {/* Time display */}
               <div className="flex items-center gap-4 bg-gray-50 rounded-2xl p-4">
                 <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center shrink-0">
@@ -115,12 +161,26 @@ export const ManagerCheckinGate: React.FC<ManagerCheckinGateProps> = ({ children
                 </div>
               </div>
 
-              {/* Status info */}
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-                <p className="text-sm text-amber-800 font-medium">
-                  ⚠️ Bạn chưa check-in cho hôm nay. Hệ thống yêu cầu check-in trước khi bắt đầu ca trực để xác nhận sự hiện diện.
-                </p>
-              </div>
+              {/* Error message if checkin failed */}
+              {checkinError ? (
+                <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex gap-3">
+                  <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold text-red-700 mb-1">Không thể check-in</p>
+                    <p className="text-xs text-red-600">{checkinError}</p>
+                    <p className="text-xs text-red-400 mt-2">
+                      Nếu bạn đăng nhập nhầm tài khoản, hãy nhấn <strong>"Đăng xuất"</strong> để thử lại.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                /* Default warning */
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+                  <p className="text-sm text-amber-800 font-medium">
+                    ⚠️ Bạn chưa check-in cho hôm nay. Hệ thống yêu cầu check-in trước khi bắt đầu ca trực để xác nhận sự hiện diện.
+                  </p>
+                </div>
+              )}
 
               {/* Checkin button */}
               <button
@@ -134,6 +194,15 @@ export const ManagerCheckinGate: React.FC<ManagerCheckinGateProps> = ({ children
                   <LogIn className="w-5 h-5" />
                 )}
                 {isActing ? 'Đang xử lý...' : 'Check-in Bắt Đầu Ca'}
+              </button>
+
+              {/* Logout button (secondary) */}
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center gap-2 py-3 border-2 border-gray-200 text-gray-500 hover:border-red-200 hover:text-red-500 hover:bg-red-50 font-semibold text-sm rounded-2xl transition-all"
+              >
+                <LogOut className="w-4 h-4" />
+                Đăng xuất &amp; Đổi tài khoản
               </button>
 
               <p className="text-center text-xs text-gray-400">

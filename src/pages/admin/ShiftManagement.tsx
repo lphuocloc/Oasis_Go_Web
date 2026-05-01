@@ -12,7 +12,7 @@ import { userApi, type UserListItem } from '../../api/lib/userApi'
 import { locationApi, type LocationItem } from '../../api/lib/locationApi'
 import { initUserSocket } from '../../lib/socket'
 
-type TabType = 'STAFF_SHIFTS' | 'LOCATION_SHIFTS' | 'ROSTERS' | 'ATTENDANCE'
+type TabType = 'STAFF_SHIFTS' | 'LOCATION_SHIFTS' | 'MANAGER_ROSTERS' | 'ATTENDANCE'
 
 const getShiftColor = (name: string) => {
   const n = name.toUpperCase()
@@ -340,7 +340,7 @@ const LocationShiftsTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
 
 
 
-const RostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
+const ManagerRostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
   const [rosters, setRosters] = useState<StaffWorkRosterItem[]>([])
   const [managers, setManagers] = useState<UserListItem[]>([])
   const [locations, setLocations] = useState<LocationItem[]>([])
@@ -461,6 +461,153 @@ const RostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
   )
 }
 
+// ========== TAB: CLEANER ROSTERS ==========
+const CleanerRostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
+  const [rosters, setRosters] = useState<StaffWorkRosterItem[]>([])
+  const [cleaners, setCleaners] = useState<UserListItem[]>([])
+  const [locations, setLocations] = useState<LocationItem[]>([])
+  const [clusters, setClusters] = useState<PodClusterItem[]>([])
+  const [shifts, setShifts] = useState<StaffShiftItem[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [formData, setFormData] = useState({ staff_id: '', location_id: '', cluster_id: '', shift_id: '' })
+
+  const fetchData = async () => {
+    try {
+      setIsLoading(true)
+      const [rR, cR, lR, clR, sR] = await Promise.all([
+        staffWorkRosterApi.getAll().catch(() => ({ data: [] })),
+        userApi.getActiveUsers('cleaner').catch(() => ({ data: [] })),
+        locationApi.getAll({ isActive: 'true' }).catch(() => ({ data: [] })),
+        podClusterApi.getAll().catch(() => ({ data: [] })),
+        staffShiftApi.getAll().catch(() => ({ data: [] }))
+      ])
+      
+      const allClusters = clR.data || []
+      const clusterIds = allClusters.map(x => x.id)
+      
+      setRosters((rR.data || []).filter(r => clusterIds.includes(r.cluster_id || '') || r.cluster_id))
+      setCleaners(cR.data || [])
+      setLocations(lR.data || [])
+      setClusters(allClusters)
+      setShifts(sR.data || [])
+    } catch { toast.error('Lỗi tải dữ liệu') } finally { setIsLoading(false) }
+  }
+  
+  useEffect(() => { fetchData() }, [refreshTrigger])
+
+  const childLocations = locations.filter(l => l.parent_id)
+  const availableClusters = clusters.filter(cl => cl.location_id === formData.location_id)
+  const handleDelete = async (id: string) => {
+    if (!confirm('Xóa roster của cleaner này?')) return
+    try {
+      await staffWorkRosterApi.delete(id)
+      toast.success('Đã xóa roster')
+      fetchData()
+    } catch { toast.error('Xóa thất bại') }
+  }
+
+  const handleSubmit = async () => {
+    if (!formData.staff_id || !formData.cluster_id || !formData.shift_id) return toast.error('Vui lòng điền đủ thông tin')
+
+    try {
+      await staffWorkRosterApi.create({
+        ...formData
+      })
+      toast.success('Đã gán roster thành công')
+      setIsModalOpen(false)
+      fetchData()
+    } catch (err: any) { toast.error(err.response?.data?.message || 'Lỗi tạo roster') }
+  }
+
+  return (
+    <div>
+      <SectionHeader title="Roster Cleaner" description="Gán nhân viên dọn dẹp vào cụm Pod (Cluster) cố định trên toàn hệ thống." onRefresh={fetchData} isLoading={isLoading}
+        rightAction={
+          <button onClick={() => { setFormData({ staff_id: '', location_id: '', cluster_id: '', shift_id: '' }); setIsModalOpen(true) }} className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-100">
+            <Plus className="w-4 h-4" /> Thêm Roster
+          </button>
+        }
+      />
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <table className="w-full text-sm text-left">
+          <thead className="bg-gray-50 border-b border-gray-100">
+            <tr>
+              <th className="px-6 py-4 font-bold text-gray-700">Cleaner</th>
+              <th className="px-6 py-4 font-bold text-gray-700">Khu Vực</th>
+              <th className="px-6 py-4 font-bold text-gray-700">Cluster</th>
+              <th className="px-6 py-4 font-bold text-gray-700">Ca Trực</th>
+              <th className="px-6 py-4 font-bold text-gray-700 text-right">Thao Tác</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {rosters.map(r => {
+              const c = cleaners.find(x => x.id === r.staff_id || x._id === r.staff_id)
+              const cl = clusters.find(x => x.id === r.cluster_id)
+              const loc = locations.find(x => x.id === cl?.location_id)
+              const s = shifts.find(x => x.id === r.shift_id)
+              const colors = getShiftColor(s?.shift_name || '')
+              return (
+                <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="font-bold text-gray-900">{c?.name || r.staff_id}</div>
+                    <div className="text-xs text-gray-500 font-mono">{c?.id}</div>
+                  </td>
+                  <td className="px-6 py-4 font-medium text-gray-700">{loc?.name || 'N/A'}</td>
+                  <td className="px-6 py-4 font-medium text-gray-700">{cl?.name || 'N/A'}</td>
+                  <td className="px-6 py-4">
+                    {s ? <span className={`px-3 py-1 rounded-full text-xs font-bold border ${colors.bg} ${colors.text} ${colors.border}`}>{s.shift_name} ({s.start_time}-{s.end_time})</span> : 'N/A'}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <button onClick={() => handleDelete(r.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"><Trash2 className="w-4 h-4" /></button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Gán Roster Cleaner" size="md">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Nhân Viên Dọn Dẹp</label>
+            <select value={formData.staff_id} onChange={e => setFormData({ ...formData, staff_id: e.target.value })} className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500">
+              <option value="">-- Chọn Cleaner --</option>
+              {cleaners.map(c => <option key={c.id || c._id} value={c.id || c._id}>{c.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Khu Vực (Location)</label>
+            <select value={formData.location_id} onChange={e => setFormData({ ...formData, location_id: e.target.value, cluster_id: '', shift_id: '' })} className="w-full px-4 py-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-blue-500">
+              <option value="">-- Chọn Khu Vực --</option>
+              {childLocations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Cluster</label>
+            <select disabled={!formData.location_id} value={formData.cluster_id} onChange={e => setFormData({ ...formData, cluster_id: e.target.value })} className="w-full px-4 py-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50">
+              <option value="">-- Chọn Cluster --</option>
+              {availableClusters.map(cl => <option key={cl.id} value={cl.id}>{cl.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Ca Trực</label>
+            <select value={formData.shift_id} onChange={e => setFormData({ ...formData, shift_id: e.target.value })} className="w-full px-4 py-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-blue-500">
+              <option value="">-- Chọn Ca Trực --</option>
+              {shifts.map(s => <option key={s.id} value={s.id}>{s.shift_name} ({s.start_time}-{s.end_time})</option>)}
+            </select>
+          </div>
+          <div className="pt-6 flex justify-end gap-3">
+            <button onClick={() => setIsModalOpen(false)} className="px-6 py-3 font-bold text-gray-500 hover:bg-gray-100 rounded-xl transition-all">Hủy</button>
+            <button onClick={handleSubmit} className="px-8 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all">Gán Roster</button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  )
+}
+
 
 // ========== TAB 4: ATTENDANCE (Live Logs) ==========
 const AttendanceTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
@@ -551,7 +698,7 @@ export const AdminShiftManagement = () => {
   const TABS: { id: TabType; label: string; icon: any }[] = [
     { id: 'STAFF_SHIFTS', label: 'Mẫu Ca', icon: <Clock className="w-4 h-4" /> },
     { id: 'LOCATION_SHIFTS', label: 'Khu Vực', icon: <MapPin className="w-4 h-4" /> },
-    { id: 'ROSTERS', label: 'Roster Manager', icon: <CalendarDays className="w-4 h-4" /> },
+    { id: 'MANAGER_ROSTERS', label: 'Roster Manager', icon: <CalendarDays className="w-4 h-4" /> },
     { id: 'ATTENDANCE', label: 'Điểm Danh', icon: <LogIn className="w-4 h-4" /> },
   ]
 
@@ -575,7 +722,7 @@ export const AdminShiftManagement = () => {
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           {activeTab === 'STAFF_SHIFTS' && <StaffShiftsTab refreshTrigger={refreshTrigger} />}
           {activeTab === 'LOCATION_SHIFTS' && <LocationShiftsTab refreshTrigger={refreshTrigger} />}
-          {activeTab === 'ROSTERS' && <RostersTab refreshTrigger={refreshTrigger} />}
+          {activeTab === 'MANAGER_ROSTERS' && <ManagerRostersTab refreshTrigger={refreshTrigger} />}
           {activeTab === 'ATTENDANCE' && <AttendanceTab refreshTrigger={refreshTrigger} />}
         </div>
       </div>

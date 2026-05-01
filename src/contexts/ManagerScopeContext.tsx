@@ -12,6 +12,9 @@ interface ManagerScopeContextType {
   clusters: PodClusterItem[]
   locationOptions: ScopeLocationOption[]
   isLoading: boolean
+  locationId: string | null
+  selectedLocationId: string | null
+  setSelectedLocationId: (id: string | null) => void
   refreshScope: () => Promise<void>
 }
 
@@ -20,6 +23,7 @@ const ManagerScopeContext = createContext<ManagerScopeContextType | undefined>(u
 export const ManagerScopeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [clusters, setClusters] = useState<PodClusterItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
 
   const refreshScope = useCallback(async () => {
     try {
@@ -75,8 +79,22 @@ export const ManagerScopeProvider: React.FC<{ children: ReactNode }> = ({ childr
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }))
   }, [clusters])
 
+  useEffect(() => {
+    if (locationOptions.length > 0 && !selectedLocationId) {
+      setSelectedLocationId(locationOptions[0].id)
+    }
+  }, [locationOptions, selectedLocationId])
+
   return (
-    <ManagerScopeContext.Provider value={{ clusters, locationOptions, isLoading, refreshScope }}>
+    <ManagerScopeContext.Provider value={{ 
+      clusters, 
+      locationOptions, 
+      isLoading, 
+      locationId: selectedLocationId,
+      selectedLocationId, 
+      setSelectedLocationId,
+      refreshScope 
+    }}>
       {children}
     </ManagerScopeContext.Provider>
   )

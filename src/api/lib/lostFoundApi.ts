@@ -2,12 +2,22 @@ import { api } from '../api'
 
 export const LOST_FOUND_STATUSES = [
   'FOUND',
-  'CLAIMED',
-  'DISPOSED',
-  'RETURNED_TO_USER'
+  'IN_STORAGE',
+  'CLAIM_PENDING',
+  'RETURNED',
+  'DISPOSED'
 ] as const
 
 export type LostFoundStatus = (typeof LOST_FOUND_STATUSES)[number]
+
+export const LOST_ITEM_REQUEST_STATUSES = [
+  'PENDING',
+  'MATCHED',
+  'CLOSED',
+  'REJECTED'
+] as const
+
+export type LostItemRequestStatus = (typeof LOST_ITEM_REQUEST_STATUSES)[number]
 
 export interface LostFoundItem {
   id: string
@@ -17,19 +27,40 @@ export interface LostFoundItem {
   warehouse_id?: string | null
   item_name: string
   description?: string | null
-  photo_url?: string | null
+  photo_urls?: string[] // Backend returns array of media urls
   found_at: string
   status: LostFoundStatus
   claimed_by_user_id?: string | null
   claimed_at?: string | null
   created_at: string
   updated_at: string
+  serial_number: string
   
   // Mapped entities
   pod?: {
     id: string
     code: string
     name: string
+  }
+}
+
+export interface LostItemRequest {
+  id: string
+  user_id: string
+  booking_id: string
+  item_name_reported: string
+  description_reported?: string | null
+  status: LostItemRequestStatus
+  matched_found_item_id?: string | null
+  manager_note?: string | null
+  created_at: string
+  updated_at: string
+  
+  // Populated fields if any
+  user?: {
+    id: string
+    full_name: string
+    phone_number: string
   }
 }
 
@@ -47,64 +78,79 @@ interface LostFoundListResponse {
   pagination?: PaginationMeta
 }
 
+interface LostItemRequestListResponse {
+  success: boolean
+  count: number
+  data: LostItemRequest[]
+  pagination?: PaginationMeta
+}
+
 interface LostFoundSingleResponse {
   success: boolean
   message?: string
   data: LostFoundItem
 }
 
+interface LostItemRequestSingleResponse {
+  success: boolean
+  message?: string
+  data: LostItemRequest
+}
+
 export interface LostFoundListFilters {
   pod_id?: string
   booking_id?: string
   found_by_user_id?: string
+  serial_number?: string
   status?: LostFoundStatus
   page?: number
   limit?: number
 }
 
+export interface LostItemRequestListFilters {
+  status?: LostItemRequestStatus
+  user_id?: string
+  page?: number
+  limit?: number
+}
+
 export interface LostFoundCreatePayload {
+  pod_id: string
   item_name: string
   description?: string
-  pod_id?: string
-  warehouse_id?: string
-  photo?: File
+  found_at?: string
+  media?: File[]
 }
 
-export interface LostFoundStatusUpdatePayload {
-  status: LostFoundStatus
-}
-
-const buildParams = (filters?: LostFoundListFilters): URLSearchParams => {
+const buildParams = (filters?: any): URLSearchParams => {
   const params = new URLSearchParams()
-  if (filters?.pod_id) params.append('pod_id', filters.pod_id)
-  if (filters?.booking_id) params.append('booking_id', filters.booking_id)
-  if (filters?.found_by_user_id) params.append('found_by_user_id', filters.found_by_user_id)
-  if (filters?.status) params.append('status', filters.status)
-  if (filters?.page) params.append('page', String(filters.page))
-  if (filters?.limit) params.append('limit', String(filters.limit))
+  if (!filters) return params
+  Object.keys(filters).forEach(key => {
+    if (filters[key] !== undefined && filters[key] !== null) {
+      params.append(key, String(filters[key]))
+    }
+  })
   return params
 }
 
 export const lostFoundApi = {
+  // --- Items ---
   getAll: (filters?: LostFoundListFilters) => {
     const params = buildParams(filters)
     return api.get<LostFoundListResponse>('/lost-found-items', { params }).then((r) => r.data)
-  },
-
-  getMy: (filters?: Omit<LostFoundListFilters, 'found_by_user_id'>) => {
-    const params = buildParams(filters)
-    return api.get<LostFoundListResponse>('/lost-found-items/my', { params }).then((r) => r.data)
   },
 
   getById: (id: string) => api.get<LostFoundSingleResponse>(`/lost-found-items/${id}`).then((r) => r.data),
 
   create: (payload: LostFoundCreatePayload) => {
     const formData = new FormData()
+    formData.append('pod_id', payload.pod_id)
     formData.append('item_name', payload.item_name)
     if (payload.description) formData.append('description', payload.description)
-    if (payload.pod_id) formData.append('pod_id', payload.pod_id)
-    if (payload.warehouse_id) formData.append('warehouse_id', payload.warehouse_id)
-    if (payload.photo) formData.append('photo', payload.photo)
+    if (payload.found_at) formData.append('found_at', payload.found_at)
+    if (payload.media) {
+      payload.media.forEach(file => formData.append('media', file))
+    }
 
     return api.post<LostFoundSingleResponse>('/lost-found-items', formData, {
       headers: {
@@ -113,6 +159,26 @@ export const lostFoundApi = {
     }).then((r) => r.data)
   },
 
-  updateStatus: (id: string, payload: LostFoundStatusUpdatePayload) =>
-    api.patch<LostFoundSingleResponse>(`/lost-found-items/${id}/status`, payload).then((r) => r.data),
+  storeToWarehouse: (id: string, warehouse_id: string) =>
+    api.post<LostFoundSingleResponse>(`/lost-found-items/${id}/store`, { warehouse_id }).then((r) => r.data),
+
+  generateHandoverOTP: (id: string) =>
+    api.post<{ success: boolean, message: string, otp_expires_at: string }>(`/lost-found-items/${id}/generate-otp`).then((r) => r.data),
+
+  confirmHandover: (id: string, otp: string) =>
+    api.post<LostFoundSingleResponse>(`/lost-found-items/${id}/handover`, { otp }).then((r) => r.data),
+
+  // --- Requests ---
+  getRequests: (filters?: LostItemRequestListFilters) => {
+    const params = buildParams(filters)
+    return api.get<LostItemRequestListResponse>('/lost-found-items/requests', { params }).then((r) => r.data)
+  },
+
+  getRequestById: (id: string) => api.get<LostItemRequestSingleResponse>(`/lost-found-items/requests/${id}`).then((r) => r.data),
+
+  matchRequest: (id: string, payload: { found_item_id: string, manager_note?: string }) =>
+    api.post<{ success: boolean, message: string, data: { request: LostItemRequest, found_item: LostFoundItem } }>(`/lost-found-items/requests/${id}/match`, payload).then((r) => r.data),
+
+  rejectRequest: (id: string, payload: { manager_note?: string }) =>
+    api.post<LostItemRequestSingleResponse>(`/lost-found-items/requests/${id}/reject`, payload).then((r) => r.data),
 }

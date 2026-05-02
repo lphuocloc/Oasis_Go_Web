@@ -88,11 +88,11 @@ export const userApi = {
   },
 
   updateProfile: (data: UpdateProfileRequest) => {
-    return api.put<UpdateProfileResponse>('/users/profile', data).then((r) => r.data)
+    return api.put<UpdateProfileResponse>('/auth/update-profile', data).then((r) => r.data)
   },
   
   getProfile: () => {
-    return api.get<UpdateProfileResponse>('/users/profile').then((r) => r.data)
+    return api.get<UpdateProfileResponse>('/auth/me').then((r) => r.data)
   },
 
   getActiveUsers: async (role?: string) => {

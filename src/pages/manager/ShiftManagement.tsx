@@ -698,6 +698,7 @@ const RostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
 // ========== TAB 4: ATTENDANCE (Live Logs) ==========
 const AttendanceTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
   const { locationId } = useManagerScope()
+  const { user } = useAuth()
   const [logs, setLogs] = useState<StaffAttendanceLogItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'))
@@ -706,8 +707,23 @@ const AttendanceTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
     if (!locationId) return
     try {
       setIsLoading(true)
-      const res = await staffAttendanceLogApi.getAll({ location_id: locationId, date: selectedDate, limit: 100 })
-      setLogs((res.data || []).filter(l => l.staff?.role === 'cleaner'))
+      const [res, rRes] = await Promise.all([
+        staffAttendanceLogApi.getAll({ location_id: locationId, date: selectedDate, limit: 100 }),
+        staffWorkRosterApi.getAll().catch(() => ({ data: [] }))
+      ])
+
+      const myShifts = (rRes.data || []).filter(r => r.staff_id === user?.id || r.staff_id === (user as any)?._id).map(r => r.shift_id)
+
+      console.log("Raw logs:", res.data);
+      console.log("My shifts:", myShifts);
+
+      const filteredLogs = (res.data || []).filter(l => {
+        console.log("Log staff:", l.staff, "shift:", l.shift_id);
+        return l.staff?.role === 'cleaner' && (l.shift_id && myShifts.includes(l.shift_id));
+      });
+      console.log("Filtered logs:", filteredLogs);
+
+      setLogs(filteredLogs)
     } catch { toast.error('Lỗi tải nhật ký điểm danh') } finally { setIsLoading(false) }
   }
 

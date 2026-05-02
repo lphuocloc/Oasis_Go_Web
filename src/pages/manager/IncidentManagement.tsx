@@ -17,6 +17,7 @@ import { podApi, type PodItem } from '../../api/lib/podApi'
 import { bookingApi } from '../../api/lib/bookingApi'
 import { bookingOrderApi, type OrderIncidentItem, type BookingOrderDetail } from '../../api/lib/bookingOrderApi'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
+import { useCheckinContext } from '../../components/common/ManagerCheckinGate'
 import { initUserSocket } from '../../lib/socket'
 
 const statusBadgeClass = (status: IncidentStatus) => {
@@ -117,6 +118,7 @@ export interface OrderIncidentGroup {
 
 export const IncidentManagement = () => {
   const { clusters, refreshScope } = useManagerScope()
+  const { isReadOnly } = useCheckinContext()
 
   const [reports, setReports] = useState<DamageReportItem[]>([])
   const [pods, setPods] = useState<PodItem[]>([])
@@ -734,7 +736,7 @@ export const IncidentManagement = () => {
                 </h4>
                 <button
                   onClick={handleCreateDamageBill}
-                  disabled={isCreatingDamageBill || orderIncidents.filter(i => i.incident_type !== 'REPLENISHMENT_REQUEST').some(i => !['RESOLVED', 'DISMISSED'].includes(i.status)) || orderIncidents.filter(i => i.incident_type !== 'REPLENISHMENT_REQUEST' && i.status === 'RESOLVED').length === 0}
+                  disabled={isCreatingDamageBill || orderIncidents.filter(i => i.incident_type !== 'REPLENISHMENT_REQUEST').some(i => !['RESOLVED', 'DISMISSED'].includes(i.status)) || orderIncidents.filter(i => i.incident_type !== 'REPLENISHMENT_REQUEST' && i.status === 'RESOLVED').length === 0 || isReadOnly}
                   className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
                 >
                   {isCreatingDamageBill ? 'Đang tạo Hóa đơn...' : 'Tạo hóa đơn đền bù'}
@@ -781,7 +783,8 @@ export const IncidentManagement = () => {
                                 e.stopPropagation()
                                 openReviewModal(inc as any)
                               }}
-                              className="mt-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-700 w-full md:w-auto"
+                              disabled={isReadOnly}
+                              className="mt-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50 w-full md:w-auto"
                             >
                               Tiến hành Duyệt
                             </button>
@@ -1001,7 +1004,8 @@ export const IncidentManagement = () => {
                   onClick={() => {
                     if (detailReport) openReviewModal(detailReport)
                   }}
-                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+                  disabled={isReadOnly}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
                 >
                   Tiến hành duyệt sự cố này
                 </button>
@@ -1063,7 +1067,7 @@ export const IncidentManagement = () => {
               Hủy bỏ
             </button>
             <button
-              disabled={isReviewSaving}
+              disabled={isReviewSaving || isReadOnly}
               onClick={handleSubmitReview}
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-60"
             >

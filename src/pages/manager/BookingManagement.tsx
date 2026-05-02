@@ -40,6 +40,7 @@ import {
 import { podApi, type PodItem } from '../../api/lib/podApi'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
 import { PodGridSelector } from '../../components/common/PodGridSelector'
+import { useCheckinContext } from '../../components/common/ManagerCheckinGate'
 import { initUserSocket } from '../../lib/socket'
 
 type ActiveTab = 'bookings' | 'orders'
@@ -163,6 +164,7 @@ const incidentSeverityBadgeClass = (severity: string) => {
 
 export const BookingManagement = () => {
   const { clusters, isLoading: isScopeLoading, refreshScope } = useManagerScope()
+  const { isReadOnly } = useCheckinContext()
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('bookings')
   const [pods, setPods] = useState<PodItem[]>([])
@@ -752,7 +754,7 @@ export const BookingManagement = () => {
                               <button
                                 type="button"
                                 onClick={() => handleToggleCleanerAccess(booking)}
-                                disabled={isUpdating}
+                                disabled={isUpdating || isReadOnly}
                                 className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-gray-200 text-xs text-gray-700 hover:bg-gray-100 disabled:opacity-60"
                               >
                                 {booking.cleaner_access_allowed ? (
@@ -1414,7 +1416,7 @@ export const BookingManagement = () => {
                     <h3 className="text-sm font-semibold text-gray-900">Sự cố của đơn hàng này</h3>
                     <button
                       onClick={handleCreateDamageBill}
-                      disabled={isCreatingDamageBill || selectedOrderIncidents.some(i => i.status === 'PENDING') || selectedOrderIncidents.filter(i => i.status === 'RESOLVED').length === 0}
+                      disabled={isCreatingDamageBill || selectedOrderIncidents.some(i => i.status === 'PENDING') || selectedOrderIncidents.filter(i => i.status === 'RESOLVED').length === 0 || isReadOnly}
                       className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
                     >
                       {isCreatingDamageBill ? 'Đang tạo Hóa đơn...' : 'Tạo hóa đơn đền bù cho đơn hàng'}

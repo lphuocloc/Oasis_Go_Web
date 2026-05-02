@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState } from 'react'
 import { LogIn, Clock, Shield, RefreshCw, LogOut, User, AlertTriangle } from 'lucide-react'
 import { toast } from 'react-toastify'
 import dayjs from 'dayjs'
@@ -17,10 +17,20 @@ interface ManagerCheckinGateProps {
   children: React.ReactNode
 }
 
+interface CheckinContextType {
+  isReadOnly: boolean
+}
+
+export const CheckinContext = createContext<CheckinContextType>({ isReadOnly: false })
+
+export const useCheckinContext = () => useContext(CheckinContext)
+
+
 export const ManagerCheckinGate: React.FC<ManagerCheckinGateProps> = ({ children }) => {
   const [status, setStatus] = useState<CheckinStatus | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isActing, setIsActing] = useState(false)
+  const [isSkipped, setIsSkipped] = useState(false)
   const [noRoster, setNoRoster] = useState<boolean | null>(null)
   const [checkinError, setCheckinError] = useState<string | null>(null)
   const navigate = useNavigate()
@@ -93,20 +103,29 @@ export const ManagerCheckinGate: React.FC<ManagerCheckinGateProps> = ({ children
     )
   }
 
-  // Practical Business Logic:
   // 1. If user is CURRENTLY working (checked in but not checked out), let them through to finish their work
   if (status?.checked_in_today && !status?.checked_out_today) {
-    return <>{children}</>
+    return <CheckinContext.Provider value={{ isReadOnly: false }}>{children}</CheckinContext.Provider>
   }
 
-  // 2. If it's NOT the user's shift time (cannot check-in), let them through to see dashboard/info
+  // 1.5. If user has COMPLETED their shift (checked in AND checked out), let them through in read-only mode
+  if (status?.checked_in_today && status?.checked_out_today) {
+    return <CheckinContext.Provider value={{ isReadOnly: true }}>{children}</CheckinContext.Provider>
+  }
+
+  // 2. If they chose to skip the checkin, let them through in read-only mode
+  if (isSkipped) {
+    return <CheckinContext.Provider value={{ isReadOnly: true }}>{children}</CheckinContext.Provider>
+  }
+
+  // 3. If it's NOT the user's shift time (cannot check-in), let them through to see dashboard/info in read-only mode
   if (status && !status.can_checkin) {
-    return <>{children}</>
+    return <CheckinContext.Provider value={{ isReadOnly: true }}>{children}</CheckinContext.Provider>
   }
 
-  // 3. If there's NO roster assigned, let them through
+  // 4. If there's NO roster assigned, let them through in read-only mode
   if (noRoster) {
-    return <>{children}</>
+    return <CheckinContext.Provider value={{ isReadOnly: true }}>{children}</CheckinContext.Provider>
   }
 
   // ONLY show the gate if they HAVE a shift right now (can_checkin is true) AND they haven't checked in yet
@@ -194,13 +213,21 @@ export const ManagerCheckinGate: React.FC<ManagerCheckinGateProps> = ({ children
               </button>
 
               {/* Logout button (secondary) */}
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center justify-center gap-2 py-3 border-2 border-gray-200 text-gray-500 hover:border-red-200 hover:text-red-500 hover:bg-red-50 font-semibold text-sm rounded-2xl transition-all"
-              >
-                <LogOut className="w-4 h-4" />
-                Đăng xuất &amp; Đổi tài khoản
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setIsSkipped(true)}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 border-2 border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700 hover:bg-gray-50 font-semibold text-sm rounded-2xl transition-all"
+                >
+                  Xem dữ liệu (Chỉ đọc)
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 border-2 border-gray-200 text-gray-500 hover:border-red-200 hover:text-red-500 hover:bg-red-50 font-semibold text-sm rounded-2xl transition-all"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Đăng xuất
+                </button>
+              </div>
 
               <p className="text-center text-xs text-gray-400">
                 Check-in của bạn sẽ được ghi lại và giám sát bởi hệ thống.

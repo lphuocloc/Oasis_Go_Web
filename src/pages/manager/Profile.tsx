@@ -5,7 +5,7 @@ import { Edit2, Save, X, Upload, Mail, Phone, User as UserIcon, Shield, LogOut }
 import { toast } from 'react-toastify'
 
 export const ManagerProfile = () => {
-  const { user, logout } = useAuth()
+  const { user, logout, checkAuth } = useAuth()
   const [isEditMode, setIsEditMode] = useState(false)
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
@@ -54,6 +54,7 @@ export const ManagerProfile = () => {
         phone: formData.phone,
         avatar: formData.avatar
       })
+      await checkAuth()
       toast.success('Profile updated successfully')
       setIsEditMode(false)
     } catch (error: any) {

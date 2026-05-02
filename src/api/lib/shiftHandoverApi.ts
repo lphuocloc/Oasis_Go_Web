@@ -6,6 +6,13 @@ export interface ShiftHandoverItem {
   shift_id: string
   note_text: string
   created_at: string
+  manager?: {
+    name: string
+    email: string
+  }
+  shift?: {
+    shift_name: string
+  }
 }
 
 export const shiftHandoverApi = {

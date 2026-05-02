@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Clock, MapPin, CalendarDays, Plus, Trash2, RefreshCw, LogIn, LogOut, CheckCircle } from 'lucide-react'
+import { Clock, MapPin, CalendarDays, Plus, Trash2, RefreshCw, LogIn, LogOut, CheckCircle, MessageSquare, History } from 'lucide-react'
 import dayjs from 'dayjs'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
@@ -203,6 +203,73 @@ const ManagerAttendanceWidget = () => {
         </div>
       </Modal>
     </>
+  )
+}
+
+
+// ========== RECENT HANDOVERS WIDGET ==========
+const RecentHandoversWidget = ({ refreshTrigger }: { refreshTrigger?: number }) => {
+  const [handovers, setHandovers] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const { locationId } = useManagerScope()
+
+  const fetchHandovers = async () => {
+    try {
+      setIsLoading(true)
+      const res = await shiftHandoverApi.getRecent()
+      setHandovers(res.data || [])
+    } catch {
+      setHandovers([])
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchHandovers()
+  }, [locationId, refreshTrigger])
+
+  if (isLoading) return <div className="h-24 bg-white rounded-2xl border border-gray-100 animate-pulse mb-6" />
+  if (handovers.length === 0) return null
+
+  return (
+    <div className="mb-8">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="p-2 bg-blue-50 rounded-lg">
+          <History className="w-4 h-4 text-blue-600" />
+        </div>
+        <h3 className="text-lg font-bold text-gray-900">Bàn giao từ ca trước</h3>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {handovers.map((item, idx) => (
+          <div key={item.id || idx} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+            <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+            
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold text-xs uppercase">
+                  {item.manager?.name?.slice(0, 2) || 'M'}
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-gray-900">{item.manager?.name || 'Manager'}</div>
+                  <div className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">
+                    {item.shift?.shift_name || 'Ca làm việc'} · {dayjs(item.created_at).format('DD/MM HH:mm')}
+                  </div>
+                </div>
+              </div>
+              <MessageSquare className="w-4 h-4 text-gray-300" />
+            </div>
+            
+            <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+              <p className="text-sm text-gray-700 leading-relaxed italic">
+                "{item.note_text}"
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -743,6 +810,8 @@ export const ManagerShiftManagement = () => {
         </div>
 
         <ManagerAttendanceWidget />
+
+        <RecentHandoversWidget refreshTrigger={refreshTrigger} />
 
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           {/* {activeTab === 'STAFF_SHIFTS' && <StaffShiftsTab refreshTrigger={refreshTrigger} />} */}

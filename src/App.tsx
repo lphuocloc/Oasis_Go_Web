@@ -13,6 +13,8 @@ import { WithdrawManagement } from './pages/admin/WithdrawManagement'
 import { StaffManagement } from './pages/admin/StaffManagement'
 import { ReviewManagement } from './pages/admin/ReviewManagement'
 import { BookingManagement as AdminBookingManagement } from './pages/admin/BookingManagement'
+import { VoucherManagement } from './pages/admin/VoucherManagement'
+import { LedgerManagement } from './pages/admin/LedgerManagement'
 import { ManagerDashboard } from './pages/manager/ManagerDashboard'
 import { ManagerProfile } from './pages/manager/Profile'
 import { Login } from './pages/Login'
@@ -99,6 +101,14 @@ export const router = createBrowserRouter([
           {
             path: 'bookings',
             element: <AdminBookingManagement />
+          },
+          {
+            path: 'pricing',
+            element: <VoucherManagement />
+          },
+          {
+            path: 'ledger',
+            element: <LedgerManagement />
           }
         ]
       }

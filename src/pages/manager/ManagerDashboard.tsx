@@ -485,19 +485,6 @@ export const ManagerDashboard = () => {
     [scopedClusters]
   )
 
-  const summaryRangeLabel = useMemo(() => {
-    if (summaryRange === 'custom' && summaryCustomRange) {
-      return `${summaryCustomRange[0].format('DD/MM')} - ${summaryCustomRange[1].format('DD/MM')}`
-    }
-    return RANGE_OPTIONS.find((o) => o.value === summaryRange)?.label ?? 'Tháng này'
-  }, [summaryRange, summaryCustomRange])
-
-  const chartRangeLabel = useMemo(() => {
-    if (chartRange === 'custom' && chartCustomRange) {
-      return `${chartCustomRange[0].format('DD/MM')} - ${chartCustomRange[1].format('DD/MM')}`
-    }
-    return RANGE_OPTIONS.find((o) => o.value === chartRange)?.label ?? 'Tuần này'
-  }, [chartRange, chartCustomRange])
 
   const { summaryData, listData } = useMemo(() => {
     if (!summaryRawData) return { summaryData: null, listData: null }

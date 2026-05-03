@@ -4,16 +4,11 @@ import {
   CheckCircle,
   Eye,
   Handshake,
-  Image as ImageIcon,
   Plus,
   RefreshCw,
   Search,
-  SlidersHorizontal,
   Store,
-  Trash2,
   Upload,
-  UserCheck,
-  X,
   History,
   Check
 } from 'lucide-react'
@@ -96,7 +91,7 @@ const formatDateTime = (value?: string | null) => {
 type TabType = 'ITEMS' | 'REQUESTS'
 
 export const LostAndFoundManagement = () => {
-  const { clusters, refreshScope } = useManagerScope()
+  const { clusters } = useManagerScope()
 
   const [activeTab, setActiveTab] = useState<TabType>('ITEMS')
   const [items, setItems] = useState<LostFoundItem[]>([])
@@ -180,8 +175,6 @@ export const LostAndFoundManagement = () => {
     }
   }, [])
 
-  const podMap = useMemo(() => new Map(pods.map(p => [p.id, p])), [pods])
-  const clusterMap = useMemo(() => new Map(clusters.map(c => [c.id, c])), [clusters])
 
   const filteredItems = useMemo(() => {
     const q = search.toLowerCase().trim()
@@ -222,7 +215,7 @@ export const LostAndFoundManagement = () => {
     if (!selectedItem) return
     try {
       setIsActionLoading(true)
-      const res = await lostFoundApi.generateHandoverOTP(selectedItem.id)
+      await lostFoundApi.generateHandoverOTP(selectedItem.id)
       toast.success('Đã tạo mã OTP và gửi cho khách hàng')
       setOtpGeneratedAt(new Date().toISOString())
     } catch (err: any) {

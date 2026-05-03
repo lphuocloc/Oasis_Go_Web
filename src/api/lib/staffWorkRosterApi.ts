@@ -7,6 +7,8 @@ export interface StaffWorkRosterItem {
   location_id: string | null
   cluster_id: string | null
   is_active: boolean
+  is_temporary: boolean
+  work_date: string | null
   created_at?: string
 }
 
@@ -16,6 +18,8 @@ export interface StaffWorkRosterCreatePayload {
   location_id?: string
   cluster_id?: string
   is_active?: boolean
+  is_temporary?: boolean
+  work_date?: string
 }
 
 export interface StaffWorkRosterUpdatePayload {

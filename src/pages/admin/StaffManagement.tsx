@@ -1,18 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useState } from 'react'
 import {
-  Users,
   Search,
   Plus,
   Edit2,
-  Trash2,
-  Shield,
   Phone,
   Mail,
   UserCheck,
   UserX,
   RefreshCw,
-  X,
   Eye,
   EyeOff
 } from 'lucide-react'

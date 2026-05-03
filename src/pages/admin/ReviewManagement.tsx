@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Star,
   CheckCircle,
@@ -7,10 +6,8 @@ import {
   MessageSquare,
   Search,
   Filter,
-  RefreshCw,
   User,
   Layout,
-  Clock,
   AlertCircle
 } from 'lucide-react'
 import { toast } from 'react-toastify'

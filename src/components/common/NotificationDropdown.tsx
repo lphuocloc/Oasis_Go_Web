@@ -147,7 +147,7 @@ export const NotificationDropdown: React.FC = () => {
                                         </div>
                                     </button>
                                 ))}
-                                {loading && (
+                                {loading && (notifications.length === 0 || pagination.page < pagination.pages) && (
                                     <div className="p-4 text-center">
                                         <div className="mx-auto h-5 w-5 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
                                     </div>

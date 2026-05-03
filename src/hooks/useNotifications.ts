@@ -56,6 +56,14 @@ export const useNotifications = () => {
   useEffect(() => {
     fetchInitialData()
 
+    // Simulate RTK Query polling interval for Notifications (3 seconds)
+    // with skipPollingIfUnfocused behavior
+    const pollingInterval = setInterval(() => {
+      if (document.hasFocus()) {
+        dispatch(refreshNotifications())
+      }
+    }, 3000)
+
     // Initialize Socket
     const socket = initUserSocket()
 
@@ -88,6 +96,7 @@ export const useNotifications = () => {
     }
 
     return () => {
+      clearInterval(pollingInterval)
       if (socket) {
         socket.off('user:notification', handleNewNotification)
       }

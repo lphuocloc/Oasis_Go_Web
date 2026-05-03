@@ -9,47 +9,47 @@ const ManagerSidebar: React.FC<{ userName?: string; userRole?: string }> = ({
 }) => {
   const navItems: NavItem[] = [
     {
-      label: 'Dashboard',
+      label: 'Bảng điều khiển',
       path: '/manager',
       icon: <LayoutGrid className="w-6 h-6" />
     },
     {
-      label: 'Clusters',
+      label: 'Cụm Pod',
       path: '/manager/clusters',
       icon: <MapPin className="w-6 h-6" />
     },
     {
-      label: 'Pods',
+      label: 'Pod',
       path: '/manager/pods',
       icon: <Home className="w-6 h-6" />
     },
     {
-      label: 'Bookings',
+      label: 'Đặt chỗ',
       path: '/manager/bookings',
       icon: <Calendar className="w-6 h-6" />
     },
     {
-      label: 'Cleaning and Maintenance',
+      label: 'Vệ sinh & Bảo trì',
       path: '/manager/maintenance',
       icon: <CheckCircle className="w-6 h-6" />
     },
     {
-      label: 'Incidents',
+      label: 'Sự cố',
       path: '/manager/incidents',
       icon: <AlertCircle className="w-6 h-6" />
     },
     {
-      label: 'Lost and Found',
+      label: 'Đồ thất lạc',
       path: '/manager/lost-found',
       icon: <Package className="w-6 h-6" />
     },
     {
-      label: 'Support',
+      label: 'Hỗ trợ',
       path: '/manager/support',
       icon: <LifeBuoy className="w-6 h-6" />
     },
     {
-      label: 'Shifts',
+      label: 'Ca làm',
       path: '/manager/shifts',
       icon: <Clock className="w-6 h-6" />
     }

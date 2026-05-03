@@ -1,8 +1,8 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useMemo, useState } from 'react'
 import {
     CheckCircle2,
     Eye,
-    XCircle,
 } from 'lucide-react'
 import { toast } from 'react-toastify'
 import type { WalletWithdrawalItem } from '../../api/lib/walletWithdrawalApi'
@@ -24,17 +24,10 @@ import {
     TableHeader,
     TableRow,
 } from '../../components/ui/table'
-import { useAppDispatch, useAppSelector } from '../../store/hooks'
 import {
-    selectWalletWithdrawals,
-    selectWalletWithdrawalsError,
-    selectWalletWithdrawalsLoading,
-    selectWalletWithdrawalsPagination,
-} from '../../store/slices/walletWithdrawalsSlice'
-import {
-    fetchWalletWithdrawals,
-    processWalletWithdrawal,
-} from '../../store/thunks/walletWithdrawalsThunks'
+    useGetWithdrawalsQuery,
+    useProcessWithdrawalMutation,
+} from '../../store/apis/withdrawalsApi'
 
 type WithdrawalStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
@@ -92,11 +85,7 @@ const WithdrawTableSkeletonRow = () => (
 )
 
 export const WithdrawManagement: React.FC = () => {
-    const dispatch = useAppDispatch()
-    const withdrawals = useAppSelector(selectWalletWithdrawals)
-    const isLoading = useAppSelector(selectWalletWithdrawalsLoading)
-    const error = useAppSelector(selectWalletWithdrawalsError)
-    const pagination = useAppSelector(selectWalletWithdrawalsPagination)
+    const [processWithdrawal] = useProcessWithdrawalMutation()
 
     const [filterStatus, setFilterStatus] = useState<'ALL' | WithdrawalStatus>('ALL')
     const [searchTerm] = useState('')
@@ -107,16 +96,17 @@ export const WithdrawManagement: React.FC = () => {
     const [page, setPage] = useState(1)
     const limit = 20
 
-    useEffect(() => {
-        void dispatch(
-            fetchWalletWithdrawals({
-                status: filterStatus === 'ALL' ? undefined : filterStatus,
-                page,
-                limit,
-                append: false,
-            }),
-        )
-    }, [dispatch, filterStatus, page])
+    const { data, isLoading, error } = useGetWithdrawalsQuery(
+        {
+            status: filterStatus === 'ALL' ? undefined : filterStatus,
+            page,
+            limit,
+        },
+        { pollingInterval: 4000, skipPollingIfUnfocused: true },
+    )
+
+    const withdrawals = data?.items ?? []
+    const pagination = data?.pagination ?? {}
 
     useEffect(() => {
         const totalPages = pagination.totalPages ?? pagination.total_pages ?? 1
@@ -159,13 +149,24 @@ export const WithdrawManagement: React.FC = () => {
     const totalPages = pagination.totalPages ?? pagination.total_pages ?? 1
     const currentPage = pagination.page ?? pagination.current_page ?? page
 
+    const errorMessage = useMemo(() => {
+        if (!error) return null
+        if (typeof error === 'string') return error
+
+        if (typeof error === 'object' && error !== null && 'error' in error) {
+            return String((error as { error: string }).error)
+        }
+
+        return 'Không thể tải danh sách rút tiền.'
+    }, [error])
+
 
     const handleAction = async (id: string, nextStatus: WithdrawalStatus) => {
         const trimmedNote = actionNote.trim()
 
         if (nextStatus === 'REJECTED' && !trimmedNote) {
-            setActionError('Tu choi bat buoc nhap ghi chu.')
-            toast.error('Tu choi bat buoc nhap ghi chu.')
+            setActionError('Từ chối yêu cầu. Vui lòng nhập lý do.')
+            toast.error('Từ chối yêu cầu. Vui lòng nhập lý do.')
             return
         }
 
@@ -174,20 +175,20 @@ export const WithdrawManagement: React.FC = () => {
 
         try {
             setIsProcessingAction(true)
-            await dispatch(
-                processWalletWithdrawal({
-                    id,
+            await processWithdrawal({
+                id,
+                payload: {
                     action,
                     note: trimmedNote,
-                }),
-            ).unwrap()
+                },
+            }).unwrap()
 
             toast.success(nextStatus === 'APPROVED' ? 'Phê duyệt yêu cầu thành công.' : 'Từ chối yêu cầu thành công.')
 
             setSelectedRequest((current) => (current?.id === id ? null : current))
         } catch (err) {
-            setActionError(typeof err === 'string' ? err : 'Khong the xu ly yeu cau. Vui long thu lai.')
-            toast.error(typeof err === 'string' ? err : 'Khong the xu ly yeu cau. Vui long thu lai.')
+            setActionError(typeof err === 'string' ? err : 'Không thể xử lý yêu cầu.')
+            toast.error(typeof err === 'string' ? err : 'Không thể xử lý yêu cầu. Vui lòng thử lại.')
         } finally {
             setIsProcessingAction(false)
         }
@@ -250,15 +251,15 @@ export const WithdrawManagement: React.FC = () => {
                                 ))
                             )}
 
-                            {!isLoading && error && (
+                            {!isLoading && errorMessage && (
                                 <TableRow>
                                     <TableCell colSpan={7} className="py-8 text-center text-rose-600">
-                                        {error}
+                                        {errorMessage}
                                     </TableCell>
                                 </TableRow>
                             )}
 
-                            {!isLoading && !error && filteredRequests.map((request) => (
+                            {!isLoading && !errorMessage && filteredRequests.map((request) => (
                                 <TableRow key={request.id}>
                                     <TableCell className="font-mono text-xs text-slate-500">{request.id.slice(0, 8)}...</TableCell>
                                     <TableCell>{request.requester_name}</TableCell>
@@ -285,9 +286,7 @@ export const WithdrawManagement: React.FC = () => {
                                                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleAction(request.id, 'APPROVED')}>
                                                         <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                                                     </Button>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleAction(request.id, 'REJECTED')}>
-                                                        <XCircle className="h-4 w-4 text-rose-600" />
-                                                    </Button>
+
                                                 </>
                                             )}
                                         </div>
@@ -295,10 +294,10 @@ export const WithdrawManagement: React.FC = () => {
                                 </TableRow>
                             ))}
 
-                            {!isLoading && !error && filteredRequests.length === 0 && (
+                            {!isLoading && !errorMessage && filteredRequests.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={7} className="py-10 text-center text-slate-500">
-                                        Khong co yeu cau rut tien phu hop.
+                                        Không có yêu cầu rút tiền nào phù hợp với bộ lọc và tìm kiếm hiện tại.
                                     </TableCell>
                                 </TableRow>
                             )}

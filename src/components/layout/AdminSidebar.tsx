@@ -1,7 +1,7 @@
 import React from 'react'
 import type { NavItem } from './Sidebar'
 import Sidebar from './Sidebar'
-import { LayoutGrid, MapPin, Home, Calendar, DollarSign, Users, Star, AlertCircle, BarChart3, Settings, Boxes, Warehouse, Wallet, Clock } from 'lucide-react'
+import { LayoutGrid, MapPin, Home, Calendar, DollarSign, Users, Star, AlertCircle, Boxes, Warehouse, Wallet, Clock, Landmark } from 'lucide-react'
 
 const AdminSidebar: React.FC<{ userName?: string; userRole?: string }> = ({
   userName = 'Admin User',
@@ -9,27 +9,27 @@ const AdminSidebar: React.FC<{ userName?: string; userRole?: string }> = ({
 }) => {
   const navItems: NavItem[] = [
     {
-      label: 'Dashboard',
+      label: 'Bảng điều khiển',
       path: '/admin',
       icon: <LayoutGrid className="w-6 h-6" />
     },
     {
-      label: 'Locations',
+      label: 'Địa điểm  ',
       path: '/admin/locations',
       icon: <MapPin className="w-6 h-6" />
     },
     {
-      label: 'Pod Clusters',
+      label: 'Cụm Pod',
       path: '/admin/pod-clusters',
       icon: <Boxes className="w-6 h-6" />
     },
     {
-      label: 'Pods',
+      label: 'Pod',
       path: '/admin/pods',
       icon: <Home className="w-6 h-6" />
     },
     {
-      label: 'Inventory & Warehouses',
+      label: 'Kho hàng & Vật tư',
       path: '/admin/inventory-warehouse',
       icon: <Warehouse className="w-6 h-6" />
     },
@@ -39,37 +39,42 @@ const AdminSidebar: React.FC<{ userName?: string; userRole?: string }> = ({
     //   icon: <ListChecks className="w-6 h-6" />
     // },
     {
-      label: 'Manager Shifts',
+      label: 'Quản lý ca làm',
       path: '/admin/shifts',
       icon: <Clock className="w-6 h-6" />
     },
     {
-      label: 'Withdraw',
+      label: 'Rút tiền',
       path: '/admin/withdraw',
       icon: <Wallet className="w-6 h-6" />
     },
     {
-      label: 'Bookings',
+      label: 'Ví Admin',
+      path: '/admin/ledger',
+      icon: <Landmark className="w-6 h-6" />
+    },
+    {
+      label: 'Đặt chỗ',
       path: '/admin/bookings',
       icon: <Calendar className="w-6 h-6" />
     },
     {
-      label: 'Pricing & Vouchers',
+      label: 'Voucher',
       path: '/admin/pricing',
       icon: <DollarSign className="w-6 h-6" />
     },
     {
-      label: 'Staff Management',
+      label: 'Quản lý nhân sự',
       path: '/admin/staff',
       icon: <Users className="w-6 h-6" />
     },
     {
-      label: 'Reviews & Ratings',
+      label: 'Đánh giá',
       path: '/admin/reviews',
       icon: <Star className="w-6 h-6" />
     },
     {
-      label: 'Incidents & Maintenance',
+      label: 'Sự cố & Bảo trì',
       path: '/admin/incidents',
       icon: <AlertCircle className="w-6 h-6" />
     },

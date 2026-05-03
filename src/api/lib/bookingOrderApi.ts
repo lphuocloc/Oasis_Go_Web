@@ -1,6 +1,6 @@
 import { api } from '../api'
 import type { BookingItem } from './bookingApi'
-import type { IncidentItem, IncidentStatus, IncidentSeverity } from './incidentApi'
+import type { IncidentStatus, IncidentSeverity } from './incidentApi'
 
 export const BOOKING_ORDER_STATUSES = [
   'PENDING',

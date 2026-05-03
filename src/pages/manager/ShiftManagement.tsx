@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Clock, MapPin, CalendarDays, Plus, Trash2, RefreshCw, LogIn, LogOut, CheckCircle, MessageSquare, History } from 'lucide-react'
 import dayjs from 'dayjs'
 import { toast } from 'react-toastify'
@@ -13,9 +13,9 @@ import { staffAttendanceLogApi, type StaffAttendanceLogItem } from '../../api/li
 import { userApi, type UserListItem } from '../../api/lib/userApi'
 import { podClusterApi, type PodClusterItem } from '../../api/lib/podClusterApi'
 import { initUserSocket } from '../../lib/socket'
-import { locationApi, type LocationItem } from '../../api/lib/locationApi'
+import { locationApi } from '../../api/lib/locationApi'
 import { shiftHandoverApi } from '../../api/lib/shiftHandoverApi'
-import { FileText, ClipboardList } from 'lucide-react'
+import { ClipboardList } from 'lucide-react'
 
 const LocationSelector = () => {
   const { locationOptions, selectedLocationId, setSelectedLocationId, isLoading } = useManagerScope()
@@ -281,7 +281,6 @@ const LocationShiftsTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
   const [rosters, setRosters] = useState<StaffWorkRosterItem[]>([])
   const [cleaners, setCleaners] = useState<UserListItem[]>([])
   const [clusters, setClusters] = useState<PodClusterItem[]>([])
-  const [allLocations, setAllLocations] = useState<LocationItem[]>([])
   const [attendanceLogs, setAttendanceLogs] = useState<StaffAttendanceLogItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
@@ -307,7 +306,6 @@ const LocationShiftsTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
       setAttendanceLogs(attRes.data || [])
 
       const locations = lAllRes.data || []
-      setAllLocations(locations)
       
       const allStaff = [...(cRes.data || []), ...(mRes.data || [])]
 
@@ -560,7 +558,6 @@ const RostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
   }
 
 
-  const managerShifts = shifts.filter(s => managerShiftIds.includes(s.id))
   
   const availableShifts = locShifts
     .map(ls => ls.shift || shifts.find(x => x.id === ls.shift_id))

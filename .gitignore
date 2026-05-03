@@ -33,3 +33,4 @@ dist-ssr
 src/config/firebase.ts
 public/firebase-messaging-sw.js
 .env
+*.md

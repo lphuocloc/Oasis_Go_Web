@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react'
-import { Clock, MapPin, CalendarDays, Plus, Trash2, RefreshCw, LogIn, LogOut, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Clock, MapPin, CalendarDays, Plus, Trash2, RefreshCw, LogIn, LogOut, Boxes } from 'lucide-react'
 import dayjs from 'dayjs'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
@@ -11,8 +11,9 @@ import { staffAttendanceLogApi, type StaffAttendanceLogItem } from '../../api/li
 import { userApi, type UserListItem } from '../../api/lib/userApi'
 import { locationApi, type LocationItem } from '../../api/lib/locationApi'
 import { initUserSocket } from '../../lib/socket'
+import { podClusterApi, type PodClusterItem } from '../../api/lib/podClusterApi'
 
-type TabType = 'STAFF_SHIFTS' | 'LOCATION_SHIFTS' | 'MANAGER_ROSTERS' | 'ATTENDANCE'
+type TabType = 'STAFF_SHIFTS' | 'LOCATION_SHIFTS' | 'MANAGER_ROSTERS' | 'CLEANER_ROSTERS' | 'ATTENDANCE'
 
 const getShiftColor = (name: string) => {
   const n = name.toUpperCase()
@@ -500,9 +501,9 @@ const CleanerRostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
       ])
       
       const allClusters = clR.data || []
-      const clusterIds = allClusters.map(x => x.id)
+      const clusterIds = allClusters.map((x: any) => x.id)
       
-      setRosters((rR.data || []).filter(r => clusterIds.includes(r.cluster_id || '') || r.cluster_id))
+      setRosters((rR.data || []).filter((r: any) => clusterIds.includes(r.cluster_id || '') || r.cluster_id))
       setCleaners(cR.data || [])
       setLocations(lR.data || [])
       setClusters(allClusters)
@@ -715,6 +716,7 @@ export const AdminShiftManagement = () => {
     { id: 'STAFF_SHIFTS', label: 'Mẫu Ca', icon: <Clock className="w-4 h-4" /> },
     { id: 'LOCATION_SHIFTS', label: 'Khu Vực', icon: <MapPin className="w-4 h-4" /> },
     { id: 'MANAGER_ROSTERS', label: 'Roster Manager', icon: <CalendarDays className="w-4 h-4" /> },
+    { id: 'CLEANER_ROSTERS', label: 'Roster Cleaner', icon: <Boxes className="w-4 h-4" /> },
     { id: 'ATTENDANCE', label: 'Điểm Danh', icon: <LogIn className="w-4 h-4" /> },
   ]
 
@@ -739,6 +741,7 @@ export const AdminShiftManagement = () => {
           {activeTab === 'STAFF_SHIFTS' && <StaffShiftsTab refreshTrigger={refreshTrigger} />}
           {activeTab === 'LOCATION_SHIFTS' && <LocationShiftsTab refreshTrigger={refreshTrigger} />}
           {activeTab === 'MANAGER_ROSTERS' && <ManagerRostersTab refreshTrigger={refreshTrigger} />}
+          {activeTab === 'CLEANER_ROSTERS' && <CleanerRostersTab refreshTrigger={refreshTrigger} />}
           {activeTab === 'ATTENDANCE' && <AttendanceTab refreshTrigger={refreshTrigger} />}
         </div>
       </div>

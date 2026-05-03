@@ -1,17 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from 'react'
 import {
-  CalendarClock,
-  ClipboardList,
   Eye,
   RefreshCw,
   Search,
   SlidersHorizontal,
-  Clock,
-  X,
   CreditCard,
-  Ban,
-  Boxes,
   MapPin,
   Layout
 } from 'lucide-react'
@@ -27,7 +21,6 @@ import {
   type BookingStatus
 } from '../../api/lib/bookingApi'
 import {
-  BOOKING_ORDER_STATUSES,
   bookingOrderApi,
   type BookingOrderDetail,
   type BookingOrderItem,
@@ -37,7 +30,6 @@ import {
 import { podApi, type PodItem } from '../../api/lib/podApi'
 import { podClusterApi, type PodClusterItem } from '../../api/lib/podClusterApi'
 import { locationApi, type LocationItem } from '../../api/lib/locationApi'
-import { initUserSocket } from '../../lib/socket'
 
 type ActiveTab = 'bookings' | 'orders'
 
@@ -80,26 +72,6 @@ const orderStatusBadgeClass = (status: string) => {
   }
 }
 
-const bookingStatusBgColor = (status: string) => {
-  switch (status) {
-    case 'BOOKED': return 'bg-blue-500'
-    case 'IN_USE': return 'bg-emerald-500'
-    case 'COMPLETED': return 'bg-gray-500'
-    case 'CANCELLED': return 'bg-rose-500'
-    default: return 'bg-slate-500'
-  }
-}
-
-const orderStatusBgColor = (status: string) => {
-  switch (status) {
-    case 'PAID': return 'bg-emerald-500'
-    case 'PENDING': return 'bg-amber-500'
-    case 'PARTIAL_CANCEL': return 'bg-orange-500'
-    case 'FULLY_CANCELLED':
-    case 'CANCEL': return 'bg-rose-500'
-    default: return 'bg-slate-500'
-  }
-}
 
 export const BookingManagement = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('bookings')
@@ -120,7 +92,7 @@ export const BookingManagement = () => {
   })
 
   const [orders, setOrders] = useState<BookingOrderItem[]>([])
-  const [isOrdersLoading, setIsOrdersLoading] = useState(true)
+  const [, setIsOrdersLoading] = useState(true)
   const [orderPage, setOrderPage] = useState(1)
   const [orderPagination, setOrderPagination] = useState<BookingOrderPagination>({
     total: 0,
@@ -136,10 +108,10 @@ export const BookingManagement = () => {
   const [bookingStartFilter, setBookingStartFilter] = useState('')
   const [bookingEndFilter, setBookingEndFilter] = useState('')
 
-  const [orderStatusFilter, setOrderStatusFilter] = useState<BookingOrderStatus[]>([])
-  const [orderPodFilter, setOrderPodFilter] = useState<string[]>([])
-  const [orderStartFilter, setOrderStartFilter] = useState('')
-  const [orderEndFilter, setOrderEndFilter] = useState('')
+  const [orderStatusFilter] = useState<BookingOrderStatus[]>([])
+  const [orderPodFilter] = useState<string[]>([])
+  const [orderStartFilter] = useState('')
+  const [orderEndFilter] = useState('')
 
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false)
@@ -201,7 +173,9 @@ export const BookingManagement = () => {
       })
 
       setBookings(response.bookings)
-      setBookingPagination(response.pagination)
+      if (response.pagination) {
+        setBookingPagination(response.pagination)
+      }
     } catch (error: any) {
       toast.error('Không thể tải danh sách booking')
     } finally {
@@ -507,13 +481,13 @@ export const BookingManagement = () => {
             <div className="grid grid-cols-2 gap-4">
               <DatePicker
                 selected={draftBookingFilters.dateRange[0]}
-                onChange={(date) => setDraftBookingFilters(prev => ({ ...prev, dateRange: [date, prev.dateRange[1]] }))}
+                onChange={(date: Date | null) => setDraftBookingFilters(prev => ({ ...prev, dateRange: [date, prev.dateRange[1]] }))}
                 placeholderText="Từ ngày"
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
               />
               <DatePicker
                 selected={draftBookingFilters.dateRange[1]}
-                onChange={(date) => setDraftBookingFilters(prev => ({ ...prev, dateRange: [prev.dateRange[0], date] }))}
+                onChange={(date: Date | null) => setDraftBookingFilters(prev => ({ ...prev, dateRange: [prev.dateRange[0], date] }))}
                 placeholderText="Đến ngày"
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
               />

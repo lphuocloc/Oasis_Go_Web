@@ -26,7 +26,7 @@ import { initUserSocket } from '../../lib/socket'
 import {
   TrendingUp, AlertCircle, Calendar, Package,
   RefreshCw, ChevronDown, DollarSign,
-  Star, Tag, MapPin, ShieldCheck, Clock, ShoppingCart,
+  Star, Tag, MapPin, Clock, ShoppingCart,
   ArrowUpRight, ArrowDownRight, MessageSquare
 } from 'lucide-react'
 import { toast } from 'react-toastify'
@@ -488,12 +488,6 @@ export const AdminDashboard = () => {
 
   const isLoading = isKpiLoading || isAnalyticsLoading
 
-  const kpiRangeLabel = useMemo(() => {
-    if (kpiRange === 'custom' && kpiCustomRange) {
-      return `${kpiCustomRange[0].format('DD/MM')} - ${kpiCustomRange[1].format('DD/MM')}`
-    }
-    return RANGE_OPTIONS.find(o => o.value === kpiRange)?.label ?? 'Tháng này'
-  }, [kpiRange, kpiCustomRange])
 
   const analyticsRangeLabel = useMemo(() => {
     if (analyticsRange === 'custom' && analyticsCustomRange) {
@@ -1009,9 +1003,9 @@ export const AdminDashboard = () => {
               <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                 <h2 className="text-base font-semibold text-gray-900">Đánh giá mới nhất</h2>
                 <div className="flex items-center gap-2">
-                  {analyticsStatsData && analyticsStatsData.reviews.totalHidden > 0 && (
+                  {analyticsStatsData && analyticsStatsData.reviews.pendingModeration > 0 && (
                     <span className="px-2 py-0.5 bg-rose-100 text-rose-700 rounded-full text-xs font-semibold">
-                      {analyticsStatsData.reviews.totalHidden} hidden
+                      {analyticsStatsData.reviews.pendingModeration} hidden
                     </span>
                   )}
                   <MessageSquare className="w-4 h-4 text-gray-400" />

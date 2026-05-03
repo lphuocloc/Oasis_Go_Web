@@ -5,7 +5,6 @@ import Modal from '../../components/common/Modal'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import {
-  INCIDENT_SEVERITIES,
   INCIDENT_STATUSES,
   incidentApi,
   type DamageReportItem,
@@ -194,7 +193,7 @@ export const IncidentManagement = () => {
   }, [])
 
   const podMap = useMemo(() => new Map(pods.map((pod) => [pod.id, pod])), [pods])
-  const clusterMap = useMemo(() => new Map(clusters.map((cluster) => [cluster.id, cluster])), [clusters])
+  const clusterMap = useMemo(() => new Map(clusters.map((c) => [c.id, c])), [clusters])
 
   const tabReports = useMemo(() => {
     return reports.filter(report => {
@@ -621,7 +620,6 @@ export const IncidentManagement = () => {
               ) : (
                 groupedReports.map((group) => {
                   const pod = group.podId ? podMap.get(group.podId) : null
-                  const cluster = pod ? clusterMap.get(pod.cluster_id) : null
                   const isOrder = group.type === 'ORDER'
 
                   return (

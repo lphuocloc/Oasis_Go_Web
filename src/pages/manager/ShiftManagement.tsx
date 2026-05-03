@@ -216,7 +216,7 @@ const RecentHandoversWidget = ({ refreshTrigger }: { refreshTrigger?: number }) 
   const fetchHandovers = async () => {
     try {
       setIsLoading(true)
-      const res = await shiftHandoverApi.getRecent()
+      const res = await shiftHandoverApi.getRecent(locationId || undefined)
       setHandovers(res.data || [])
     } catch {
       setHandovers([])

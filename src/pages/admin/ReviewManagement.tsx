@@ -180,7 +180,9 @@ export const ReviewManagement = () => {
                           </div>
                           <div>
                             <div className="font-bold text-gray-900">{r.user?.name || 'Khách hàng'}</div>
-                            <div className="text-xs text-gray-400">{new Date(r.created_at).toLocaleString('vi-VN')}</div>
+                            <div className="text-xs text-gray-400">
+                              {r.created_at || r.createdAt ? new Date(r.created_at || r.createdAt!).toLocaleString('vi-VN') : 'N/A'}
+                            </div>
                           </div>
                         </div>
                         <div className="flex flex-col items-end">

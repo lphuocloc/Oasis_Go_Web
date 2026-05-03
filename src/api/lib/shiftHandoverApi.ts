@@ -19,6 +19,8 @@ export const shiftHandoverApi = {
   create: (data: { note_text: string }) =>
     api.post<{ success: boolean; data: ShiftHandoverItem }>('/shift-handovers', data).then(r => r.data),
 
-  getRecent: () =>
-    api.get<{ success: boolean; data: ShiftHandoverItem[] }>('/shift-handovers/recent').then(r => r.data),
+  getRecent: (locationIds?: string) =>
+    api.get<{ success: boolean; data: ShiftHandoverItem[] }>('/shift-handovers/recent', {
+      params: locationIds ? { location_ids: locationIds } : {}
+    }).then(r => r.data),
 }

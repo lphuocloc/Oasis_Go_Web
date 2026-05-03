@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { LogIn, Clock, Shield, RefreshCw, LogOut, User, AlertTriangle } from 'lucide-react'
+import { LogIn, Clock, Shield, RefreshCw, LogOut, User, AlertTriangle, CheckCircle } from 'lucide-react'
 import { toast } from 'react-toastify'
 import dayjs from 'dayjs'
 import { useNavigate } from 'react-router-dom'
@@ -30,7 +30,7 @@ export const ManagerCheckinGate: React.FC<ManagerCheckinGateProps> = ({ children
   const [status, setStatus] = useState<CheckinStatus | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isActing, setIsActing] = useState(false)
-  const [isSkipped, setIsSkipped] = useState(false)
+
   const [noRoster, setNoRoster] = useState<boolean | null>(null)
   const [checkinError, setCheckinError] = useState<string | null>(null)
   const navigate = useNavigate()
@@ -108,24 +108,70 @@ export const ManagerCheckinGate: React.FC<ManagerCheckinGateProps> = ({ children
     return <CheckinContext.Provider value={{ isReadOnly: false }}>{children}</CheckinContext.Provider>
   }
 
-  // 1.5. If user has COMPLETED their shift (checked in AND checked out), let them through in read-only mode
+  // 1.5. If user has COMPLETED their shift today, block them
   if (status?.checked_in_today && status?.checked_out_today) {
-    return <CheckinContext.Provider value={{ isReadOnly: true }}>{children}</CheckinContext.Provider>
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/90 backdrop-blur-md">
+        <div className="w-full max-w-md mx-4 text-center">
+          <div className="bg-white rounded-3xl shadow-2xl overflow-hidden p-8">
+            <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <CheckCircle className="w-10 h-10 text-blue-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Ca Làm Đã Kết Thúc</h1>
+            <p className="text-gray-500 text-sm mb-8 leading-relaxed">
+              Bạn đã hoàn thành ca trực và check-out hôm nay. Vui lòng quay lại vào ca trực tiếp theo của bạn.
+            </p>
+            <button onClick={handleLogout} className="w-full py-4 bg-gray-900 text-white font-bold rounded-2xl hover:bg-gray-800 transition-all flex items-center justify-center gap-2">
+              <LogOut className="w-5 h-5" /> Đăng xuất
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
-  // 2. If they chose to skip the checkin, let them through in read-only mode
-  if (isSkipped) {
-    return <CheckinContext.Provider value={{ isReadOnly: true }}>{children}</CheckinContext.Provider>
-  }
-
-  // 3. If it's NOT the user's shift time (cannot check-in), let them through to see dashboard/info in read-only mode
+  // 2. If it's NOT the user's shift time (cannot check-in), show block screen
   if (status && !status.can_checkin) {
-    return <CheckinContext.Provider value={{ isReadOnly: true }}>{children}</CheckinContext.Provider>
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/90 backdrop-blur-md">
+        <div className="w-full max-w-md mx-4 text-center">
+          <div className="bg-white rounded-3xl shadow-2xl overflow-hidden p-8">
+            <div className="w-20 h-20 bg-rose-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <Clock className="w-10 h-10 text-rose-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Đây Không Phải Ca Làm Của Bạn</h1>
+            <p className="text-gray-500 text-sm mb-8 leading-relaxed">
+              Hiện tại không phải khung giờ làm việc được phân công của bạn. Bạn không thể truy cập hệ thống quản lý vào lúc này.
+            </p>
+            <button onClick={handleLogout} className="w-full py-4 bg-gray-900 text-white font-bold rounded-2xl hover:bg-gray-800 transition-all flex items-center justify-center gap-2">
+              <LogOut className="w-5 h-5" /> Đăng xuất
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
-  // 4. If there's NO roster assigned, let them through in read-only mode
+  // 3. If there's NO roster assigned, block them
   if (noRoster) {
-    return <CheckinContext.Provider value={{ isReadOnly: true }}>{children}</CheckinContext.Provider>
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/90 backdrop-blur-md">
+        <div className="w-full max-w-md mx-4 text-center">
+          <div className="bg-white rounded-3xl shadow-2xl overflow-hidden p-8">
+            <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <Shield className="w-10 h-10 text-gray-400" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Đây Không Phải Ca Làm Của Bạn</h1>
+            <p className="text-gray-500 text-sm mb-8 leading-relaxed">
+              Tài khoản của bạn hiện chưa được phân công ca trực nào. Vui lòng liên hệ Quản trị viên để được hỗ trợ.
+            </p>
+            <button onClick={handleLogout} className="w-full py-4 bg-gray-900 text-white font-bold rounded-2xl hover:bg-gray-800 transition-all flex items-center justify-center gap-2">
+              <LogOut className="w-5 h-5" /> Đăng xuất
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   // ONLY show the gate if they HAVE a shift right now (can_checkin is true) AND they haven't checked in yet
@@ -215,14 +261,8 @@ export const ManagerCheckinGate: React.FC<ManagerCheckinGateProps> = ({ children
               {/* Logout button (secondary) */}
               <div className="flex gap-2">
                 <button
-                  onClick={() => setIsSkipped(true)}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 border-2 border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700 hover:bg-gray-50 font-semibold text-sm rounded-2xl transition-all"
-                >
-                  Xem dữ liệu (Chỉ đọc)
-                </button>
-                <button
                   onClick={handleLogout}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 border-2 border-gray-200 text-gray-500 hover:border-red-200 hover:text-red-500 hover:bg-red-50 font-semibold text-sm rounded-2xl transition-all"
+                  className="w-full flex items-center justify-center gap-2 py-3 border-2 border-gray-200 text-gray-500 hover:border-red-200 hover:text-red-500 hover:bg-red-50 font-semibold text-sm rounded-2xl transition-all"
                 >
                   <LogOut className="w-4 h-4" />
                   Đăng xuất

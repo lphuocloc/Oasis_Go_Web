@@ -24,6 +24,8 @@ export interface BookingOrderItem {
     name?: string
     email?: string
   }
+  damage_payment_status?: 'NO_INCIDENT' | 'PENDING' | 'PAID'
+  outstanding_damage_amount?: number
   createdAt?: string
   updatedAt?: string
 }

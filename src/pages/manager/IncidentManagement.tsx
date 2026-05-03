@@ -517,21 +517,19 @@ export const IncidentManagement = () => {
 
       <div className="flex gap-6 border-b border-gray-200 mb-6">
         <button
-          className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
-            activeTab === 'CLEANER'
+          className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'CLEANER'
               ? 'border-blue-600 text-blue-600'
               : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-          }`}
+            }`}
           onClick={() => setActiveTab('CLEANER')}
         >
           Nhân viên dọn dẹp gửi
         </button>
         <button
-          className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
-            activeTab === 'USER'
+          className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'USER'
               ? 'border-blue-600 text-blue-600'
               : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-          }`}
+            }`}
           onClick={() => setActiveTab('USER')}
         >
           Khách hàng gửi
@@ -1038,8 +1036,8 @@ export const IncidentManagement = () => {
             <button
               onClick={() => setReviewStatus('RESOLVED')}
               className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${reviewStatus === 'RESOLVED'
-                  ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
-                  : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                : 'border-gray-200 text-gray-700 hover:bg-gray-50'
                 }`}
             >
               <CheckCircle2 className="h-4 w-4" />
@@ -1049,8 +1047,8 @@ export const IncidentManagement = () => {
             <button
               onClick={() => setReviewStatus('DISMISSED')}
               className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${reviewStatus === 'DISMISSED'
-                  ? 'border-rose-600 bg-rose-50 text-rose-700'
-                  : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                ? 'border-rose-600 bg-rose-50 text-rose-700'
+                : 'border-gray-200 text-gray-700 hover:bg-gray-50'
                 }`}
             >
               <XCircle className="h-4 w-4" />

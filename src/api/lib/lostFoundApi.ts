@@ -42,6 +42,11 @@ export interface LostFoundItem {
     code: string
     name: string
   }
+  found_by_user?: {
+    id: string
+    name: string
+    phone?: string
+  }
 }
 
 export interface LostItemRequest {
@@ -51,7 +56,7 @@ export interface LostItemRequest {
   item_name_reported: string
   description_reported?: string | null
   status: LostItemRequestStatus
-  matched_found_item_id?: string | null
+  matched_found_item_ids?: string[]
   manager_note?: string | null
   created_at: string
   updated_at: string
@@ -163,7 +168,7 @@ export const lostFoundApi = {
     api.post<LostFoundSingleResponse>(`/lost-found-items/${id}/store`, { warehouse_id }).then((r) => r.data),
 
   generateHandoverOTP: (id: string) =>
-    api.post<{ success: boolean, message: string, otp_expires_at: string }>(`/lost-found-items/${id}/generate-otp`).then((r) => r.data),
+    api.post<{ success: boolean, message: string, otp: string, otp_expires_at: string }>(`/lost-found-items/${id}/generate-otp`).then((r) => r.data),
 
   confirmHandover: (id: string, otp: string) =>
     api.post<LostFoundSingleResponse>(`/lost-found-items/${id}/handover`, { otp }).then((r) => r.data),
@@ -176,8 +181,8 @@ export const lostFoundApi = {
 
   getRequestById: (id: string) => api.get<LostItemRequestSingleResponse>(`/lost-found-items/requests/${id}`).then((r) => r.data),
 
-  matchRequest: (id: string, payload: { found_item_id: string, manager_note?: string }) =>
-    api.post<{ success: boolean, message: string, data: { request: LostItemRequest, found_item: LostFoundItem } }>(`/lost-found-items/requests/${id}/match`, payload).then((r) => r.data),
+  matchRequest: (id: string, payload: { found_item_id?: string, found_item_ids?: string[], manager_note?: string, close_others?: boolean }) =>
+    api.post<{ success: boolean, message: string, data: { request: LostItemRequest, matched_count: number } }>(`/lost-found-items/requests/${id}/match`, payload).then((r) => r.data),
 
   rejectRequest: (id: string, payload: { manager_note?: string }) =>
     api.post<LostItemRequestSingleResponse>(`/lost-found-items/requests/${id}/reject`, payload).then((r) => r.data),

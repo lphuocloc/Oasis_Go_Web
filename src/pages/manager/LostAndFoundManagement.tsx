@@ -15,10 +15,13 @@ import {
   UserCheck,
   X,
   History,
-  Check
+  Check,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
+import SlidePanel from '../../components/common/SlidePanel'
 import {
   LOST_FOUND_STATUSES,
   LOST_ITEM_REQUEST_STATUSES,
@@ -109,6 +112,9 @@ export const LostAndFoundManagement = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | string>('all')
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+
   // Modals state
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [selectedItem, setSelectedItem] = useState<LostFoundItem | null>(null)
@@ -122,40 +128,40 @@ export const LostAndFoundManagement = () => {
 
   const [isMatchModalOpen, setIsMatchModalOpen] = useState(false)
   const [selectedRequest, setSelectedRequest] = useState<LostItemRequest | null>(null)
-  const [matchFoundItemId, setMatchFoundItemId] = useState('')
+  const [matchFoundItemIds, setMatchFoundItemIds] = useState<string[]>([])
+  const [closeOthers, setCloseOthers] = useState(false)
   const [managerNote, setManagerNote] = useState('')
-
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-  const [createForm, setCreateForm] = useState({
-    item_name: '',
-    description: '',
-    pod_id: ''
-  })
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false)
 
   const [isActionLoading, setIsActionLoading] = useState(false)
 
   const fetchData = async () => {
     try {
       setIsLoading(true)
+      const locationIds = [...new Set(clusters.map(c => c.location_id).filter(Boolean))]
       const [podsRes, warehousesRes] = await Promise.all([
         podApi.getAll(),
-        warehouseApi.getAll()
+        warehouseApi.getAll({ location_ids: locationIds as string[] })
       ])
       setPods(podsRes.data)
       setWarehouses(warehousesRes.data)
 
       if (activeTab === 'ITEMS') {
         const itemsRes = await lostFoundApi.getAll({
-          status: statusFilter === 'all' ? undefined : (statusFilter as LostFoundStatus)
+          status: statusFilter === 'all' ? undefined : (statusFilter as LostFoundStatus),
+          page,
+          limit: 10
         })
         setItems(itemsRes.data)
+        if (itemsRes.pagination) setTotalPages(itemsRes.pagination.total_pages)
       } else {
         const requestsRes = await lostFoundApi.getRequests({
-          status: statusFilter === 'all' ? undefined : (statusFilter as LostItemRequestStatus)
+          status: statusFilter === 'all' ? undefined : (statusFilter as LostItemRequestStatus),
+          page,
+          limit: 10
         })
         setRequests(requestsRes.data)
+        if (requestsRes.pagination) setTotalPages(requestsRes.pagination.total_pages)
       }
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Không thể tải dữ liệu')
@@ -166,7 +172,11 @@ export const LostAndFoundManagement = () => {
 
   useEffect(() => {
     fetchData()
-  }, [activeTab, statusFilter, refreshTrigger, clusters])
+  }, [activeTab, statusFilter, refreshTrigger, clusters, page])
+
+  useEffect(() => {
+    setPage(1)
+  }, [activeTab, statusFilter, clusters])
 
   useEffect(() => {
     const socket = initUserSocket()
@@ -224,6 +234,7 @@ export const LostAndFoundManagement = () => {
       setIsActionLoading(true)
       const res = await lostFoundApi.generateHandoverOTP(selectedItem.id)
       toast.success('Đã tạo mã OTP và gửi cho khách hàng')
+      setHandoverOtp(res.otp) // Auto-fill OTP
       setOtpGeneratedAt(new Date().toISOString())
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Lỗi khi tạo OTP')
@@ -257,15 +268,16 @@ export const LostAndFoundManagement = () => {
         await lostFoundApi.rejectRequest(selectedRequest.id, { manager_note: managerNote })
         toast.success('Đã từ chối yêu cầu')
       } else {
-        if (!matchFoundItemId) {
-          toast.error('Vui lòng chọn 1 món đồ nhặt được để khớp')
+        if (matchFoundItemIds.length === 0) {
+          toast.error('Vui lòng chọn ít nhất 1 món đồ nhặt được để khớp')
           return
         }
         await lostFoundApi.matchRequest(selectedRequest.id, { 
-          found_item_id: matchFoundItemId, 
-          manager_note: managerNote 
+          found_item_ids: matchFoundItemIds, 
+          manager_note: managerNote,
+          close_others: closeOthers
         })
-        toast.success('Đã xác nhận khớp đồ thành công')
+        toast.success(`Đã xác nhận khớp ${matchFoundItemIds.length} món đồ thành công`)
       }
       setIsMatchModalOpen(false)
       setRefreshTrigger(p => p + 1)
@@ -277,7 +289,8 @@ export const LostAndFoundManagement = () => {
   }
 
   const handleOpenHandoverFromRequest = (request: LostItemRequest) => {
-    const item = items.find(i => i.id === request.matched_found_item_id)
+    const firstItemId = request.matched_found_item_ids?.[0]
+    const item = items.find(i => i.id === firstItemId)
     if (item) {
       setSelectedItem(item)
       setIsHandoverModalOpen(true)
@@ -288,23 +301,6 @@ export const LostAndFoundManagement = () => {
     }
   }
 
-  const handleCreateFoundItem = async (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      setIsActionLoading(true)
-      await lostFoundApi.create({
-        ...createForm,
-        media: selectedFiles
-      })
-      toast.success('Đã báo cáo đồ nhặt được')
-      setIsCreateModalOpen(false)
-      setRefreshTrigger(p => p + 1)
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Lỗi khi báo cáo')
-    } finally {
-      setIsActionLoading(false)
-    }
-  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -318,12 +314,6 @@ export const LostAndFoundManagement = () => {
           <p className="text-gray-500 mt-1">Theo dõi đồ thất lạc và xử lý yêu cầu từ khách hàng.</p>
         </div>
         <div className="flex gap-3">
-          <button 
-            onClick={() => setIsCreateModalOpen(true)}
-            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-sm transition-all"
-          >
-            <Plus className="h-5 w-5" /> Báo cáo đồ nhặt được
-          </button>
           <button 
             onClick={() => setRefreshTrigger(p => p + 1)}
             className="p-2.5 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-all"
@@ -350,7 +340,7 @@ export const LostAndFoundManagement = () => {
           </button>
         </div>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto px-2">
+        <div className="flex items-center gap-3 w-full sm:w-auto px-2 relative">
           <div className="relative flex-1 sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
@@ -361,17 +351,54 @@ export const LostAndFoundManagement = () => {
               className="w-full pl-10 pr-4 py-2 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 transition-all"
             />
           </div>
-          <select 
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
-            className="bg-gray-50 border-none rounded-xl text-sm px-4 py-2 focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">Tất cả trạng thái</option>
-            {activeTab === 'ITEMS' 
-              ? LOST_FOUND_STATUSES.map(s => <option key={s} value={s}>{translateStatus(s)}</option>)
-              : LOST_ITEM_REQUEST_STATUSES.map(s => <option key={s} value={s}>{translateRequestStatus(s)}</option>)
-            }
-          </select>
+
+          <div className="relative">
+            <button
+              onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+              className="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 border-none rounded-xl text-sm px-4 py-2 transition-all min-w-[160px] justify-between"
+            >
+              <span className="flex items-center gap-2">
+                <SlidersHorizontal className="h-4 w-4 text-gray-400" />
+                <span className="font-medium text-gray-700">
+                  {statusFilter === 'all' 
+                    ? 'Tất cả trạng thái' 
+                    : activeTab === 'ITEMS' 
+                      ? translateStatus(statusFilter as any) 
+                      : translateRequestStatus(statusFilter as any)
+                  }
+                </span>
+              </span>
+              <ChevronLeft className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${isStatusDropdownOpen ? 'rotate-[-90deg]' : 'rotate-[-270deg]'}`} />
+            </button>
+
+            {isStatusDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setIsStatusDropdownOpen(false)} />
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-20 animate-in fade-in zoom-in-95 duration-200">
+                  <div className="px-3 py-1 mb-1">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Lọc theo trạng thái</p>
+                  </div>
+                  <button
+                    onClick={() => { setStatusFilter('all'); setIsStatusDropdownOpen(false); }}
+                    className={`w-full text-left px-4 py-2 text-sm transition-colors ${statusFilter === 'all' ? 'bg-blue-50 text-blue-600 font-bold' : 'text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    Tất cả trạng thái
+                  </button>
+                  <div className="h-px bg-gray-50 my-1 mx-2" />
+                  {(activeTab === 'ITEMS' ? LOST_FOUND_STATUSES : LOST_ITEM_REQUEST_STATUSES).map(s => (
+                    <button
+                      key={s}
+                      onClick={() => { setStatusFilter(s); setIsStatusDropdownOpen(false); }}
+                      className={`w-full text-left px-4 py-2 text-sm transition-colors flex items-center justify-between ${statusFilter === s ? 'bg-blue-50 text-blue-600 font-bold' : 'text-gray-600 hover:bg-gray-50'}`}
+                    >
+                      {activeTab === 'ITEMS' ? translateStatus(s as any) : translateRequestStatus(s as any)}
+                      {statusFilter === s && <Check className="h-3 w-3" />}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -459,8 +486,9 @@ export const LostAndFoundManagement = () => {
                 ) : (
                   <>
                     <td className="px-6 py-4">
-                      <p className="font-bold text-gray-900">{row.item_name_reported}</p>
-                      <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+                      <p className="font-bold text-gray-900">{row.user?.name || 'Khách ẩn danh'}</p>
+                      <p className="text-xs text-blue-600 font-medium">Đồ báo mất: {row.item_name_reported}</p>
+                      <p className="text-[10px] text-gray-400 flex items-center gap-1 mt-1">
                         <History className="h-3 w-3" /> Booking: {row.booking_id}
                       </p>
                     </td>
@@ -497,6 +525,40 @@ export const LostAndFoundManagement = () => {
             ))}
           </tbody>
         </table>
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="px-6 py-4 bg-white border-t border-gray-100 flex items-center justify-between">
+            <p className="text-sm text-gray-500">Hiển thị trang {page} / {totalPages}</p>
+            <div className="flex items-center gap-1">
+              <button
+                disabled={page === 1}
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-30 transition-all text-gray-400"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(num => (
+                <button
+                  key={num}
+                  onClick={() => setPage(num)}
+                  className={`min-w-[36px] h-9 rounded-lg text-sm font-bold transition-all ${page === num ? 'bg-blue-600 text-white shadow-md shadow-blue-100' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'}`}
+                >
+                  {num}
+                </button>
+              ))}
+
+              <button
+                disabled={page === totalPages}
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-30 transition-all text-gray-400"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* --- MODALS --- */}
@@ -554,14 +616,15 @@ export const LostAndFoundManagement = () => {
           ) : (
             <div className="py-4">
               <div className="mb-8">
-                <p className="text-sm text-gray-500">Nhập 6 số OTP khách cung cấp</p>
+                <p className="text-sm text-gray-500 italic">Mã OTP đã được tự động điền để thuận tiện đối chiếu</p>
+                <p className="text-sm font-bold text-purple-600 mt-2">Vui lòng hỏi khách mã OTP họ nhận được:</p>
                 <input 
                   type="text" 
                   maxLength={6}
                   value={handoverOtp}
-                  onChange={e => setHandoverOtp(e.target.value)}
+                  readOnly
                   placeholder="------"
-                  className="mt-4 w-full text-center text-4xl tracking-[1rem] font-bold border-none bg-gray-50 rounded-2xl py-6 focus:ring-2 focus:ring-purple-500"
+                  className="mt-4 w-full text-center text-4xl tracking-[1rem] font-bold border-none bg-gray-50 rounded-2xl py-6 cursor-default focus:ring-0"
                 />
               </div>
               <div className="flex gap-3">
@@ -579,8 +642,13 @@ export const LostAndFoundManagement = () => {
         </div>
       </Modal>
 
-      {/* 3. Modal Match Split View */}
-      <Modal isOpen={isMatchModalOpen} onClose={() => setIsMatchModalOpen(false)} title="Xử lý yêu cầu tìm đồ" size="xl">
+      {/* 3. SlidePanel Match Split View */}
+      <SlidePanel 
+        isOpen={isMatchModalOpen} 
+        onClose={() => setIsMatchModalOpen(false)} 
+        title="Xử lý yêu cầu tìm đồ" 
+        width="max-w-4xl"
+      >
         <div className="flex flex-col md:flex-row min-h-[500px]">
           {/* Left: Request Detail */}
           <div className="w-full md:w-2/5 p-6 border-b md:border-b-0 md:border-r border-gray-100 bg-gray-50/50">
@@ -606,9 +674,22 @@ export const LostAndFoundManagement = () => {
                 value={managerNote}
                 onChange={e => setManagerNote(e.target.value)}
                 placeholder="Nhập ghi chú đối chiếu..."
-                className="w-full rounded-xl border-gray-200 text-sm focus:ring-blue-500"
+                className="w-full rounded-xl border-gray-200 text-sm focus:ring-blue-500 mb-4"
                 rows={3}
               />
+
+              <div className="flex items-center gap-2 p-3 bg-blue-50/50 rounded-xl border border-blue-100/50">
+                <input 
+                  type="checkbox" 
+                  id="closeOthers"
+                  checked={closeOthers}
+                  onChange={e => setCloseOthers(e.target.checked)}
+                  className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                />
+                <label htmlFor="closeOthers" className="text-xs text-blue-700 font-medium cursor-pointer">
+                  Đóng các yêu cầu khác của khách cho cùng đơn này
+                </label>
+              </div>
             </div>
           </div>
 
@@ -616,23 +697,30 @@ export const LostAndFoundManagement = () => {
           <div className="w-full md:w-3/5 p-6 flex flex-col h-[600px]">
             <h3 className="text-xs font-bold text-gray-400 uppercase mb-4">Chọn đồ vật khớp từ kho</h3>
             <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-              {items.filter(i => ['FOUND', 'IN_STORAGE'].includes(i.status)).map(item => (
-                <div 
-                  key={item.id}
-                  onClick={() => setMatchFoundItemId(item.id)}
-                  className={`flex items-center gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all ${matchFoundItemId === item.id ? 'border-blue-600 bg-blue-50 shadow-md' : 'border-gray-50 hover:border-gray-200 bg-white'}`}
-                >
-                  <div className="h-16 w-16 rounded-xl bg-gray-100 shrink-0 overflow-hidden">
-                    {item.photo_urls?.[0] ? <img src={item.photo_urls[0]} className="h-full w-full object-cover" /> : <Boxes className="h-full w-full p-4 text-gray-300" />}
+              {items.filter(i => ['FOUND', 'IN_STORAGE'].includes(i.status)).map(item => {
+                const isSelected = matchFoundItemIds.includes(item.id)
+                return (
+                  <div 
+                    key={item.id}
+                    onClick={() => {
+                      setMatchFoundItemIds(prev => 
+                        isSelected ? prev.filter(id => id !== item.id) : [...prev, item.id]
+                      )
+                    }}
+                    className={`flex items-center gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all ${isSelected ? 'border-blue-600 bg-blue-50 shadow-md' : 'border-gray-50 hover:border-gray-200 bg-white'}`}
+                  >
+                    <div className="h-16 w-16 rounded-xl bg-gray-100 shrink-0 overflow-hidden">
+                      {item.photo_urls?.[0] ? <img src={item.photo_urls[0]} className="h-full w-full object-cover" /> : <Boxes className="h-full w-full p-4 text-gray-300" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-gray-900 truncate">{item.item_name}</p>
+                      <p className="text-xs text-gray-400 truncate">Pod: {item.pod?.name || item.pod_id}</p>
+                      <p className="text-xs text-gray-500 mt-1 line-clamp-1 italic">{item.description || 'Không mô tả'}</p>
+                    </div>
+                    {isSelected && <Check className="text-blue-600 shrink-0" />}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-gray-900 truncate">{item.item_name}</p>
-                    <p className="text-xs text-gray-400 truncate">Pod: {item.pod?.name || item.pod_id}</p>
-                    <p className="text-xs text-gray-500 mt-1 line-clamp-1 italic">{item.description || 'Không mô tả'}</p>
-                  </div>
-                  {matchFoundItemId === item.id && <Check className="text-blue-600 shrink-0" />}
-                </div>
-              ))}
+                )
+              })}
               {items.filter(i => ['FOUND', 'IN_STORAGE'].includes(i.status)).length === 0 && (
                 <div className="text-center py-20 text-gray-400">Kho hiện tại không có đồ vật nào trống để match.</div>
               )}
@@ -648,18 +736,23 @@ export const LostAndFoundManagement = () => {
               </button>
               <button 
                 onClick={() => handleMatch(false)}
-                disabled={!matchFoundItemId || isActionLoading}
+                disabled={matchFoundItemIds.length === 0 || isActionLoading}
                 className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all disabled:opacity-50"
               >
-                {isActionLoading ? 'Đang khớp...' : 'Xác nhận KHỚP'}
+                {isActionLoading ? 'Đang khớp...' : matchFoundItemIds.length > 1 ? `Khớp ${matchFoundItemIds.length} món đồ` : 'Xác nhận KHỚP'}
               </button>
             </div>
           </div>
         </div>
-      </Modal>
+      </SlidePanel>
 
-      {/* 4. Modal Chi tiết (Cũ nhưng tinh chỉnh) */}
-      <Modal isOpen={isDetailOpen} onClose={() => setIsDetailOpen(false)} title="Chi tiết đồ vật" size="lg">
+      {/* 4. SlidePanel Chi tiết */}
+      <SlidePanel 
+        isOpen={isDetailOpen} 
+        onClose={() => setIsDetailOpen(false)} 
+        title={activeTab === 'ITEMS' ? 'Chi tiết đồ vật' : 'Chi tiết yêu cầu'} 
+        width="max-w-2xl"
+      >
         {selectedItem && (
           <div className="p-6">
             <div className="flex flex-col md:flex-row gap-6">
@@ -688,7 +781,7 @@ export const LostAndFoundManagement = () => {
                   </div>
                   <div className="p-3 bg-gray-50 rounded-xl">
                     <p className="text-[10px] font-bold text-gray-400 uppercase">Người báo cáo (Staff)</p>
-                    <p className="text-sm font-bold text-gray-700">{selectedItem.found_by_user_id}</p>
+                    <p className="text-sm font-bold text-gray-700">{selectedItem.found_by_user?.name || selectedItem.found_by_user_id}</p>
                   </div>
                   <div className="p-3 bg-gray-50 rounded-xl">
                     <p className="text-[10px] font-bold text-gray-400 uppercase">Kho lưu trữ</p>
@@ -704,73 +797,7 @@ export const LostAndFoundManagement = () => {
             </div>
           </div>
         )}
-      </Modal>
-
-      {/* 5. Modal Báo cáo đồ nhặt được (Create) */}
-      <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title="Báo cáo đồ nhặt được mới" size="md">
-        <form onSubmit={handleCreateFoundItem} className="p-6 space-y-5">
-          <div>
-            <label className="text-sm font-bold text-gray-700 mb-2 block">Tên đồ vật <span className="text-red-500">*</span></label>
-            <input 
-              required
-              value={createForm.item_name}
-              onChange={e => setCreateForm(p => ({ ...p, item_name: e.target.value }))}
-              placeholder="VD: Ví da màu nâu, iPhone 13..."
-              className="w-full rounded-xl border-gray-200 py-3 focus:ring-blue-500"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-bold text-gray-700 mb-2 block">Pod nhặt được <span className="text-red-500">*</span></label>
-              <select 
-                required
-                value={createForm.pod_id}
-                onChange={e => setCreateForm(p => ({ ...p, pod_id: e.target.value }))}
-                className="w-full rounded-xl border-gray-200 py-3 focus:ring-blue-500"
-              >
-                <option value="">Chọn Pod...</option>
-                {pods.map(p => <option key={p.id} value={p.id}>{p.name || p.code}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-bold text-gray-700 mb-2 block">Ảnh chụp (Tối đa 5)</label>
-              <div 
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full border-2 border-dashed border-gray-200 rounded-xl py-3 flex items-center justify-center cursor-pointer hover:bg-gray-50 text-gray-400"
-              >
-                <Upload className="h-5 w-5 mr-2" /> {selectedFiles.length > 0 ? `${selectedFiles.length} ảnh` : 'Tải lên'}
-              </div>
-              <input 
-                type="file" 
-                multiple 
-                ref={fileInputRef}
-                onChange={e => setSelectedFiles(Array.from(e.target.files || []))}
-                className="hidden"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="text-sm font-bold text-gray-700 mb-2 block">Mô tả thêm</label>
-            <textarea 
-              rows={3}
-              value={createForm.description}
-              onChange={e => setCreateForm(p => ({ ...p, description: e.target.value }))}
-              placeholder="Vị trí chính xác, tình trạng đồ vật..."
-              className="w-full rounded-xl border-gray-200 focus:ring-blue-500"
-            />
-          </div>
-          <div className="pt-4 flex gap-3">
-            <button type="button" onClick={() => setIsCreateModalOpen(false)} className="flex-1 py-3 font-bold text-gray-500 hover:bg-gray-100 rounded-xl transition-all">Hủy</button>
-            <button 
-              type="submit" 
-              disabled={isActionLoading}
-              className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 disabled:opacity-50 transition-all"
-            >
-              {isActionLoading ? 'Đang gửi...' : 'Gửi báo cáo'}
-            </button>
-          </div>
-        </form>
-      </Modal>
+      </SlidePanel>
     </div>
   )
 }

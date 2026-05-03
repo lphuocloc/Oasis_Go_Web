@@ -26,6 +26,7 @@ interface WarehouseMutationResponse {
 
 export interface WarehouseFilters {
   name?: string
+  location_ids?: string[]
 }
 
 export interface CreateWarehousePayload {
@@ -42,6 +43,7 @@ export const warehouseApi = {
   getAll: (filters?: WarehouseFilters) => {
     const params = new URLSearchParams()
     if (filters?.name) params.append('name', filters.name)
+    if (filters?.location_ids) params.append('location_ids', filters.location_ids.join(','))
     return api.get<WarehouseListResponse>('/warehouses', { params }).then((r: any) => r.data)
   },
 

@@ -32,3 +32,4 @@ dist-ssr
 # Generated Firebase runtime config files
 src/config/firebase.ts
 public/firebase-messaging-sw.js
+.env

@@ -69,6 +69,11 @@ const AdminSidebar: React.FC<{ userName?: string; userRole?: string }> = ({
       icon: <Users className="w-6 h-6" />
     },
     {
+      label: 'Quản lý người dùng',
+      path: '/admin/users',
+      icon: <Users className="w-6 h-6" />
+    },
+    {
       label: 'Đánh giá',
       path: '/admin/reviews',
       icon: <Star className="w-6 h-6" />

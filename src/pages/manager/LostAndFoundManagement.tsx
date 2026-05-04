@@ -259,7 +259,7 @@ export const LostAndFoundManagement = () => {
           return
         }
         await lostFoundApi.matchRequest(selectedRequest.id, {
-          found_item_ids: matchFoundItemIds,
+          found_item_id: matchFoundItemIds,
           manager_note: managerNote,
           close_others: closeOthers
         })
@@ -275,7 +275,7 @@ export const LostAndFoundManagement = () => {
   }
 
   const handleOpenHandoverFromRequest = (request: LostItemRequest) => {
-    const firstItemId = request.matched_found_item_ids?.[0]
+    const firstItemId = request.matched_found_item_id?.[0]
     const item = items.find(i => i.id === firstItemId)
     if (item) {
       setSelectedItem(item)

@@ -35,7 +35,7 @@ export interface LostFoundItem {
   created_at: string
   updated_at: string
   serial_number: string
-  
+
   // Mapped entities
   pod?: {
     id: string
@@ -56,11 +56,11 @@ export interface LostItemRequest {
   item_name_reported: string
   description_reported?: string | null
   status: LostItemRequestStatus
-  matched_found_item_ids?: string[]
+  matched_found_item_id?: string[]
   manager_note?: string | null
   created_at: string
   updated_at: string
-  
+
   // Populated fields if any
   user?: {
     id: string
@@ -181,7 +181,7 @@ export const lostFoundApi = {
 
   getRequestById: (id: string) => api.get<LostItemRequestSingleResponse>(`/lost-found-items/requests/${id}`).then((r) => r.data),
 
-  matchRequest: (id: string, payload: { found_item_id?: string, found_item_ids?: string[], manager_note?: string, close_others?: boolean }) =>
+  matchRequest: (id: string, payload: { found_item_id: string[], manager_note?: string, close_others?: boolean }) =>
     api.post<{ success: boolean, message: string, data: { request: LostItemRequest, matched_count: number } }>(`/lost-found-items/requests/${id}/match`, payload).then((r) => r.data),
 
   rejectRequest: (id: string, payload: { manager_note?: string }) =>

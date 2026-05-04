@@ -142,9 +142,8 @@ const ManagerAttendanceWidget = () => {
 
   return (
     <>
-      <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-5 py-4 rounded-2xl border-2 mb-6 ${
-        isActive ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
-      }`}>
+      <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-5 py-4 rounded-2xl border-2 mb-6 ${isActive ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
+        }`}>
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isActive ? 'bg-green-100' : 'bg-gray-100'}`}>
             {isActive ? <CheckCircle className="w-5 h-5 text-green-600" /> : <Clock className="w-5 h-5 text-gray-500" />}
@@ -240,12 +239,12 @@ const RecentHandoversWidget = ({ refreshTrigger }: { refreshTrigger?: number }) 
         </div>
         <h3 className="text-lg font-bold text-gray-900">Bàn giao từ ca trước</h3>
       </div>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {handovers.map((item, idx) => (
           <div key={item.id || idx} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
             <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-            
+
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold text-xs uppercase">
@@ -260,7 +259,7 @@ const RecentHandoversWidget = ({ refreshTrigger }: { refreshTrigger?: number }) 
               </div>
               <MessageSquare className="w-4 h-4 text-gray-300" />
             </div>
-            
+
             <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
               <p className="text-sm text-gray-700 leading-relaxed italic">
                 "{item.note_text}"
@@ -296,36 +295,36 @@ const LocationShiftsTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
         userApi.getActiveUsers('manager').catch(() => ({ data: [] })),
         locationApi.getAll().catch(() => ({ data: [] })),
         podClusterApi.getAll(locationId).catch(() => ({ data: [] })),
-        staffAttendanceLogApi.getAll({ 
-          location_id: locationId, 
+        staffAttendanceLogApi.getAll({
+          location_id: locationId,
           from_date: dayjs().startOf('day').toISOString(),
-          to_date: dayjs().endOf('day').toISOString() 
+          to_date: dayjs().endOf('day').toISOString()
         }).catch(() => ({ data: [] }))
       ])
 
       setAttendanceLogs(attRes.data || [])
 
       const locations = lAllRes.data || []
-      
+
       const allStaff = [...(cRes.data || []), ...(mRes.data || [])]
 
       const currentLoc = locations.find(l => l.id === locationId)
       const parentId = currentLoc?.parent_id
-      
+
       const filteredLocShifts = (lsRes.data || []).filter(ls => ls.location_id === locationId || (parentId && ls.location_id === parentId))
       const rosterShifts = (rRes.data || []).filter(r => r.location_id === locationId)
-      
+
       const allShiftIds = [...new Set([
         ...filteredLocShifts.map(ls => ls.shift_id),
         ...rosterShifts.map(r => r.shift_id)
       ])]
-      
+
       const displayShifts: LocationShiftItem[] = allShiftIds.map(sid => {
         const existingLs = filteredLocShifts.find(ls => ls.shift_id === sid)
         if (existingLs) return existingLs
         return { id: `mock-${sid}`, location_id: locationId, shift_id: sid }
       })
-      
+
       let finalShifts = sRes.data || []
       const missingShiftIds = allShiftIds.filter(id => !finalShifts.some(s => s.id === id))
       if (missingShiftIds.length > 0) {
@@ -334,7 +333,7 @@ const LocationShiftsTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
         )
         finalShifts = [...finalShifts, ...missingShifts.filter((s): s is StaffShiftItem => s !== null)]
       }
-      
+
       const validDisplayShifts = displayShifts.filter(ls => finalShifts.some(s => s.id === ls.shift_id))
       setLocShifts(validDisplayShifts)
       setShifts(finalShifts)
@@ -381,12 +380,12 @@ const LocationShiftsTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
                         .map(r => {
                           const c = cleaners.find(x => x.id === r.staff_id || x._id === r.staff_id)
                           const cl = clusters.find(x => x.id === r.cluster_id)
-                          
+
                           // Determine actual status from logs
                           const logs = attendanceLogs.filter(l => l.staff_id === r.staff_id && l.shift_id === r.shift_id)
                           const hasCheckin = logs.some(l => l.action === 'CHECKIN')
                           const hasCheckout = logs.some(l => l.action === 'CHECKOUT')
-                          
+
                           // Time check
                           const now = dayjs()
                           let isPastEnd = false
@@ -427,7 +426,7 @@ const LocationShiftsTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
                                 <span className="text-xs font-bold text-gray-900">{c?.name || 'Unknown'}</span>
                               </div>
                               {cl && <span className="text-[10px] text-gray-400 font-bold ml-3 uppercase">{cl.name}</span>}
-                              
+
                               {/* Tooltip on hover */}
                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10">
                                 <div className="bg-gray-900 text-white text-[10px] py-1 px-2 rounded whitespace-nowrap shadow-xl">
@@ -483,11 +482,11 @@ const RostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
       const allRosters = rRes.data || []
       const clusterIds = (clRes.data || []).map(x => x.id)
       setRosters(allRosters.filter(r => clusterIds.includes(r.cluster_id || '')))
-      
+
       // Derive manager's own shifts from the full roster list
       const myShifts = allRosters.filter(r => r.staff_id === user?.id).map(r => r.shift_id)
       setManagerShiftIds(myShifts)
-      
+
       // Only cleaners can be assigned by manager
       setCleaners(cRes.data || [])
       setClusters(clRes.data || [])
@@ -495,21 +494,21 @@ const RostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
       const locations = lAllRes.data || []
       const currentLoc = locations.find(l => l.id === locationId)
       const parentId = currentLoc?.parent_id
-      
+
       const filteredLocShifts = (lsRes.data || []).filter(ls => ls.location_id === locationId || (parentId && ls.location_id === parentId))
       const rosterShifts = (rRes.data || []).filter(r => r.location_id === locationId)
-      
+
       const allShiftIds = [...new Set([
         ...filteredLocShifts.map(ls => ls.shift_id),
         ...rosterShifts.map(r => r.shift_id)
       ])]
-      
+
       const displayShifts: LocationShiftItem[] = allShiftIds.map(sid => {
         const existingLs = filteredLocShifts.find(ls => ls.shift_id === sid)
         if (existingLs) return existingLs
         return { id: `mock-${sid}`, location_id: locationId, shift_id: sid }
       })
-      
+
       let finalShifts = sRes.data || []
       const missingShiftIds = allShiftIds.filter(id => !finalShifts.some(s => s.id === id))
       if (missingShiftIds.length > 0) {
@@ -518,7 +517,7 @@ const RostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
         )
         finalShifts = [...finalShifts, ...missingShifts.filter((s): s is StaffShiftItem => s !== null)]
       }
-      
+
       const validDisplayShifts = displayShifts.filter(ls => finalShifts.some(s => s.id === ls.shift_id))
       setLocShifts(validDisplayShifts)
       setShifts(finalShifts)
@@ -558,7 +557,7 @@ const RostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
   }
 
 
-  
+
   const availableShifts = locShifts
     .map(ls => ls.shift || shifts.find(x => x.id === ls.shift_id))
     .filter((s): s is StaffShiftItem => s !== undefined && managerShiftIds.includes(s.id))

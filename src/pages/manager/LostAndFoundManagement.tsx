@@ -1,18 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Boxes,
-  CheckCircle,
+  CheckCircle2,
   Eye,
   Handshake,
-  Plus,
   RefreshCw,
   Search,
-  Store,
-  Upload,
-  History,
+  Store as StoreIcon,
+  History as HistoryIcon,
   Check,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  SlidersHorizontal
 } from 'lucide-react'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
@@ -26,7 +25,6 @@ import {
   type LostItemRequest,
   type LostItemRequestStatus
 } from '../../api/lib/lostFoundApi'
-import { podApi, type PodItem } from '../../api/lib/podApi'
 import { warehouseApi, type WarehouseItem } from '../../api/lib/warehouseApi'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
 import { initUserSocket } from '../../lib/socket'
@@ -99,7 +97,6 @@ export const LostAndFoundManagement = () => {
   const [activeTab, setActiveTab] = useState<TabType>('ITEMS')
   const [items, setItems] = useState<LostFoundItem[]>([])
   const [requests, setRequests] = useState<LostItemRequest[]>([])
-  const [pods, setPods] = useState<PodItem[]>([])
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -134,11 +131,7 @@ export const LostAndFoundManagement = () => {
     try {
       setIsLoading(true)
       const locationIds = [...new Set(clusters.map(c => c.location_id).filter(Boolean))]
-      const [podsRes, warehousesRes] = await Promise.all([
-        podApi.getAll(),
-        warehouseApi.getAll({ location_ids: locationIds as string[] })
-      ])
-      setPods(podsRes.data)
+      const warehousesRes = await warehouseApi.getAll({ location_ids: locationIds as string[] })
       setWarehouses(warehousesRes.data)
 
       if (activeTab === 'ITEMS') {
@@ -189,8 +182,8 @@ export const LostAndFoundManagement = () => {
   const filteredItems = useMemo(() => {
     const q = search.toLowerCase().trim()
     if (!q) return items
-    return items.filter(i => 
-      i.item_name.toLowerCase().includes(q) || 
+    return items.filter(i =>
+      i.item_name.toLowerCase().includes(q) ||
       i.serial_number?.toLowerCase().includes(q) ||
       i.description?.toLowerCase().includes(q)
     )
@@ -199,8 +192,8 @@ export const LostAndFoundManagement = () => {
   const filteredRequests = useMemo(() => {
     const q = search.toLowerCase().trim()
     if (!q) return requests
-    return requests.filter(r => 
-      r.item_name_reported.toLowerCase().includes(q) || 
+    return requests.filter(r =>
+      r.item_name_reported.toLowerCase().includes(q) ||
       r.description_reported?.toLowerCase().includes(q)
     )
   }, [requests, search])
@@ -225,7 +218,7 @@ export const LostAndFoundManagement = () => {
     if (!selectedItem) return
     try {
       setIsActionLoading(true)
-      await lostFoundApi.generateHandoverOTP(selectedItem.id)
+      const res = await lostFoundApi.generateHandoverOTP(selectedItem.id)
       toast.success('Đã tạo mã OTP và gửi cho khách hàng')
       setHandoverOtp(res.otp) // Auto-fill OTP
       setOtpGeneratedAt(new Date().toISOString())
@@ -265,8 +258,8 @@ export const LostAndFoundManagement = () => {
           toast.error('Vui lòng chọn ít nhất 1 món đồ nhặt được để khớp')
           return
         }
-        await lostFoundApi.matchRequest(selectedRequest.id, { 
-          found_item_ids: matchFoundItemIds, 
+        await lostFoundApi.matchRequest(selectedRequest.id, {
+          found_item_ids: matchFoundItemIds,
           manager_note: managerNote,
           close_others: closeOthers
         })
@@ -307,7 +300,7 @@ export const LostAndFoundManagement = () => {
           <p className="text-gray-500 mt-1">Theo dõi đồ thất lạc và xử lý yêu cầu từ khách hàng.</p>
         </div>
         <div className="flex gap-3">
-          <button 
+          <button
             onClick={() => setRefreshTrigger(p => p + 1)}
             className="p-2.5 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-all"
           >
@@ -353,10 +346,10 @@ export const LostAndFoundManagement = () => {
               <span className="flex items-center gap-2">
                 <SlidersHorizontal className="h-4 w-4 text-gray-400" />
                 <span className="font-medium text-gray-700">
-                  {statusFilter === 'all' 
-                    ? 'Tất cả trạng thái' 
-                    : activeTab === 'ITEMS' 
-                      ? translateStatus(statusFilter as any) 
+                  {statusFilter === 'all'
+                    ? 'Tất cả trạng thái'
+                    : activeTab === 'ITEMS'
+                      ? translateStatus(statusFilter as any)
                       : translateRequestStatus(statusFilter as any)
                   }
                 </span>
@@ -440,7 +433,7 @@ export const LostAndFoundManagement = () => {
                     <td className="px-6 py-4">
                       <p className="text-sm font-medium text-gray-700">Pod: {row.pod?.name || row.pod_id || 'Không rõ'}</p>
                       <p className="text-xs text-blue-600 flex items-center gap-1 mt-0.5">
-                        <Store className="h-3 w-3" /> {row.warehouse_id ? `Kho: ${warehouses.find(w => w.id === row.warehouse_id)?.name || row.warehouse_id}` : 'Chưa nhập kho'}
+                        <StoreIcon className="h-3 w-3" /> {row.warehouse_id ? `Kho: ${warehouses.find(w => w.id === row.warehouse_id)?.name || row.warehouse_id}` : 'Chưa nhập kho'}
                       </p>
                     </td>
                     <td className="px-6 py-4">
@@ -452,22 +445,22 @@ export const LostAndFoundManagement = () => {
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         {row.status === 'FOUND' && (
-                          <button 
+                          <button
                             onClick={() => { setSelectedItem(row); setIsStoreModalOpen(true); }}
                             className="p-2 text-amber-600 hover:bg-amber-50 rounded-xl transition-all" title="Cất vào kho"
                           >
-                            <Store className="h-5 w-5" />
+                            <StoreIcon className="h-5 w-5" />
                           </button>
                         )}
                         {row.status === 'CLAIM_PENDING' && (
-                          <button 
+                          <button
                             onClick={() => { setSelectedItem(row); setIsHandoverModalOpen(true); setHandoverOtp(''); setOtpGeneratedAt(null); }}
                             className="p-2 text-purple-600 hover:bg-purple-50 rounded-xl transition-all" title="Bàn giao OTP"
                           >
                             <Handshake className="h-5 w-5" />
                           </button>
                         )}
-                        <button 
+                        <button
                           onClick={() => { setSelectedItem(row); setIsDetailOpen(true); }}
                           className="p-2 text-gray-400 hover:bg-gray-100 rounded-xl transition-all" title="Chi tiết"
                         >
@@ -482,7 +475,7 @@ export const LostAndFoundManagement = () => {
                       <p className="font-bold text-gray-900">{row.user?.name || 'Khách ẩn danh'}</p>
                       <p className="text-xs text-blue-600 font-medium">Đồ báo mất: {row.item_name_reported}</p>
                       <p className="text-[10px] text-gray-400 flex items-center gap-1 mt-1">
-                        <History className="h-3 w-3" /> Booking: {row.booking_id}
+                        <HistoryIcon className="h-3 w-3" /> Booking: {row.booking_id}
                       </p>
                     </td>
                     <td className="px-6 py-4">
@@ -496,15 +489,15 @@ export const LostAndFoundManagement = () => {
                     <td className="px-6 py-4 text-sm text-gray-500">{formatDateTime(row.created_at)}</td>
                     <td className="px-6 py-4 text-right">
                       {row.status === 'PENDING' && (
-                        <button 
-                          onClick={() => { setSelectedRequest(row); setIsMatchModalOpen(true); setMatchFoundItemId(''); setManagerNote(''); }}
+                        <button
+                          onClick={() => { setSelectedRequest(row); setIsMatchModalOpen(true); setMatchFoundItemIds([]); setManagerNote(''); }}
                           className="px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl text-sm font-bold transition-all"
                         >
                           Xử lý Match
                         </button>
                       )}
                       {row.status === 'MATCHED' && (
-                        <button 
+                        <button
                           onClick={() => handleOpenHandoverFromRequest(row)}
                           className="px-4 py-2 bg-purple-50 text-purple-600 hover:bg-purple-100 rounded-xl text-sm font-bold transition-all"
                         >
@@ -531,7 +524,7 @@ export const LostAndFoundManagement = () => {
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              
+
               {Array.from({ length: totalPages }, (_, i) => i + 1).map(num => (
                 <button
                   key={num}
@@ -562,8 +555,8 @@ export const LostAndFoundManagement = () => {
           <p className="text-sm text-gray-600 mb-4">Vui lòng chọn kho lưu trữ cho món đồ <span className="font-bold">"{selectedItem?.item_name}"</span>.</p>
           <div className="space-y-4">
             {warehouses.map(w => (
-              <label 
-                key={w.id} 
+              <label
+                key={w.id}
                 className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${selectedWarehouseId === w.id ? 'border-blue-600 bg-blue-50' : 'border-gray-100 hover:border-gray-200'}`}
                 onClick={() => setSelectedWarehouseId(w.id)}
               >
@@ -571,13 +564,13 @@ export const LostAndFoundManagement = () => {
                   <p className="font-bold text-gray-900">{w.name}</p>
                   <p className="text-xs text-gray-500">{w.address}</p>
                 </div>
-                {selectedWarehouseId === w.id && <CheckCircle className="text-blue-600 h-6 w-6" />}
+                {selectedWarehouseId === w.id && <CheckCircle2 className="text-blue-600 h-6 w-6" />}
               </label>
             ))}
           </div>
           <div className="mt-8 flex gap-3">
             <button onClick={() => setIsStoreModalOpen(false)} className="flex-1 py-3 rounded-xl border border-gray-200 font-bold text-gray-600 hover:bg-gray-50 transition-all">Hủy</button>
-            <button 
+            <button
               disabled={!selectedWarehouseId || isActionLoading}
               onClick={handleStore}
               className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50 transition-all shadow-md shadow-blue-200"
@@ -598,7 +591,7 @@ export const LostAndFoundManagement = () => {
               </div>
               <h3 className="text-xl font-bold text-gray-900">Bàn giao đồ thất lạc</h3>
               <p className="text-gray-500 mt-2 px-8">Hệ thống sẽ gửi mã OTP đến điện thoại của khách hàng để xác nhận bàn giao.</p>
-              <button 
+              <button
                 onClick={handleGenerateOTP}
                 disabled={isActionLoading}
                 className="mt-8 w-full py-4 bg-purple-600 text-white rounded-2xl font-bold hover:bg-purple-700 shadow-lg shadow-purple-200 transition-all"
@@ -611,8 +604,8 @@ export const LostAndFoundManagement = () => {
               <div className="mb-8">
                 <p className="text-sm text-gray-500 italic">Mã OTP đã được tự động điền để thuận tiện đối chiếu</p>
                 <p className="text-sm font-bold text-purple-600 mt-2">Vui lòng hỏi khách mã OTP họ nhận được:</p>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   maxLength={6}
                   value={handoverOtp}
                   readOnly
@@ -622,7 +615,7 @@ export const LostAndFoundManagement = () => {
               </div>
               <div className="flex gap-3">
                 <button onClick={() => setOtpGeneratedAt(null)} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-bold hover:bg-gray-50 transition-all">Gửi lại OTP</button>
-                <button 
+                <button
                   disabled={handoverOtp.length < 6 || isActionLoading}
                   onClick={handleConfirmHandover}
                   className="flex-1 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all disabled:opacity-50"
@@ -636,10 +629,10 @@ export const LostAndFoundManagement = () => {
       </Modal>
 
       {/* 3. SlidePanel Match Split View */}
-      <SlidePanel 
-        isOpen={isMatchModalOpen} 
-        onClose={() => setIsMatchModalOpen(false)} 
-        title="Xử lý yêu cầu tìm đồ" 
+      <SlidePanel
+        isOpen={isMatchModalOpen}
+        onClose={() => setIsMatchModalOpen(false)}
+        title="Xử lý yêu cầu tìm đồ"
         width="max-w-4xl"
       >
         <div className="flex flex-col md:flex-row min-h-[500px]">
@@ -660,10 +653,10 @@ export const LostAndFoundManagement = () => {
                 <p className="text-sm font-mono text-blue-600">{selectedRequest?.booking_id}</p>
               </div>
             </div>
-            
+
             <div className="mt-8">
               <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Ghi chú xử lý (Tùy chọn)</label>
-              <textarea 
+              <textarea
                 value={managerNote}
                 onChange={e => setManagerNote(e.target.value)}
                 placeholder="Nhập ghi chú đối chiếu..."
@@ -672,8 +665,8 @@ export const LostAndFoundManagement = () => {
               />
 
               <div className="flex items-center gap-2 p-3 bg-blue-50/50 rounded-xl border border-blue-100/50">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   id="closeOthers"
                   checked={closeOthers}
                   onChange={e => setCloseOthers(e.target.checked)}
@@ -693,10 +686,10 @@ export const LostAndFoundManagement = () => {
               {items.filter(i => ['FOUND', 'IN_STORAGE'].includes(i.status)).map(item => {
                 const isSelected = matchFoundItemIds.includes(item.id)
                 return (
-                  <div 
+                  <div
                     key={item.id}
                     onClick={() => {
-                      setMatchFoundItemIds(prev => 
+                      setMatchFoundItemIds(prev =>
                         isSelected ? prev.filter(id => id !== item.id) : [...prev, item.id]
                       )
                     }}
@@ -718,16 +711,16 @@ export const LostAndFoundManagement = () => {
                 <div className="text-center py-20 text-gray-400">Kho hiện tại không có đồ vật nào trống để match.</div>
               )}
             </div>
-            
+
             <div className="pt-6 border-t border-gray-100 flex gap-3 mt-4">
-              <button 
+              <button
                 onClick={() => handleMatch(true)}
                 disabled={isActionLoading}
                 className="flex-1 py-3 rounded-xl border border-red-100 text-red-600 font-bold hover:bg-red-50 transition-all"
               >
                 Từ chối yêu cầu
               </button>
-              <button 
+              <button
                 onClick={() => handleMatch(false)}
                 disabled={matchFoundItemIds.length === 0 || isActionLoading}
                 className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all disabled:opacity-50"
@@ -740,10 +733,10 @@ export const LostAndFoundManagement = () => {
       </SlidePanel>
 
       {/* 4. SlidePanel Chi tiết */}
-      <SlidePanel 
-        isOpen={isDetailOpen} 
-        onClose={() => setIsDetailOpen(false)} 
-        title={activeTab === 'ITEMS' ? 'Chi tiết đồ vật' : 'Chi tiết yêu cầu'} 
+      <SlidePanel
+        isOpen={isDetailOpen}
+        onClose={() => setIsDetailOpen(false)}
+        title={activeTab === 'ITEMS' ? 'Chi tiết đồ vật' : 'Chi tiết yêu cầu'}
         width="max-w-2xl"
       >
         {selectedItem && (

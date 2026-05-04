@@ -587,24 +587,57 @@ const RostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {rosters.map(r => {
-              const c = cleaners.find(x => x.id === r.staff_id || x._id === r.staff_id)
-              const cl = clusters.find(x => x.id === r.cluster_id)
-              const s = shifts.find(x => x.id === r.shift_id)
-              const colors = getShiftColor(s?.shift_name || '')
+            {Object.values(rosters.reduce((acc: any, r) => {
+              if (!acc[r.staff_id]) acc[r.staff_id] = { staff_id: r.staff_id, items: [] }
+              acc[r.staff_id].items.push(r)
+              return acc
+            }, {})).map((group: any) => {
+              const c = cleaners.find(x => x.id === group.staff_id || x._id === group.staff_id)
+              
+              // Group items by cluster within this staff member
+              const itemsByCluster = group.items.reduce((acc: any, r: any) => {
+                const cid = r.cluster_id || 'N/A'
+                if (!acc[cid]) acc[cid] = []
+                acc[cid].push(r)
+                return acc
+              }, {})
+
               return (
-                <tr key={r.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-gray-900">{c?.name || r.staff_id}</div>
-                    <div className="text-xs text-gray-500 font-mono">{c?.id}</div>
+                <tr key={group.staff_id} className="hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
+                  <td className="px-6 py-6 align-top">
+                    <div className="font-bold text-gray-900">{c?.name || group.staff_id}</div>
+                    <div className="text-xs text-gray-500 font-mono">{c?.id || group.staff_id}</div>
                   </td>
-                  <td className="px-6 py-4 font-medium text-gray-700">{cl?.name || 'N/A'}</td>
-                  <td className="px-6 py-4">
-                    {s ? <span className={`px-3 py-1 rounded-full text-xs font-bold border ${colors.bg} ${colors.text} ${colors.border}`}>{s.shift_name} ({s.start_time}-{s.end_time})</span> : 'N/A'}
-                    {r.is_temporary && <span className="ml-2 px-2 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-bold rounded uppercase">Tạm thời</span>}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button onClick={() => handleDelete(r.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"><Trash2 className="w-4 h-4" /></button>
+                  <td className="px-0 py-0" colSpan={3}>
+                    <div className="divide-y divide-gray-50/50">
+                      {Object.entries(itemsByCluster).map(([cid, items]: [string, any]) => {
+                        const cl = clusters.find(x => x.id === cid)
+                        return (
+                          <div key={cid} className="grid grid-cols-2 gap-4 px-6 py-4">
+                            <div className="font-medium text-gray-600 flex items-center">
+                              {cl?.name || 'N/A'}
+                            </div>
+                            <div className="flex flex-wrap gap-2 items-center">
+                              {items.map((r: any) => {
+                                const s = shifts.find(x => x.id === r.shift_id)
+                                const colors = getShiftColor(s?.shift_name || '')
+                                return (
+                                  <div key={r.id} className="flex items-center gap-1.5">
+                                    <span className={`px-3 py-1 rounded-full text-[11px] font-bold border ${colors.bg} ${colors.text} ${colors.border}`}>
+                                      {s?.shift_name || 'N/A'} ({s?.start_time}-{s?.end_time})
+                                    </span>
+                                    {r.is_temporary && <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-[9px] font-bold rounded uppercase">Tạm thời</span>}
+                                    <button onClick={() => handleDelete(r.id)} className="p-1 text-gray-400 hover:text-red-600 transition-colors" title="Xóa ca này">
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </td>
                 </tr>
               )

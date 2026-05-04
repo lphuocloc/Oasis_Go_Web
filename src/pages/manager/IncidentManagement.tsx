@@ -462,8 +462,12 @@ export const IncidentManagement = () => {
       await bookingOrderApi.createOrderDamageBill(currentOrderId)
       toast.success('Damage Bill created successfully for the order')
 
-      const refreshedIncidents = await bookingOrderApi.getOrderIncidents(currentOrderId)
+      const [refreshedIncidents, refreshedOrderData] = await Promise.all([
+        bookingOrderApi.getOrderIncidents(currentOrderId),
+        bookingOrderApi.getById(currentOrderId)
+      ])
       setOrderIncidents(refreshedIncidents)
+      setOrderDetail(refreshedOrderData)
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
       toast.error(error?.response?.data?.message || 'Failed to create damage bill')
@@ -732,10 +736,18 @@ export const IncidentManagement = () => {
                 </h4>
                 <button
                   onClick={handleCreateDamageBill}
-                  disabled={isCreatingDamageBill || orderIncidents.filter(i => i.incident_type !== 'REPLENISHMENT_REQUEST').some(i => !['RESOLVED', 'DISMISSED'].includes(i.status)) || orderIncidents.filter(i => i.incident_type !== 'REPLENISHMENT_REQUEST' && i.status === 'RESOLVED').length === 0 || isReadOnly}
+                  disabled={
+                    isCreatingDamageBill || 
+                    orderIncidents.filter(i => i.incident_type !== 'REPLENISHMENT_REQUEST').some(i => !['RESOLVED', 'DISMISSED'].includes(i.status)) || 
+                    orderIncidents.filter(i => i.incident_type !== 'REPLENISHMENT_REQUEST' && i.status === 'RESOLVED').length === 0 || 
+                    isReadOnly ||
+                    (orderDetail?.order?.damage_payment_status && orderDetail.order.damage_payment_status !== 'NO_INCIDENT')
+                  }
                   className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
                 >
-                  {isCreatingDamageBill ? 'Đang tạo Hóa đơn...' : 'Tạo hóa đơn đền bù'}
+                  {isCreatingDamageBill ? 'Đang tạo Hóa đơn...' : 
+                   (orderDetail?.order?.damage_payment_status && orderDetail.order.damage_payment_status !== 'NO_INCIDENT') 
+                   ? 'Đã tạo hóa đơn đền bù' : 'Tạo hóa đơn đền bù'}
                 </button>
               </div>
 

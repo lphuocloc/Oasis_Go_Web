@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Boxes, Edit2, Eye, RefreshCw, Search, SlidersHorizontal, Check, CheckCircle, Clock, AlertCircle, X, Wrench } from 'lucide-react'
+import { Boxes, Edit2, Eye, RefreshCw, Search, SlidersHorizontal, Check, CheckCircle, Clock, AlertCircle, X, Wrench, LayoutTemplate, Wind, Volume2, Zap, Wifi, Timer, History, MapPin } from 'lucide-react'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
 import {
@@ -40,6 +40,24 @@ const podStatusBgColor = (status: PodStatus) => {
     case 'MAINTENANCE': return 'bg-rose-500'
     default: return 'bg-gray-500'
   }
+}
+
+const getPodStatusBorderColor = (status: PodStatus) => {
+  switch (status) {
+    case 'AVAILABLE': return 'border-emerald-500 bg-emerald-50 text-emerald-700'
+    case 'OCCUPIED': return 'border-blue-500 bg-blue-50 text-blue-700'
+    case 'NEEDS_CLEANING': return 'border-amber-500 bg-amber-50 text-amber-700'
+    case 'CLEANING': return 'border-violet-500 bg-violet-50 text-violet-700'
+    case 'MAINTENANCE': return 'border-rose-500 bg-rose-50 text-rose-700'
+    default: return 'border-gray-300 bg-gray-50 text-gray-500'
+  }
+}
+
+const getLevel = (code: string) => {
+  const c = code.toUpperCase()
+  if (c.endsWith('U')) return 'U'
+  if (c.endsWith('L')) return 'L'
+  return '?'
 }
 
 export const PodManagement = () => {
@@ -367,95 +385,124 @@ export const PodManagement = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-900">Pods</h2>
-          <span className="text-sm text-gray-500">{filteredPods.length} item(s)</span>
-        </div>
+      <div className="space-y-12">
+        {isTableLoading ? (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-20 text-center text-gray-400">
+            <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 opacity-20" />
+            Loading pods and clusters...
+          </div>
+        ) : filteredPods.length === 0 ? (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-20 text-center text-gray-400">
+            <Boxes className="w-12 h-12 mx-auto mb-4 opacity-20" />
+            No pods found in your scope
+          </div>
+        ) : (
+          (() => {
+            // Group by Cluster
+            const podsByCluster = filteredPods.reduce<Record<string, PodItem[]>>((acc, pod) => {
+              if (!acc[pod.cluster_id]) acc[pod.cluster_id] = []
+              acc[pod.cluster_id].push(pod)
+              return acc
+            }, {})
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pod</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cluster</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Specs</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Cleaned</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {isTableLoading ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-400">Loading pods...</td>
-                </tr>
-              ) : filteredPods.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-400">No pods found in your scope</td>
-                </tr>
-              ) : (
-                filteredPods.map((pod) => (
-                  <tr key={pod.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 align-top">
-                      <div className="font-semibold text-gray-900">{pod.code} - {pod.name}</div>
-                      {pod.description && <p className="text-xs text-gray-500 mt-2 max-w-sm">{pod.description}</p>}
-                    </td>
-                    <td className="px-6 py-4 align-top text-gray-600">{clusterMap.get(pod.cluster_id)?.name ?? pod.cluster?.name ?? pod.cluster_id}</td>
-                    <td className="px-6 py-4 align-top">
-                      <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${statusBadgeClass(pod.status)}`}>
-                        {pod.status}
-                      </span>
-                      {pod.status === 'MAINTENANCE' && pod.maintenance_status && (
-                        <p className="text-xs text-rose-700 mt-2">{pod.maintenance_status}</p>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 align-top text-xs text-gray-600">
-                      <p>Soundproof: {pod.soundproof_level}/5</p>
-                      <p>Ventilation: {pod.ventilation_level}/5</p>
-                      <p>Outlets: {pod.power_outlets}</p>
-                      <p>Wi-Fi: {pod.wifi_available ? 'Yes' : 'No'}</p>
-                      <p>Max session: {pod.max_session_duration} mins</p>
-                    </td>
-                    <td className="px-6 py-4 align-top text-gray-600">
-                      {pod.last_cleaned_at ? new Date(pod.last_cleaned_at).toLocaleString() : '-'}
-                    </td>
-                    <td className="px-6 py-4 align-top">
-                      <div className="flex items-center justify-end gap-2 flex-wrap">
-                        {pod.status === 'NEEDS_CLEANING' && (
-                          <button
-                            type="button"
-                            onClick={() => openAssignModal(pod)}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-amber-200 text-amber-700 hover:bg-amber-50 transition-colors"
-                          >
-                            Assign Cleaner
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => openDetailModal(pod.id)}
-                          disabled={detailLoadingId === pod.id}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors disabled:opacity-60"
-                        >
-                          <Eye className="w-4 h-4" />
-                          {detailLoadingId === pod.id ? 'Loading...' : 'Details'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openStatusModal(pod)}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                          Update Status
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+            return Object.entries(podsByCluster).map(([clusterId, clusterPods]) => {
+              const cluster = clusterMap.get(clusterId) ?? clusterPods[0]?.cluster
+              // Group by Prefix
+              const prefixes = [...new Set(clusterPods.map(p => p.code.charAt(0).toUpperCase()))].sort()
+
+              return (
+                <div key={clusterId} className="space-y-6">
+                  <div className="flex items-center gap-3 px-1">
+                    <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl">
+                      <LayoutTemplate className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-gray-900">{cluster?.name || clusterId}</h2>
+                      <p className="text-xs text-gray-500">Cụm {clusterId.slice(0, 8)} • {clusterPods.length} pods</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-8">
+                    {prefixes.map(prefix => {
+                      const prefixPods = clusterPods.filter(p => p.code.startsWith(prefix))
+                      const upperRow = prefixPods.filter(p => getLevel(p.code) === 'U').sort((a, b) => a.code.localeCompare(b.code))
+                      const lowerRow = prefixPods.filter(p => getLevel(p.code) === 'L').sort((a, b) => a.code.localeCompare(b.code))
+                      const otherRow = prefixPods.filter(p => !['U', 'L'].includes(getLevel(p.code))).sort((a, b) => a.code.localeCompare(b.code))
+
+                      return (
+                        <div key={prefix} className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+                          <div className="px-5 py-3 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
+                            <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Dãy {prefix}</span>
+                            <div className="flex gap-2">
+                              {upperRow.length > 0 && <span className="text-[9px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-bold uppercase">Tầng trên ({upperRow.length})</span>}
+                              {lowerRow.length > 0 && <span className="text-[9px] bg-slate-50 text-slate-600 px-2 py-0.5 rounded-full font-bold uppercase">Tầng dưới ({lowerRow.length})</span>}
+                            </div>
+                          </div>
+                          
+                          <div className="p-6 space-y-8">
+                            {/* Upper Row */}
+                            {upperRow.length > 0 && (
+                              <div className="flex flex-wrap gap-3">
+                                {upperRow.map(pod => (
+                                  <div
+                                    key={pod.id}
+                                    onClick={() => openDetailModal(pod.id)}
+                                    className={`w-24 h-16 rounded-xl border-2 shadow-sm flex flex-col items-center justify-center transition-all hover:scale-105 group relative cursor-pointer ${getPodStatusBorderColor(pod.status)}`}
+                                  >
+                                    <span className="text-xs font-black">{pod.code}</span>
+                                    <span className="text-[8px] font-bold opacity-60 mt-0.5 truncate px-1 w-full text-center">{pod.status}</span>
+                                    <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-white border border-gray-100 rounded-full flex items-center justify-center shadow-sm">
+                                      <span className="text-[8px] font-black text-gray-400">U</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Lower Row */}
+                            {lowerRow.length > 0 && (
+                              <div className="flex flex-wrap gap-3">
+                                {lowerRow.map(pod => (
+                                  <div
+                                    key={pod.id}
+                                    onClick={() => openDetailModal(pod.id)}
+                                    className={`w-24 h-16 rounded-xl border-2 shadow-sm flex flex-col items-center justify-center transition-all hover:scale-105 group relative cursor-pointer ${getPodStatusBorderColor(pod.status)}`}
+                                  >
+                                    <span className="text-xs font-black">{pod.code}</span>
+                                    <span className="text-[8px] font-bold opacity-60 mt-0.5 truncate px-1 w-full text-center">{pod.status}</span>
+                                    <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-white border border-gray-100 rounded-full flex items-center justify-center shadow-sm">
+                                      <span className="text-[8px] font-black text-gray-400">L</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Others */}
+                            {otherRow.length > 0 && (
+                              <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100">
+                                {otherRow.map(pod => (
+                                  <div
+                                    key={pod.id}
+                                    onClick={() => openDetailModal(pod.id)}
+                                    className={`w-24 h-16 rounded-xl border-2 shadow-sm flex flex-col items-center justify-center transition-all hover:scale-105 cursor-pointer ${getPodStatusBorderColor(pod.status)}`}
+                                  >
+                                    <span className="text-xs font-black">{pod.code}</span>
+                                    <span className="text-[8px] font-bold opacity-60 mt-0.5 truncate px-1 w-full text-center">{pod.status}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })
+          })()
+        )}
       </div>
 
       {/* Filter panel */}
@@ -599,109 +646,158 @@ export const PodManagement = () => {
 
           <div className="flex-1 overflow-y-auto px-6 py-6">
             {isDetailLoading ? (
-              <div className="py-8 text-center text-gray-500">Loading pod details...</div>
+              <div className="py-8 text-center text-gray-500">
+                <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 opacity-20" />
+                Loading pod details...
+              </div>
             ) : !detailPod ? (
               <div className="py-8 text-center text-gray-500">No details found for this pod.</div>
             ) : (
-              <div className="space-y-6">
-                {(() => {
-                  let bg = '', iconBg = '', title = '', desc = '', Icon = null;
-                  if (detailPod.status === 'AVAILABLE') {
-                    bg = 'from-emerald-50/80 to-white border-emerald-100';
-                    iconBg = 'bg-white text-emerald-500 shadow-sm border border-emerald-50';
-                    title = 'Pod Available';
-                    desc = 'Pod is ready for customers.';
-                    Icon = <CheckCircle className="w-6 h-6" />;
-                  } else if (detailPod.status === 'OCCUPIED') {
-                    bg = 'from-blue-50/80 to-white border-blue-100';
-                    iconBg = 'bg-white text-blue-500 shadow-sm border border-blue-50';
-                    title = 'Pod Occupied';
-                    desc = 'Pod is currently in use.';
-                    Icon = <Clock className="w-6 h-6" />;
-                  } else if (detailPod.status === 'MAINTENANCE') {
-                    bg = 'from-rose-50/80 to-white border-rose-100';
-                    iconBg = 'bg-white text-rose-500 shadow-sm border border-rose-50';
-                    title = 'Under Maintenance';
-                    desc = detailPod.maintenance_status || 'Pod is undergoing maintenance.';
-                    Icon = <Wrench className="w-6 h-6" />;
-                  } else if (detailPod.status === 'NEEDS_CLEANING') {
-                    bg = 'from-amber-50/80 to-white border-amber-100';
-                    iconBg = 'bg-white text-amber-500 shadow-sm border border-amber-50';
-                    title = 'Needs Cleaning';
-                    desc = 'Pod requires cleaning.';
-                    Icon = <AlertCircle className="w-6 h-6" />;
-                  } else if (detailPod.status === 'CLEANING') {
-                    bg = 'from-violet-50/80 to-white border-violet-100';
-                    iconBg = 'bg-white text-violet-500 shadow-sm border border-violet-50';
-                    title = 'Cleaning in Progress';
-                    desc = 'Pod is currently being cleaned.';
-                    Icon = <RefreshCw className="w-6 h-6 animate-spin" />;
-                  } else {
-                    bg = 'from-gray-50/80 to-white border-gray-100';
-                    iconBg = 'bg-white text-gray-500 shadow-sm border border-gray-50';
-                    title = detailPod.status;
-                    desc = 'Current pod state pending assessment.';
-                    Icon = <Boxes className="w-6 h-6" />;
-                  }
-
-                  return (
-                    <div className={`rounded-2xl p-8 flex flex-col items-center text-center bg-gradient-to-b border shadow-sm ${bg}`}>
-                      <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-4 ${iconBg}`}>
-                        {Icon}
-                      </div>
-                      <h3 className="text-xl font-bold text-gray-900 mb-2">{title}</h3>
-                      <p className="text-sm text-gray-600 max-w-sm">{desc}</p>
+              <div className="space-y-8">
+                {/* Header Status Section */}
+                <div className="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between bg-gray-50/50 p-6 rounded-2xl border border-gray-100">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-sm border-2 ${getPodStatusBorderColor(detailPod.status)}`}>
+                      <LayoutTemplate className="w-8 h-8" />
                     </div>
-                  )
-                })()}
-
-                <div className="flex flex-col text-sm">
-
-                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                    <span className="text-gray-500">Pod Code</span>
-                    <span className="font-medium text-gray-900">{detailPod.code}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                    <span className="text-gray-500">Pod Name</span>
-                    <span className="font-medium text-gray-900">{detailPod.name}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                    <span className="text-gray-500">Cluster</span>
-                    <span className="font-medium text-gray-900">{detailPod.cluster?.name ?? clusterMap.get(detailPod.cluster_id)?.name ?? detailPod.cluster_id}</span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-black text-gray-900">{detailPod.code}</h3>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${statusBadgeClass(detailPod.status)}`}>
+                          {detailPod.status}
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium text-gray-500 mt-0.5">{detailPod.name}</p>
+                    </div>
                   </div>
 
-                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                    <span className="text-gray-500">Soundproof</span>
-                    <span className="font-medium text-gray-900">{detailPod.soundproof_level}/5</span>
+                  {detailPod.status === 'MAINTENANCE' && detailPod.maintenance_status && (
+                    <div className="bg-rose-50 text-rose-700 px-4 py-2 rounded-xl border border-rose-100 text-xs font-medium max-w-xs">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Wrench className="w-3.5 h-3.5" />
+                        <span className="font-bold uppercase tracking-wide">Maintenance Note</span>
+                      </div>
+                      {detailPod.maintenance_status}
+                    </div>
+                  )}
+                </div>
+
+                {/* Primary Info Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-1">Location Info</h4>
+                    <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 text-gray-500">
+                          <div className="p-2 bg-indigo-50 text-indigo-500 rounded-lg">
+                            <Boxes className="w-4 h-4" />
+                          </div>
+                          <span className="text-xs font-bold uppercase tracking-tight">Cluster</span>
+                        </div>
+                        <span className="text-sm font-bold text-gray-900 truncate max-w-[180px]">
+                          {detailPod.cluster?.name ?? clusterMap.get(detailPod.cluster_id)?.name ?? detailPod.cluster_id}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 text-gray-500">
+                          <div className="p-2 bg-rose-50 text-rose-500 rounded-lg">
+                            <MapPin className="w-4 h-4" />
+                          </div>
+                          <span className="text-xs font-bold uppercase tracking-tight">Level</span>
+                        </div>
+                        <span className="text-sm font-bold text-gray-900">
+                          {getLevel(detailPod.code) === 'U' ? 'Upper Floor (Tầng trên)' : 'Lower Floor (Tầng dưới)'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                    <span className="text-gray-500">Ventilation</span>
-                    <span className="font-medium text-gray-900">{detailPod.ventilation_level}/5</span>
-                  </div>
-                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                    <span className="text-gray-500">Power Outlets</span>
-                    <span className="font-medium text-gray-900">{detailPod.power_outlets}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                    <span className="text-gray-500">Wi-Fi</span>
-                    <span className="font-medium text-gray-900">{detailPod.wifi_available ? 'Available' : 'Unavailable'}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                    <span className="text-gray-500">Max Session Duration</span>
-                    <span className="font-medium text-gray-900">{detailPod.max_session_duration} minutes</span>
-                  </div>
-                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                    <span className="text-gray-500">Last Cleaned</span>
-                    <span className="font-medium text-gray-900">{detailPod.last_cleaned_at ? new Date(detailPod.last_cleaned_at).toLocaleString() : '-'}</span>
+
+                  <div className="space-y-4">
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-1">Maintenance History</h4>
+                    <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 text-gray-500">
+                          <div className="p-2 bg-emerald-50 text-emerald-500 rounded-lg">
+                            <History className="w-4 h-4" />
+                          </div>
+                          <span className="text-xs font-bold uppercase tracking-tight">Last Cleaned</span>
+                        </div>
+                        <span className="text-sm font-bold text-gray-900">
+                          {detailPod.last_cleaned_at ? new Date(detailPod.last_cleaned_at).toLocaleString() : '—'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 text-gray-500">
+                          <div className="p-2 bg-blue-50 text-blue-500 rounded-lg">
+                            <Clock className="w-4 h-4" />
+                          </div>
+                          <span className="text-xs font-bold uppercase tracking-tight">Added Date</span>
+                        </div>
+                        <span className="text-sm font-bold text-gray-900">
+                          {detailPod.createdAt ? new Date(detailPod.createdAt).toLocaleDateString() : '—'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Description</p>
-                  <p className="text-sm text-gray-700 bg-gray-50 border border-gray-100 rounded-lg p-3 whitespace-pre-wrap">
-                    {detailPod.description || 'No description'}
-                  </p>
+                {/* Technical Specs Grid */}
+                <div className="space-y-4">
+                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-1">Technical Specifications</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+                    <div className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center group hover:border-indigo-200 transition-colors">
+                      <div className="p-3 bg-indigo-50 text-indigo-500 rounded-xl mb-3 group-hover:scale-110 transition-transform">
+                        <Volume2 className="w-5 h-5" />
+                      </div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Soundproof</span>
+                      <span className="text-sm font-black text-gray-900 mt-1">{detailPod.soundproof_level}/5</span>
+                    </div>
+
+                    <div className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center group hover:border-cyan-200 transition-colors">
+                      <div className="p-3 bg-cyan-50 text-cyan-500 rounded-xl mb-3 group-hover:scale-110 transition-transform">
+                        <Wind className="w-5 h-5" />
+                      </div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Ventilation</span>
+                      <span className="text-sm font-black text-gray-900 mt-1">{detailPod.ventilation_level}/5</span>
+                    </div>
+
+                    <div className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center group hover:border-amber-200 transition-colors">
+                      <div className="p-3 bg-amber-50 text-amber-500 rounded-xl mb-3 group-hover:scale-110 transition-transform">
+                        <Zap className="w-5 h-5" />
+                      </div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Outlets</span>
+                      <span className="text-sm font-black text-gray-900 mt-1">{detailPod.power_outlets} ports</span>
+                    </div>
+
+                    <div className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center group hover:border-emerald-200 transition-colors">
+                      <div className="p-3 bg-emerald-50 text-emerald-500 rounded-xl mb-3 group-hover:scale-110 transition-transform">
+                        <Wifi className="w-5 h-5" />
+                      </div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Wi-Fi</span>
+                      <span className="text-sm font-black text-gray-900 mt-1">{detailPod.wifi_available ? 'Available' : 'No'}</span>
+                    </div>
+
+                    <div className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center group hover:border-violet-200 transition-colors">
+                      <div className="p-3 bg-violet-50 text-violet-500 rounded-xl mb-3 group-hover:scale-110 transition-transform">
+                        <Timer className="w-5 h-5" />
+                      </div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Max Session</span>
+                      <span className="text-sm font-black text-gray-900 mt-1">{detailPod.max_session_duration}m</span>
+                    </div>
+                  </div>
                 </div>
+
+                {/* Description */}
+                {detailPod.description && (
+                  <div className="space-y-4">
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-1">Detailed Description</h4>
+                    <div className="bg-gray-50 border border-gray-100 rounded-2xl p-6">
+                      <p className="text-sm text-gray-600 leading-relaxed italic">
+                        "{detailPod.description}"
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

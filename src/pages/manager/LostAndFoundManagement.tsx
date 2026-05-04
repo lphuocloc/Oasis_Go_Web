@@ -775,6 +775,31 @@ export const LostAndFoundManagement = () => {
                   </div>
                 </div>
 
+                {selectedItem.claimed_by_user && (
+                  <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="p-1.5 bg-emerald-100 rounded-lg">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      </div>
+                      <p className="text-xs font-bold text-emerald-700 uppercase">Khách hàng (Người nhận)</p>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-emerald-600 font-medium">Họ tên:</span>
+                        <span className="text-sm font-bold text-gray-900">{selectedItem.claimed_by_user.name}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-emerald-600 font-medium">Số điện thoại:</span>
+                        <span className="text-sm font-bold text-gray-900">{selectedItem.claimed_by_user.phone || '-'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-emerald-600 font-medium">Email:</span>
+                        <span className="text-sm font-bold text-gray-900">{selectedItem.claimed_by_user.email || '-'}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Mô tả</p>
                   <p className="text-sm text-gray-600 bg-gray-50 p-4 rounded-xl italic">"{selectedItem.description || 'Không có mô tả chi tiết'}"</p>

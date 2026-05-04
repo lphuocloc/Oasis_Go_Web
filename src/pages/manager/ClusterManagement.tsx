@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Boxes, Eye, ImagePlus, MapPin, RefreshCw, Search, SlidersHorizontal, Check, X, Server, LayoutTemplate, ClipboardCheck } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { podClusterApi, type PodClusterItem } from '../../api/lib/podClusterApi'
+import { podApi, type PodItem, type PodStatus } from '../../api/lib/podApi'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
 import { ClusterPodItemBulkAssign } from '../../components/common/ClusterPodItemBulkAssign'
 import { initUserSocket } from '../../lib/socket'
@@ -17,6 +18,24 @@ import { Button } from '../../components/ui/button'
 const formatMoneyModifier = (value?: number | null) => {
   if (value == null) return '—'
   return `${value.toFixed(2)}x`
+}
+
+const getPodStatusColor = (status: PodStatus) => {
+  switch (status) {
+    case 'AVAILABLE': return 'border-emerald-500 bg-emerald-50 text-emerald-700'
+    case 'OCCUPIED': return 'border-blue-500 bg-blue-50 text-blue-700'
+    case 'NEEDS_CLEANING': return 'border-amber-500 bg-amber-50 text-amber-700'
+    case 'CLEANING': return 'border-orange-500 bg-orange-50 text-orange-700'
+    case 'MAINTENANCE': return 'border-rose-500 bg-rose-50 text-rose-700'
+    default: return 'border-gray-300 bg-gray-50 text-gray-500'
+  }
+}
+
+const getLevel = (code: string) => {
+  const c = code.toUpperCase()
+  if (c.endsWith('U')) return 'U'
+  if (c.endsWith('L')) return 'L'
+  return '?'
 }
 
 export const ClusterManagement = () => {
@@ -35,6 +54,7 @@ export const ClusterManagement = () => {
   const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null)
   const [selectedCluster, setSelectedCluster] = useState<PodClusterItem | null>(null)
+  const [clusterPods, setClusterPods] = useState<PodItem[]>([])
 
   const clusters = useMemo(() => {
     if (locationFilter === 'all') return scopedClusters
@@ -106,6 +126,7 @@ export const ClusterManagement = () => {
     // Small delay to allow transition before unmounting
     setTimeout(() => {
       setSelectedCluster(null)
+      setClusterPods([])
       setIsDetailLoading(false)
       setDetailLoadingId(null)
     }, 300)
@@ -117,8 +138,12 @@ export const ClusterManagement = () => {
     setDetailLoadingId(clusterId)
 
     try {
-      const response = await podClusterApi.getById(clusterId)
-      setSelectedCluster(response.data)
+      const [clusterRes, podsRes] = await Promise.all([
+        podClusterApi.getById(clusterId),
+        podApi.getByCluster(clusterId)
+      ])
+      setSelectedCluster(clusterRes.data)
+      setClusterPods(podsRes.data)
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Failed to load pod cluster detail')
       closeDetailModal()
@@ -454,6 +479,125 @@ export const ClusterManagement = () => {
                     </p>
                   </div>
                 )}
+
+                {/* Pod Grid Section */}
+                <div className="border-t border-gray-100 pt-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-base font-semibold text-gray-900">Sơ đồ Pod trong cụm</h3>
+                    <div className="flex gap-4 text-[10px] font-bold uppercase tracking-wider">
+                      <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm border-2 border-emerald-500 bg-emerald-50"></div><span>Trống</span></div>
+                      <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm border-2 border-blue-500 bg-blue-50"></div><span>Đang sử dụng</span></div>
+                      <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm border-2 border-amber-500 bg-amber-50"></div><span>Cần dọn</span></div>
+                      <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm border-2 border-rose-500 bg-rose-50"></div><span>Bảo trì</span></div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-12">
+                    {/* Render by type */}
+                    {['STANDARD', 'SERVICE'].map(type => {
+                      const typePods = clusterPods.filter(p => (p.type || 'STANDARD') === type)
+                      if (typePods.length === 0) return null
+
+                      // Group by Row Prefix (A, B, C...)
+                      const prefixes = [...new Set(typePods.map(p => p.code.charAt(0).toUpperCase()))].sort()
+
+                      return (
+                        <div key={type} className="space-y-6">
+                          <div className="flex items-center gap-2">
+                            <div className={`p-1.5 rounded-lg ${type === 'SERVICE' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
+                              <LayoutTemplate className="w-4 h-4" />
+                            </div>
+                            <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
+                              {type === 'SERVICE' ? 'Pod Dịch vụ (Service)' : 'Pod Tiêu chuẩn (Standard)'}
+                            </h4>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-8">
+                            {prefixes.map(prefix => {
+                              const prefixPods = typePods.filter(p => p.code.startsWith(prefix))
+                              const upperRow = prefixPods.filter(p => getLevel(p.code) === 'U').sort((a, b) => a.code.localeCompare(b.code))
+                              const lowerRow = prefixPods.filter(p => getLevel(p.code) === 'L').sort((a, b) => a.code.localeCompare(b.code))
+                              const otherRow = prefixPods.filter(p => !['U', 'L'].includes(getLevel(p.code))).sort((a, b) => a.code.localeCompare(b.code))
+
+                              return (
+                                <div key={prefix} className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+                                  <div className="px-5 py-3 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
+                                    <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Dãy {prefix}</span>
+                                    <div className="flex gap-2">
+                                      {upperRow.length > 0 && <span className="text-[9px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-bold uppercase">Tầng trên ({upperRow.length})</span>}
+                                      {lowerRow.length > 0 && <span className="text-[9px] bg-slate-50 text-slate-600 px-2 py-0.5 rounded-full font-bold uppercase">Tầng dưới ({lowerRow.length})</span>}
+                                    </div>
+                                  </div>
+
+                                  <div className="p-6 space-y-8">
+                                    {/* Upper Row */}
+                                    {upperRow.length > 0 && (
+                                      <div className="space-y-2">
+                                        <div className="flex flex-wrap gap-3">
+                                          {upperRow.map(pod => (
+                                            <div
+                                              key={pod.id}
+                                              className={`w-24 h-16 rounded-xl border-2 shadow-sm flex flex-col items-center justify-center transition-all hover:scale-105 group relative cursor-default ${getPodStatusColor(pod.status)}`}
+                                            >
+                                              <span className="text-xs font-black">{pod.code}</span>
+                                              <span className="text-[8px] font-bold opacity-60 mt-0.5 truncate px-1 w-full text-center">{pod.status}</span>
+
+                                              {/* Tiny indicator for Upper */}
+                                              <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-white border border-gray-100 rounded-full flex items-center justify-center shadow-sm">
+                                                <span className="text-[8px] font-black text-gray-400">U</span>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Lower Row */}
+                                    {lowerRow.length > 0 && (
+                                      <div className="space-y-2">
+                                        <div className="flex flex-wrap gap-3">
+                                          {lowerRow.map(pod => (
+                                            <div
+                                              key={pod.id}
+                                              className={`w-24 h-16 rounded-xl border-2 shadow-sm flex flex-col items-center justify-center transition-all hover:scale-105 group relative cursor-default ${getPodStatusColor(pod.status)}`}
+                                            >
+                                              <span className="text-xs font-black">{pod.code}</span>
+                                              <span className="text-[8px] font-bold opacity-60 mt-0.5 truncate px-1 w-full text-center">{pod.status}</span>
+
+                                              {/* Tiny indicator for Lower */}
+                                              <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-white border border-gray-100 rounded-full flex items-center justify-center shadow-sm">
+                                                <span className="text-[8px] font-black text-gray-400">L</span>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Others if any */}
+                                    {otherRow.length > 0 && (
+                                      <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-50">
+                                        {otherRow.map(pod => (
+                                          <div
+                                            key={pod.id}
+                                            className={`w-24 h-16 rounded-xl border-2 shadow-sm flex flex-col items-center justify-center transition-all hover:scale-105 ${getPodStatusColor(pod.status)}`}
+                                          >
+                                            <span className="text-xs font-black">{pod.code}</span>
+                                            <span className="text-[8px] font-bold opacity-60 mt-0.5">{pod.status}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
 
                 <div className="border-t border-gray-100 pt-6 pb-4">
                   <h3 className="text-base font-semibold text-gray-900 mb-4">Gallery</h3>

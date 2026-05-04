@@ -47,6 +47,12 @@ export interface LostFoundItem {
     name: string
     phone?: string
   }
+  claimed_by_user?: {
+    id: string
+    name: string
+    phone?: string
+    email?: string
+  }
 }
 
 export interface LostItemRequest {

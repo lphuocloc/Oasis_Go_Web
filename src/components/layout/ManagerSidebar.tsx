@@ -1,7 +1,7 @@
 import React from 'react'
 import type { NavItem } from './Sidebar'
 import Sidebar from './Sidebar'
-import { LayoutGrid, MapPin, Home, Calendar, CheckCircle, AlertCircle, Package, LifeBuoy, Clock } from 'lucide-react'
+import { LayoutGrid, MapPin, Home, Calendar, CheckCircle, AlertCircle, Package, LifeBuoy, Clock, Sparkles } from 'lucide-react'
 
 const ManagerSidebar: React.FC<{ userName?: string; userRole?: string }> = ({
   userName = 'Manager User',
@@ -32,6 +32,11 @@ const ManagerSidebar: React.FC<{ userName?: string; userRole?: string }> = ({
       label: 'Vệ sinh & Bảo trì',
       path: '/manager/maintenance',
       icon: <CheckCircle className="w-6 h-6" />
+    },
+    {
+      label: 'Nhiệm vụ vệ sinh',
+      path: '/manager/cleaning-tasks',
+      icon: <Sparkles className="w-6 h-6" />
     },
     {
       label: 'Sự cố',

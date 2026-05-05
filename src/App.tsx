@@ -15,12 +15,14 @@ import { ReviewManagement } from './pages/admin/ReviewManagement'
 import { BookingManagement as AdminBookingManagement } from './pages/admin/BookingManagement'
 import { VoucherManagement } from './pages/admin/VoucherManagement'
 import { LedgerManagement } from './pages/admin/LedgerManagement'
+import { UserManagement } from './pages/admin/UserManagement'
 import { ManagerDashboard } from './pages/manager/ManagerDashboard'
 import { ManagerProfile } from './pages/manager/Profile'
 import { Login } from './pages/Login'
 import { ClusterManagement } from './pages/manager/ClusterManagement'
 import { PodManagement } from './pages/manager/PodManagement'
 import { BookingManagement } from './pages/manager/BookingManagement'
+import { CleaningTaskManagement as ManagerCleaningTaskManagement } from './pages/manager/CleaningTaskManagement'
 import { CleaningManagement } from './pages/manager/CleaningManagement'
 import { IncidentManagement } from './pages/manager/IncidentManagement'
 import { ManagerShiftManagement } from './pages/manager/ShiftManagement'
@@ -109,6 +111,10 @@ export const router = createBrowserRouter([
           {
             path: 'ledger',
             element: <LedgerManagement />
+          },
+          {
+            path: 'users',
+            element: <UserManagement />
           }
         ]
       }
@@ -141,6 +147,10 @@ export const router = createBrowserRouter([
           {
             path: "maintenance",
             element: <CleaningManagement />
+          },
+          {
+            path: "cleaning-tasks",
+            element: <ManagerCleaningTaskManagement />
           },
           {
             path: "incidents",

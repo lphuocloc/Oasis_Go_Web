@@ -14,7 +14,8 @@ export const CLEANING_TASK_STATUSES = [
 export const CLEANING_REQUEST_SOURCES = [
   'USER_REQUEST',
   'AUTO_AFTER_CHECKOUT',
-  'SYSTEM_RETRY'
+  'SYSTEM_RETRY',
+  'ROOM_CHANGE_VACATED'
 ] as const
 
 export type CleaningTaskStatus = (typeof CLEANING_TASK_STATUSES)[number]
@@ -39,6 +40,47 @@ export interface CleaningTaskItem {
   reassigned_from_cleaner_id?: string | null
   created_at?: string
   updated_at?: string
+}
+
+export interface CleaningTaskManagerBookingItem {
+  id: string
+  pod_id?: string
+  booking_id?: string
+  cleaner_id?: string
+  status: CleaningTaskStatus
+  request_source: CleaningRequestSource
+  due_at?: string | null
+  estimated_start_time?: string | null
+  pod_name?: string | null
+  location_name?: string | null
+  action_label?: string | null
+}
+
+export interface CleaningTaskManagerDetail extends CleaningTaskManagerBookingItem {
+  booking_status?: string | null
+  pod_status?: string | null
+  actual_start_time?: string | null
+  actual_end_time?: string | null
+}
+
+export interface CleaningTaskMediaItem {
+  id: string
+  cleaning_task_id: string
+  media_type: 'BEFORE' | 'AFTER'
+  file_type: 'IMAGE' | 'VIDEO' | 'FILE'
+  media: {
+    url: string
+    public_id?: string
+  }
+  created_at?: string
+}
+
+export interface CleaningTaskWithMediaPayload {
+  task: CleaningTaskManagerDetail
+  media: {
+    before: CleaningTaskMediaItem[]
+    after: CleaningTaskMediaItem[]
+  }
 }
 
 export interface CleaningTaskListFilters {
@@ -93,6 +135,17 @@ interface CleaningTaskSingleResponse {
   data: CleaningTaskItem
 }
 
+interface CleaningTaskManagerBookingResponse {
+  success: boolean
+  count: number
+  data: CleaningTaskManagerBookingItem[]
+}
+
+interface CleaningTaskWithMediaResponse {
+  success: boolean
+  data: CleaningTaskWithMediaPayload
+}
+
 interface CleaningTaskDeleteResponse {
   success: boolean
   message: string
@@ -143,6 +196,13 @@ export const cleaningTaskApi = {
   },
 
   getById: (id: string) => api.get<CleaningTaskSingleResponse>(`/cleaning-tasks/${id}`).then((r) => r.data),
+
+  getManagerCleanerBooking: (filters: CleaningTaskListFilters) => {
+    const params = buildParams(filters)
+    return api.get<CleaningTaskManagerBookingResponse>('/cleaning-tasks/manager/cleaner-booking', { params }).then((r) => r.data)
+  },
+
+  getWithMedia: (id: string) => api.get<CleaningTaskWithMediaResponse>(`/cleaning-tasks/${id}/with-media`).then((r) => r.data),
 
   create: (payload: CreateCleaningTaskPayload) => {
     return api.post<CleaningTaskSingleResponse>('/cleaning-tasks', payload).then((r) => r.data)

@@ -8,14 +8,7 @@ import { toast } from 'react-toastify'
 import type { WalletWithdrawalItem } from '../../api/lib/walletWithdrawalApi'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '../../components/ui/dialog'
+import SlidePanel from '../../components/common/SlidePanel'
 import {
     Table,
     TableBody,
@@ -326,93 +319,93 @@ export const WithdrawManagement: React.FC = () => {
                 </Button>
             </div>
 
-            <Dialog open={Boolean(selectedRequest)} onOpenChange={(open) => !open && setSelectedRequest(null)}>
-                <DialogContent>
-                    {selectedRequest && (
-                        <>
-                            <DialogHeader>
-                                <DialogTitle>Chi tiết yêu cầu rút tiền</DialogTitle>
-                                <DialogDescription>Thông tin giao dịch và tài khoản nhận tiền.</DialogDescription>
-                            </DialogHeader>
+            <SlidePanel
+                isOpen={Boolean(selectedRequest)}
+                onClose={() => setSelectedRequest(null)}
+                title="Chi tiết yêu cầu rút tiền"
+                width="max-w-2xl"
+            >
+                {selectedRequest && (
+                    <div className="space-y-6">
+                        <p className="text-sm text-slate-500">Thông tin giao dịch và tài khoản nhận tiền.</p>
 
-                            <div className="grid gap-4 px-6 pb-2 sm:grid-cols-2">
-                                <Card>
-                                    <CardContent className="space-y-1 p-4">
-                                        <p className="text-xs text-slate-500">Mã giao dịch</p>
-                                        <p className="text-sm font-mono">{selectedRequest.id}</p>
-                                    </CardContent>
-                                </Card>
-                                <Card>
-                                    <CardContent className="space-y-1 p-4">
-                                        <p className="text-xs text-slate-500">Số tiền</p>
-                                        <p className="text-lg font-bold text-indigo-700">{formatCurrency(selectedRequest.amount)}</p>
-                                    </CardContent>
-                                </Card>
-                                <Card>
-                                    <CardContent className="space-y-1 p-4">
-                                        <p className="text-xs text-slate-500">Ngân hàng</p>
-                                        <p className="text-sm font-medium">{selectedRequest.bank_name_snapshot}</p>
-                                        <p className="text-xs text-slate-500">{selectedRequest.bank_account_number_snapshot}</p>
-                                    </CardContent>
-                                </Card>
-                                <Card>
-                                    <CardContent className="space-y-1 p-4">
-                                        <p className="text-xs text-slate-500">Chủ tài khoản</p>
-                                        <p className="text-sm font-medium">{selectedRequest.requester_name ?? '-'}</p>
-                                    </CardContent>
-                                </Card>
-                            </div>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <Card>
+                                <CardContent className="space-y-1 p-4">
+                                    <p className="text-xs text-slate-500">Mã giao dịch</p>
+                                    <p className="text-sm font-mono">{selectedRequest.id}</p>
+                                </CardContent>
+                            </Card>
+                            <Card>
+                                <CardContent className="space-y-1 p-4">
+                                    <p className="text-xs text-slate-500">Số tiền</p>
+                                    <p className="text-lg font-bold text-indigo-700">{formatCurrency(selectedRequest.amount)}</p>
+                                </CardContent>
+                            </Card>
+                            <Card>
+                                <CardContent className="space-y-1 p-4">
+                                    <p className="text-xs text-slate-500">Ngân hàng</p>
+                                    <p className="text-sm font-medium">{selectedRequest.bank_name_snapshot}</p>
+                                    <p className="text-xs text-slate-500">{selectedRequest.bank_account_number_snapshot}</p>
+                                </CardContent>
+                            </Card>
+                            <Card>
+                                <CardContent className="space-y-1 p-4">
+                                    <p className="text-xs text-slate-500">Chủ tài khoản</p>
+                                    <p className="text-sm font-medium">{selectedRequest.requester_name ?? '-'}</p>
+                                </CardContent>
+                            </Card>
+                        </div>
 
-                            <div className="px-6 pb-4 text-sm text-slate-600">
-                                <p className="mb-1 font-medium text-slate-800">Ghi chú</p>
-                                <p className="rounded-lg bg-slate-50 p-3">{selectedRequest.note ?? '-'}</p>
-                            </div>
+                        <div className="text-sm text-slate-600">
+                            <p className="mb-1 font-medium text-slate-800">Ghi chú</p>
+                            <p className="rounded-lg bg-slate-50 p-3">{selectedRequest.note ?? '-'}</p>
+                        </div>
 
-                            {selectedRequest.status === 'PENDING' && (
-                                <div className="px-6 pb-2">
-                                    <label htmlFor="withdraw-action-note" className="mb-1.5 block text-sm font-medium text-slate-700">
-                                        Ghi chú xử lý
-                                    </label>
-                                    <textarea
-                                        id="withdraw-action-note"
-                                        value={actionNote}
-                                        onChange={(event) => setActionNote(event.target.value)}
-                                        placeholder="Nhap ghi chu (bat buoc khi tu choi, tuy chon khi phe duyet)..."
-                                        className="min-h-[92px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-0 transition focus:border-blue-400"
-                                    />
-                                    {actionError && (
-                                        <p className="mt-2 text-sm font-medium text-rose-600">{actionError}</p>
-                                    )}
-                                </div>
-                            )}
-
-                            <DialogFooter>
-                                <Button variant="outline" onClick={() => setSelectedRequest(null)}>
-                                    Đóng
-                                </Button>
-                                {selectedRequest.status === 'PENDING' && (
-                                    <>
-                                        <Button
-                                            variant="destructive"
-                                            disabled={isProcessingAction}
-                                            onClick={() => void handleAction(selectedRequest.id, 'REJECTED')}
-                                        >
-                                            Từ chối
-                                        </Button>
-                                        <Button
-                                            variant="secondary"
-                                            disabled={isProcessingAction}
-                                            onClick={() => void handleAction(selectedRequest.id, 'APPROVED')}
-                                        >
-                                            Phê duyệt
-                                        </Button>
-                                    </>
+                        {selectedRequest.status === 'PENDING' && (
+                            <div>
+                                <label htmlFor="withdraw-action-note" className="mb-1.5 block text-sm font-medium text-slate-700">
+                                    Ghi chú xử lý
+                                </label>
+                                <textarea
+                                    id="withdraw-action-note"
+                                    value={actionNote}
+                                    onChange={(event) => setActionNote(event.target.value)}
+                                    placeholder="Nhap ghi chu (bat buoc khi tu choi, tuy chon khi phe duyet)..."
+                                    className="min-h-[92px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-0 transition focus:border-blue-400"
+                                />
+                                {actionError && (
+                                    <p className="mt-2 text-sm font-medium text-rose-600">{actionError}</p>
                                 )}
-                            </DialogFooter>
-                        </>
-                    )}
-                </DialogContent>
-            </Dialog>
+                            </div>
+                        )}
+
+                        <div className="flex items-center justify-end gap-2 pt-2">
+                            <Button variant="outline" onClick={() => setSelectedRequest(null)}>
+                                Đóng
+                            </Button>
+                            {selectedRequest.status === 'PENDING' && (
+                                <>
+                                    <Button
+                                        variant="destructive"
+                                        disabled={isProcessingAction}
+                                        onClick={() => void handleAction(selectedRequest.id, 'REJECTED')}
+                                    >
+                                        Từ chối
+                                    </Button>
+                                    <Button
+                                        variant="secondary"
+                                        disabled={isProcessingAction}
+                                        onClick={() => void handleAction(selectedRequest.id, 'APPROVED')}
+                                    >
+                                        Phê duyệt
+                                    </Button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </SlidePanel>
         </div>
     )
 }

@@ -24,6 +24,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '../../components/ui/dialog'
+import SlidePanel from '../../components/common/SlidePanel'
 import { Input } from '../../components/ui/input'
 import {
     Select,
@@ -702,45 +703,44 @@ export const VoucherManagement: React.FC = () => {
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={Boolean(detailId)} onOpenChange={(open) => !open && setDetailId(null)}>
-                <DialogContent className="max-w-xl">
-                    <DialogHeader>
-                        <DialogTitle>Chi tiết voucher</DialogTitle>
-                        <DialogDescription>Thông tin chi tiết voucher.</DialogDescription>
-                    </DialogHeader>
-
-                    <div className="px-4 pb-4">
-                        {voucherDetailLoading ? (
-                            <div className="space-y-3">
-                                {Array.from({ length: 6 }).map((_, index) => (
-                                    <div key={`detail-skeleton-${index}`} className="h-4 w-full rounded bg-slate-200" />
-                                ))}
-                            </div>
-                        ) : voucherDetail ? (
-                            <div className="grid gap-3 sm:grid-cols-2">
-                                {detailFields.map((field) => (
-                                    <div key={field.label} className="space-y-2">
-                                        <p className="text-xs font-semibold uppercase text-slate-500">{field.label}</p>
-                                        <div className="flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900">
-                                            {field.value}
-                                        </div>
+            <SlidePanel
+                isOpen={Boolean(detailId)}
+                onClose={() => setDetailId(null)}
+                title="Chi tiết voucher"
+                width="max-w-2xl"
+            >
+                <div className="space-y-4">
+                    <p className="text-sm text-slate-500">Thông tin chi tiết voucher.</p>
+                    {voucherDetailLoading ? (
+                        <div className="space-y-3">
+                            {Array.from({ length: 6 }).map((_, index) => (
+                                <div key={`detail-skeleton-${index}`} className="h-4 w-full rounded bg-slate-200" />
+                            ))}
+                        </div>
+                    ) : voucherDetail ? (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            {detailFields.map((field) => (
+                                <div key={field.label} className="space-y-2">
+                                    <p className="text-xs font-semibold uppercase text-slate-500">{field.label}</p>
+                                    <div className="flex min-h-[40px] items-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-900">
+                                        {field.value}
                                     </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                                Không tìm thấy thông tin voucher.
-                            </div>
-                        )}
-                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                            Không tìm thấy thông tin voucher.
+                        </div>
+                    )}
 
-                    <DialogFooter>
+                    <div className="flex items-center justify-end gap-2 pt-2">
                         <Button variant="outline" onClick={() => setDetailId(null)}>
                             Đóng
                         </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                    </div>
+                </div>
+            </SlidePanel>
         </div>
     )
 }

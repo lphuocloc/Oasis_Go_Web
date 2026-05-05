@@ -1187,34 +1187,39 @@ export const BookingManagement = () => {
 
                               {/* Cleaner Access Control */}
                               <td className="px-6 py-4 align-top">
-                                <div className="flex items-center gap-2">
-                                  <span
-                                    className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                                      booking.cleaner_access_allowed
-                                        ? "bg-emerald-50 text-emerald-700"
-                                        : "bg-gray-100 text-gray-700"
-                                    }`}
-                                  >
-                                    {booking.cleaner_access_allowed
-                                      ? "Allowed"
-                                      : "Disabled"}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleToggleCleanerAccess(booking)
-                                    }
-                                    disabled={isUpdating || isReadOnly}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-gray-200 text-xs text-gray-700 hover:bg-gray-100 disabled:opacity-60"
-                                  >
-                                    {booking.cleaner_access_allowed ? (
-                                      <ShieldOff className="w-3.5 h-3.5" />
-                                    ) : (
-                                      <Shield className="w-3.5 h-3.5" />
-                                    )}
-                                    {isUpdating ? "Saving..." : "Toggle"}
-                                  </button>
-                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleToggleCleanerAccess(booking)
+                                  }
+                                  disabled={isUpdating || isReadOnly}
+                                  className={`group relative flex items-center gap-2 px-3 py-1.5 rounded-xl border-2 transition-all duration-300 ${
+                                    booking.cleaner_access_allowed
+                                      ? "bg-white border-emerald-100 text-emerald-700 hover:border-emerald-500"
+                                      : "bg-white border-gray-100 text-gray-400 hover:border-indigo-500 hover:text-indigo-600"
+                                  } disabled:opacity-50 shadow-sm`}
+                                >
+                                  {isUpdating ? (
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-gray-400" />
+                                  ) : booking.cleaner_access_allowed ? (
+                                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                                  ) : (
+                                    <ShieldOff className="w-3.5 h-3.5" />
+                                  )}
+
+                                  <div className="flex flex-col items-start leading-none">
+                                    <span className="text-[10px] font-black uppercase tracking-widest">
+                                      Dọn dẹp
+                                    </span>
+                                    <span className="text-[11px] font-bold">
+                                      {isUpdating
+                                        ? "Đang lưu..."
+                                        : booking.cleaner_access_allowed
+                                          ? "Đang bật"
+                                          : "Đã tắt"}
+                                    </span>
+                                  </div>
+                                </button>
                               </td>
                               {/* Nút hành động */}
                               <td className="px-6 py-5 text-right">

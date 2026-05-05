@@ -6,6 +6,7 @@ import podClustersReducer from './slices/podClustersSlice'
 import notificationsReducer from './slices/notificationsSlice'
 import walletWithdrawalsReducer from './slices/walletWithdrawalsSlice'
 import vouchersReducer from './slices/vouchersSlice'
+import pricingRulesReducer from './slices/pricingRulesSlice'
 import bookingsReducer from './slices/bookingsSlice'
 import managerCleaningTasksReducer from './slices/managerCleaningTasksSlice'
 import { withdrawalsApi } from './apis/withdrawalsApi'
@@ -20,6 +21,7 @@ export const store = configureStore({
         notifications: notificationsReducer,
         walletWithdrawals: walletWithdrawalsReducer,
         vouchers: vouchersReducer,
+        pricingRules: pricingRulesReducer,
         bookings: bookingsReducer,
         managerCleaningTasks: managerCleaningTasksReducer,
         [withdrawalsApi.reducerPath]: withdrawalsApi.reducer,

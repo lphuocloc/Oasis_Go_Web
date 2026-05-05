@@ -1,7 +1,7 @@
 import React from 'react'
 import type { NavItem } from './Sidebar'
 import Sidebar from './Sidebar'
-import { LayoutGrid, MapPin, Home, Calendar, DollarSign, Users, Star, AlertCircle, Boxes, Warehouse, Wallet, Clock, Landmark } from 'lucide-react'
+import { LayoutGrid, MapPin, Home, Calendar, DollarSign, Users, Star, Boxes, Warehouse, Wallet, Clock, Landmark, BadgePercent } from 'lucide-react'
 
 const AdminSidebar: React.FC<{ userName?: string; userRole?: string }> = ({
   userName = 'Admin User',
@@ -59,6 +59,11 @@ const AdminSidebar: React.FC<{ userName?: string; userRole?: string }> = ({
       icon: <Calendar className="w-6 h-6" />
     },
     {
+      label: 'Quy luật giá',
+      path: '/admin/pricing-rules',
+      icon: <BadgePercent className="w-6 h-6" />
+    },
+    {
       label: 'Voucher',
       path: '/admin/pricing',
       icon: <DollarSign className="w-6 h-6" />
@@ -77,22 +82,8 @@ const AdminSidebar: React.FC<{ userName?: string; userRole?: string }> = ({
       label: 'Đánh giá',
       path: '/admin/reviews',
       icon: <Star className="w-6 h-6" />
-    },
-    {
-      label: 'Sự cố & Bảo trì',
-      path: '/admin/incidents',
-      icon: <AlertCircle className="w-6 h-6" />
-    },
-    // {
-    //   label: 'Analytics & Reports',
-    //   path: '/admin/analytics',
-    //   icon: <BarChart3 className="w-6 h-6" />
-    // },
-    // {
-    //   label: 'System Settings',
-    //   path: '/admin/settings',
-    //   icon: <Settings className="w-6 h-6" />
-    // }
+    }
+
 
   ]
 

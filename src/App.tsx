@@ -14,6 +14,7 @@ import { StaffManagement } from './pages/admin/StaffManagement'
 import { ReviewManagement } from './pages/admin/ReviewManagement'
 import { BookingManagement as AdminBookingManagement } from './pages/admin/BookingManagement'
 import { VoucherManagement } from './pages/admin/VoucherManagement'
+import { PricingRuleManagement } from './pages/admin/PricingRuleManagement'
 import { LedgerManagement } from './pages/admin/LedgerManagement'
 import { UserManagement } from './pages/admin/UserManagement'
 import { ManagerDashboard } from './pages/manager/ManagerDashboard'
@@ -107,6 +108,10 @@ export const router = createBrowserRouter([
           {
             path: 'pricing',
             element: <VoucherManagement />
+          },
+          {
+            path: 'pricing-rules',
+            element: <PricingRuleManagement />
           },
           {
             path: 'ledger',

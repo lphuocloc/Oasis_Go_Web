@@ -39,8 +39,10 @@ import {
   type PodClusterPayload,
   type PodClusterPricingSummary
 } from '../../api/lib/podClusterApi'
+import { podApi, type PodItem } from '../../api/lib/podApi'
 import { initUserSocket } from '../../lib/socket'
 import { ClusterPodItemBulkAssign } from '../../components/common/ClusterPodItemBulkAssign'
+import { PodGridSelector, type PodGridItem } from '../../components/common/PodGridSelector'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
 import {
   clearPodClusterImages,
@@ -156,6 +158,9 @@ export const PodClusterManagement = () => {
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false)
   const [editingCluster, setEditingCluster] = useState<PodClusterItem | null>(null)
   const [selectedPricingCluster, setSelectedPricingCluster] = useState<PodClusterItem | null>(null)
+  const [selectedPodsCluster, setSelectedPodsCluster] = useState<PodClusterItem | null>(null)
+  const [clusterPods, setClusterPods] = useState<PodItem[]>([])
+  const [isPodsLoading, setIsPodsLoading] = useState(false)
   const [form, setForm] = useState<PodClusterFormState>(createEmptyForm())
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
@@ -251,6 +256,26 @@ export const PodClusterManagement = () => {
 
   const closeAssignModal = () => {
     setIsAssignModalOpen(false)
+  }
+
+  const openPodsModal = async (cluster: PodClusterItem) => {
+    setSelectedPodsCluster(cluster)
+    setIsPodsLoading(true)
+    try {
+      const response = await podApi.getByCluster(cluster.id)
+      setClusterPods(response.data)
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to load pods')
+      setClusterPods([])
+    } finally {
+      setIsPodsLoading(false)
+    }
+  }
+
+  const closePodsModal = () => {
+    setSelectedPodsCluster(null)
+    setClusterPods([])
+    setIsPodsLoading(false)
   }
 
   const updateForm = <K extends keyof PodClusterFormState>(key: K, value: PodClusterFormState[K]) => {
@@ -366,6 +391,17 @@ export const PodClusterManagement = () => {
   }
 
   const selectedPricingSummary: PodClusterPricingSummary | null = selectedPricingCluster?.pricing_summary ?? null
+  const podsGridItems = useMemo<PodGridItem[]>(() => {
+    if (!selectedPodsCluster) return []
+    return clusterPods.map((pod) => ({
+      id: pod.id,
+      code: pod.code,
+      name: pod.name,
+      status: pod.status,
+      clusterName: selectedPodsCluster.name,
+      isSelectable: false
+    }))
+  }, [clusterPods, selectedPodsCluster])
 
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
@@ -467,7 +503,11 @@ export const PodClusterManagement = () => {
                 </TableRow>
               ) : (
                 filteredClusters.map((cluster) => (
-                  <TableRow key={cluster.id} className="hover:bg-gray-50 transition-colors">
+                  <TableRow
+                    key={cluster.id}
+                    className="hover:bg-gray-50 transition-colors cursor-pointer"
+                    onClick={() => openPodsModal(cluster)}
+                  >
                     <TableCell className="px-6 py-4 align-top">
                       <div className="font-semibold text-gray-900">{cluster.name}</div>
                       {cluster.description && (
@@ -481,7 +521,10 @@ export const PodClusterManagement = () => {
                       {hasActivePricingRule(cluster) ? (
                         <button
                           type="button"
-                          onClick={() => openPricingSummaryModal(cluster)}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            openPricingSummaryModal(cluster)
+                          }}
                           className="inline-flex items-center gap-2 text-sm text-emerald-700 hover:text-emerald-800"
                           aria-label={`View pricing rule for ${cluster.name}`}
                         >
@@ -498,7 +541,10 @@ export const PodClusterManagement = () => {
                     <TableCell className="px-6 py-4 align-top">
                       <div className="flex items-center justify-end gap-2">
                         <Button
-                          onClick={() => openEditModal(cluster)}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            void openEditModal(cluster)
+                          }}
                           variant="outline"
                           size="sm"
                         >
@@ -506,7 +552,10 @@ export const PodClusterManagement = () => {
                           Edit
                         </Button>
                         <Button
-                          onClick={() => handleDeleteCluster(cluster)}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            void handleDeleteCluster(cluster)
+                          }}
                           variant="destructive"
                           size="sm"
                         >
@@ -796,6 +845,46 @@ export const PodClusterManagement = () => {
 
           <DialogFooter>
             <Button variant="outline" onClick={closePricingSummaryModal}>Đóng</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(selectedPodsCluster)}
+        onOpenChange={(open: boolean) => {
+          if (!open) closePodsModal()
+        }}
+      >
+        <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-6xl">
+          <DialogHeader>
+            <DialogTitle>Danh sách Pod</DialogTitle>
+            <DialogDescription>
+              {selectedPodsCluster?.name ?? 'Pod cluster'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="px-6 pb-6">
+            {isPodsLoading ? (
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
+                {Array.from({ length: 12 }).map((_, index) => (
+                  <div key={`pod-skeleton-${index}`} className="h-16 rounded-lg bg-gray-100 animate-pulse" />
+                ))}
+              </div>
+            ) : podsGridItems.length === 0 ? (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                Không tìm thấy pod nào trong cụm này.
+              </div>
+            ) : (
+              <PodGridSelector
+                pods={podsGridItems}
+                selectedPodId={undefined}
+                onSelect={() => { }}
+              />
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closePodsModal}>Đóng</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

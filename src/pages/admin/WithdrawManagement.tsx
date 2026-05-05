@@ -44,6 +44,12 @@ const statusTabs: Array<{ value: 'ALL' | WithdrawalStatus; label: string }> = [
     { value: 'REJECTED', label: 'Từ chối' },
 ]
 
+const statusLabelMap: Record<WithdrawalStatus, string> = {
+    PENDING: 'Chờ duyệt',
+    APPROVED: 'Đã duyệt',
+    REJECTED: 'Từ chối',
+}
+
 const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount)
 }
@@ -272,7 +278,7 @@ export const WithdrawManagement: React.FC = () => {
                                     </TableCell>
                                     <TableCell>
                                         <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClassMap[request.status]}`}>
-                                            {request.status}
+                                            {statusLabelMap[request.status]}
                                         </span>
                                     </TableCell>
                                     <TableCell className="whitespace-nowrap text-xs text-slate-600">{formatDate(request.requested_at)}</TableCell>

@@ -69,14 +69,14 @@ export const inventoryCheckoutLogApi = {
     if (filters?.action_type) params.append('action_type', filters.action_type)
     if (filters?.from) params.append('from', filters.from)
     if (filters?.to) params.append('to', filters.to)
-    return api.get<InventoryCheckoutLogListResponse>('/inventory-checkout-logs', { params }).then((r) => r.data)
+    return api.get<InventoryCheckoutLogListResponse>('/inventory-activity-logs', { params }).then((r) => r.data)
   },
 
-  getById: (id: string) => api.get<InventoryCheckoutLogSingleResponse>(`/inventory-checkout-logs/${id}`).then((r) => r.data),
+  getById: (id: string) => api.get<InventoryCheckoutLogSingleResponse>(`/inventory-activity-logs/${id}`).then((r) => r.data),
 
-  create: (payload: CreateInventoryCheckoutLogPayload) => api.post<InventoryCheckoutLogMutationResponse>('/inventory-checkout-logs', payload).then((r) => r.data),
+  create: (payload: CreateInventoryCheckoutLogPayload) => api.post<InventoryCheckoutLogMutationResponse>('/inventory-activity-logs', payload).then((r) => r.data),
 
-  update: (id: string, payload: UpdateInventoryCheckoutLogPayload) => api.put<InventoryCheckoutLogMutationResponse>(`/inventory-checkout-logs/${id}`, payload).then((r) => r.data),
+  update: (id: string, payload: UpdateInventoryCheckoutLogPayload) => api.put<InventoryCheckoutLogMutationResponse>(`/inventory-activity-logs/${id}`, payload).then((r) => r.data),
 
-  delete: (id: string) => api.delete<InventoryCheckoutLogMutationResponse>(`/inventory-checkout-logs/${id}`).then((r) => r.data)
+  delete: (id: string) => api.delete<InventoryCheckoutLogMutationResponse>(`/inventory-activity-logs/${id}`).then((r) => r.data)
 }

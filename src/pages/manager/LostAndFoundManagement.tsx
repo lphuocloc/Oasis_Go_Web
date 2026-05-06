@@ -319,9 +319,13 @@ export const LostAndFoundManagement = () => {
           toast.error('Vui lòng chọn ít nhất 1 món đồ nhặt được để khớp')
           return
         }
+        const finalNote = managerNote.trim() 
+          ? `${managerNote}\n\n---\nHotline hỗ trợ: 0915533944 (Vui lòng liên hệ để xác nhận và đến nhận lại đồ thất lạc).`
+          : "Vui lòng liên hệ hotline hệ thống: 0915533944 để xác nhận và đến nhận lại đồ thất lạc.";
+
         await lostFoundApi.matchRequest(selectedRequest.id, {
           found_item_id: matchFoundItemIds,
-          manager_note: managerNote,
+          manager_note: finalNote,
           close_others: closeOthers
         })
         toast.success(`Đã xác nhận khớp ${matchFoundItemIds.length} món đồ thành công`)

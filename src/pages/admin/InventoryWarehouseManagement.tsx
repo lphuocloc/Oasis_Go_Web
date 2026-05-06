@@ -32,10 +32,6 @@ import { initUserSocket } from '../../lib/socket'
 type InventoryTab = 'warehouseSetup' | 'items' | 'stocks' | 'checkoutLogs'
 
 const TABS: Array<{ key: InventoryTab; label: string }> = [
-  { key: 'warehouseSetup', label: 'Liên kết Kho & Vị trí' },
-  { key: 'items', label: 'Vật tư' },
-  { key: 'stocks', label: 'Tồn kho' },
-  { key: 'checkoutLogs', label: 'Nhật ký Xuất kho' }
   { key: 'warehouseSetup', label: 'Kho hàng & Liên kết địa điểm' },
   { key: 'items', label: 'Vật tư' },
   { key: 'stocks', label: 'Tồn kho' },
@@ -210,7 +206,6 @@ export const InventoryWarehouseManagement: React.FC = () => {
   const formatTaskLabel = (taskId?: string | null, taskType?: 'Cleaning' | 'Maintenance') => {
     if (!taskId) return '—'
     const id = shortId(taskId)
-    const prefix = taskType === 'Cleaning' ? 'Nhiệm vụ Vệ sinh' : taskType === 'Maintenance' ? 'Nhiệm vụ Bảo trì' : 'Nhiệm vụ'
     const prefix = taskType === 'Cleaning' ? 'Vệ sinh' : taskType === 'Maintenance' ? 'Bảo trì' : 'Nhiệm vụ'
     return id === taskId ? `${prefix} ${taskId}` : `${prefix} ${id} (${taskId})`
   }
@@ -290,7 +285,6 @@ export const InventoryWarehouseManagement: React.FC = () => {
       })
       setLocationWarehouses(response.data)
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Không thể tải danh sách liên kết Kho - Vị trí')
       toast.error(error?.response?.data?.message || 'Không thể tải danh sách liên kết địa điểm-kho hàng')
     } finally {
       setIsLoading(false)
@@ -460,7 +454,6 @@ export const InventoryWarehouseManagement: React.FC = () => {
 
   const handleDeleteWarehouse = async (warehouse: WarehouseItem) => {
     if (!window.confirm(`Bạn có chắc chắn muốn xóa kho "${warehouse.name}"?`)) return
-    if (!window.confirm(`Xóa kho hàng "${warehouse.name}"?`)) return
     try {
       await warehouseApi.delete(warehouse.id)
       toast.success('Xóa kho hàng thành công')
@@ -686,7 +679,6 @@ export const InventoryWarehouseManagement: React.FC = () => {
 
   const handleDeleteItem = async (item: InventoryItem) => {
     if (!window.confirm(`Bạn có chắc chắn muốn xóa vật tư "${getItemName(item)}"?`)) return
-    if (!window.confirm(`Xóa vật tư "${getItemName(item)}"?`)) return
 
     try {
       await itemApi.delete(item.id)
@@ -732,7 +724,6 @@ export const InventoryWarehouseManagement: React.FC = () => {
 
   const handleDeleteStock = async (stock: InventoryStockItem) => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa tồn kho này?')) return
-    if (!window.confirm('Xóa tồn kho này?')) return
     try {
       await inventoryStockApi.delete(stock.id)
       toast.success('Xóa tồn kho thành công')
@@ -788,8 +779,6 @@ export const InventoryWarehouseManagement: React.FC = () => {
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Quản lý Kho hàng & Vật tư</h1>
-            <p className="text-sm text-gray-500 mt-1">Quản lý kho, liên kết vị trí, tồn kho và nhật ký xuất kho.</p>
             <h1 className="text-2xl font-bold text-gray-900">Quản lý Kho hàng &amp; Vật tư</h1>
             <p className="text-sm text-gray-500 mt-1">Quản lý kho hàng, liên kết địa điểm, tồn kho và nhật ký xuất/nhập kho.</p>
           </div>

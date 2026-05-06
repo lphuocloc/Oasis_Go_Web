@@ -294,7 +294,7 @@ export const PricingRuleManagement: React.FC = () => {
         <div className="p-8 bg-gray-50 min-h-screen">
             <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-8">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Pricing Rules</h1>
+                    <h1 className="text-3xl font-bold text-gray-900">Quy tắc định giá</h1>
                     <p className="text-gray-500 mt-1">Thiết lập hệ số giá theo vị trí con và khung giờ.</p>
                 </div>
 
@@ -400,8 +400,8 @@ export const PricingRuleManagement: React.FC = () => {
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                    <h2 className="text-base font-semibold text-gray-900">Danh sách pricing rules</h2>
-                    <span className="text-sm text-gray-500">{pricingRules.length} item(s)</span>
+                    <h2 className="text-base font-semibold text-gray-900">Danh sách quy tắc định giá</h2>
+                    <span className="text-sm text-gray-500">{pricingRules.length} mục</span>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -413,7 +413,7 @@ export const PricingRuleManagement: React.FC = () => {
                                 <TableHead className="px-6 py-3 font-medium">Ngày áp dụng</TableHead>
                                 <TableHead className="px-6 py-3 font-medium">Hệ số</TableHead>
                                 <TableHead className="px-6 py-3 font-medium">Trạng thái</TableHead>
-                                <TableHead className="px-6 py-3 text-right font-medium">Actions</TableHead>
+                                <TableHead className="px-6 py-3 text-right font-medium">Hành động</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody className="divide-y divide-gray-100">
@@ -510,9 +510,9 @@ export const PricingRuleManagement: React.FC = () => {
             <Dialog open={isFormOpen} onOpenChange={handleFormClose}>
                 <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-3xl">
                     <DialogHeader>
-                        <DialogTitle>{editingRule ? 'Chỉnh sửa pricing rule' : 'Tạo pricing rule'}</DialogTitle>
+                        <DialogTitle>{editingRule ? 'Chỉnh sửa quy tắc giá' : 'Tạo quy tắc giá'}</DialogTitle>
                         <DialogDescription className="sr-only">
-                            Form để {editingRule ? 'chỉnh sửa' : 'tạo'} pricing rule.
+                            Form để {editingRule ? 'chỉnh sửa' : 'tạo'} quy tắc giá.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -621,13 +621,13 @@ export const PricingRuleManagement: React.FC = () => {
                             disabled={pricingRulesSaving}
                             variant="outline"
                         >
-                            Cancel
+                            Hủy
                         </Button>
                         <Button
                             onClick={handleSubmit}
                             disabled={pricingRulesSaving}
                         >
-                            {pricingRulesSaving ? 'Saving...' : editingRule ? 'Lưu thay đổi' : 'Tạo quy tắc'}
+                            {pricingRulesSaving ? 'Đang lưu...' : editingRule ? 'Lưu thay đổi' : 'Tạo quy tắc'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

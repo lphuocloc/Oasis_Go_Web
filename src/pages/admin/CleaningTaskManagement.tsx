@@ -806,8 +806,8 @@ export const CleaningTaskManagement = () => {
                     onChange={(e) => handleChangeQuickCleanerSource(e.target.value as QuickCleanerSource)}
                     className="w-full md:w-[360px] px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                   >
-                    <option value="assignment">Working assignment (by location + date)</option>
-                    <option value="all_cleaners">All cleaners in system</option>
+                    <option value="assignment">Phân công làm việc (theo vị trí + ngày)</option>
+                    <option value="all_cleaners">Tất cả nhân viên vệ sinh trong hệ thống</option>
                   </select>
                 </div>
 
@@ -822,9 +822,9 @@ export const CleaningTaskManagement = () => {
                         disabled={isStaffLoading || availableStaff.length === 0}
                       >
                         {isStaffLoading ? (
-                          <option value="">Loading staff...</option>
+                          <option value="">Đang tải nhân viên...</option>
                         ) : availableStaff.length === 0 ? (
-                          <option value="">No eligible cleaner assignment found</option>
+                          <option value="">Không tìm thấy phân công nhân viên phù hợp</option>
                         ) : (
                           availableStaff.map((item) => (
                             <option key={item.assignment_id} value={item.assignment_id}>{formatStaffOption(item)}</option>
@@ -840,9 +840,9 @@ export const CleaningTaskManagement = () => {
                           disabled={isAllCleanersLoading || allCleaners.length === 0}
                         >
                           {isAllCleanersLoading ? (
-                            <option value="">Loading cleaners...</option>
+                            <option value="">Đang tải nhân viên...</option>
                           ) : allCleaners.length === 0 ? (
-                            <option value="">No cleaner list API available</option>
+                            <option value="">Không có danh sách nhân viên</option>
                           ) : (
                             allCleaners.map((cleaner) => {
                               const id = getUserId(cleaner)
@@ -857,7 +857,7 @@ export const CleaningTaskManagement = () => {
                           type="text"
                           value={selectedCleanerId}
                           onChange={(e) => setSelectedCleanerId(e.target.value)}
-                          placeholder="Or paste cleaner_id manually"
+                          placeholder="Hoặc dán ID nhân viên thủ công"
                           className="mt-2 w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
 
@@ -870,12 +870,12 @@ export const CleaningTaskManagement = () => {
                     )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Note</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
                     <input
                       type="text"
                       value={quickCreateNote}
                       onChange={(e) => setQuickCreateNote(e.target.value)}
-                      placeholder="Optional note for this task"
+                      placeholder="Ghi chú (không bắt buộc)"
                       className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -891,7 +891,7 @@ export const CleaningTaskManagement = () => {
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-60"
                 >
                   <Plus className="w-4 h-4" />
-                  {isQuickCreating ? 'Creating...' : 'Create Cleaning Task'}
+                  {isQuickCreating ? 'Đang tạo...' : 'Tạo nhiệm vụ vệ sinh'}
                 </button>
               </div>
             )}
@@ -916,7 +916,7 @@ export const CleaningTaskManagement = () => {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search task by id, pod, cleaner..."
+              placeholder="Tìm theo ID, Pod, nhân viên..."
               className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -926,7 +926,7 @@ export const CleaningTaskManagement = () => {
             onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
             className="px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
           >
-            <option value="all">All statuses</option>
+            <option value="all">Tất cả trạng thái</option>
             {CLEANING_TASK_STATUSES.map((status) => (
               <option key={status} value={status}>{status}</option>
             ))}
@@ -937,7 +937,7 @@ export const CleaningTaskManagement = () => {
             onChange={(e) => setSourceFilter(e.target.value as SourceFilter)}
             className="px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
           >
-            <option value="all">All request sources</option>
+            <option value="all">Tất cả nguồn yêu cầu</option>
             {CLEANING_REQUEST_SOURCES.map((source) => (
               <option key={source} value={source}>{source}</option>
             ))}
@@ -971,7 +971,7 @@ export const CleaningTaskManagement = () => {
               onClick={fetchTasks}
               className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
             >
-              Apply
+              Lọc
             </button>
           </div>
         </div>
@@ -979,29 +979,29 @@ export const CleaningTaskManagement = () => {
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Tasks ({filteredTasks.length})</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Nhiệm vụ ({filteredTasks.length})</h2>
         </div>
 
         {isLoading ? (
-          <div className="p-10 text-center text-gray-500">Loading cleaning tasks...</div>
+          <div className="p-10 text-center text-gray-500">Đang tải nhiệm vụ vệ sinh...</div>
         ) : filteredTasks.length === 0 ? (
-          <div className="p-10 text-center text-gray-500">No cleaning tasks found</div>
+          <div className="p-10 text-center text-gray-500">Không tìm thấy nhiệm vụ nào</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1300px]">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
-                  <th className="px-4 py-3">Task ID</th>
+                  <th className="px-4 py-3">ID Nhiệm vụ</th>
                   <th className="px-4 py-3">Pod</th>
                   <th className="px-4 py-3">Booking</th>
-                  <th className="px-4 py-3">Cleaner</th>
-                  <th className="px-4 py-3">Shift Assignment</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Source</th>
-                  <th className="px-4 py-3">Due</th>
-                  <th className="px-4 py-3">Start</th>
-                  <th className="px-4 py-3">End</th>
-                  <th className="px-4 py-3">Actions</th>
+                  <th className="px-4 py-3">Nhân viên</th>
+                  <th className="px-4 py-3">Phân công ca</th>
+                  <th className="px-4 py-3">Trạng thái</th>
+                  <th className="px-4 py-3">Nguồn</th>
+                  <th className="px-4 py-3">Hạn chót</th>
+                  <th className="px-4 py-3">Bắt đầu</th>
+                  <th className="px-4 py-3">Kết thúc</th>
+                  <th className="px-4 py-3">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -1024,14 +1024,14 @@ export const CleaningTaskManagement = () => {
                           className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md border border-gray-200 text-gray-700 hover:bg-gray-100"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
-                          Edit
+                          Sửa
                         </button>
                         <button
                           onClick={() => handleDelete(task)}
                           className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md border border-red-200 text-red-600 hover:bg-red-50"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                          Delete
+                          Xóa
                         </button>
                       </div>
                     </td>
@@ -1109,7 +1109,7 @@ export const CleaningTaskManagement = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={closeModal}
-        title={editingTask ? 'Edit Cleaning Task' : 'Create Cleaning Task'}
+        title={editingTask ? 'Sửa nhiệm vụ vệ sinh' : 'Tạo nhiệm vụ vệ sinh'}
         size="xl"
         footer={(
           <>
@@ -1119,7 +1119,7 @@ export const CleaningTaskManagement = () => {
               disabled={isSaving}
             >
               <X className="w-4 h-4" />
-              Cancel
+              Hủy
             </button>
             <button
               type="submit"
@@ -1127,7 +1127,7 @@ export const CleaningTaskManagement = () => {
               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60"
               disabled={isSaving}
             >
-              {isSaving ? 'Saving...' : editingTask ? 'Update Task' : 'Create Task'}
+              {isSaving ? 'Đang lưu...' : editingTask ? 'Cập nhật' : 'Tạo mới'}
             </button>
           </>
         )}
@@ -1153,14 +1153,14 @@ export const CleaningTaskManagement = () => {
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               >
-                {!form.cleaner_id && <option value="">Select cleaner</option>}
+                {!form.cleaner_id && <option value="">Chọn nhân viên</option>}
                 {allCleaners.map((cleaner) => {
                   const id = getUserId(cleaner)
                   if (!id) return null
                   return <option key={id} value={id}>{formatCleanerOption(cleaner)}</option>
                 })}
                 {form.cleaner_id && !allCleaners.some((cleaner) => getUserId(cleaner) === form.cleaner_id) && (
-                  <option value={form.cleaner_id}>{form.cleaner_id} (current)</option>
+                  <option value={form.cleaner_id}>{form.cleaner_id} (hiện tại)</option>
                 )}
               </select>
             </div>
@@ -1181,16 +1181,16 @@ export const CleaningTaskManagement = () => {
                 onChange={(e) => updateForm('shift_assignment_id', e.target.value)}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value="">No shift assignment</option>
+                <option value="">Không có ca trực</option>
                 {isModalShiftLoading ? (
-                  <option value="" disabled>Loading assignments...</option>
+                  <option value="" disabled>Đang tải ca trực...</option>
                 ) : (
                   modalShiftAssignments.map((item) => (
                     <option key={item.assignment_id} value={item.assignment_id}>{formatStaffOption(item)}</option>
                   ))
                 )}
                 {form.shift_assignment_id && !modalShiftAssignments.some((item) => item.assignment_id === form.shift_assignment_id) && (
-                  <option value={form.shift_assignment_id}>{form.shift_assignment_id} (current)</option>
+                  <option value={form.shift_assignment_id}>{form.shift_assignment_id} (hiện tại)</option>
                 )}
               </select>
             </div>
@@ -1281,14 +1281,14 @@ export const CleaningTaskManagement = () => {
                 onChange={(e) => updateForm('reassigned_from_cleaner_id', e.target.value)}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value="">None</option>
+                <option value="">Không</option>
                 {allCleaners.map((cleaner) => {
                   const id = getUserId(cleaner)
                   if (!id) return null
                   return <option key={id} value={id}>{formatCleanerOption(cleaner)}</option>
                 })}
                 {form.reassigned_from_cleaner_id && !allCleaners.some((cleaner) => getUserId(cleaner) === form.reassigned_from_cleaner_id) && (
-                  <option value={form.reassigned_from_cleaner_id}>{form.reassigned_from_cleaner_id} (current)</option>
+                  <option value={form.reassigned_from_cleaner_id}>{form.reassigned_from_cleaner_id} (hiện tại)</option>
                 )}
               </select>
             </div>

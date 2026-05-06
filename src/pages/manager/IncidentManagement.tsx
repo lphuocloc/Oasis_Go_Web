@@ -1,5 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Check, CheckCircle2, Eye, RefreshCw, Search, XCircle, SlidersHorizontal, X } from 'lucide-react'
+import {
+  AlertCircle,
+  Boxes,
+  Check,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  History as HistoryIcon,
+  Package,
+  RefreshCw,
+  Search,
+  SlidersHorizontal,
+  Store as StoreIcon,
+  X,
+  XCircle,
+  Image as ImageIcon,
+} from 'lucide-react'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
 import DatePicker from 'react-datepicker'
@@ -15,6 +32,7 @@ import {
 import { podApi, type PodItem } from '../../api/lib/podApi'
 import { bookingApi } from '../../api/lib/bookingApi'
 import { bookingOrderApi, type OrderIncidentItem, type BookingOrderDetail } from '../../api/lib/bookingOrderApi'
+import { cleaningTaskApi, type CleaningTaskMediaItem } from '../../api/lib/cleaningTaskApi'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
 import { useCheckinContext } from '../../components/common/ManagerCheckinGate'
 import { initUserSocket } from '../../lib/socket'
@@ -139,6 +157,16 @@ export const IncidentManagement = () => {
   const [isReviewSaving, setIsReviewSaving] = useState(false)
   const [reviewTarget, setReviewTarget] = useState<DamageReportItem | OrderIncidentItem | null>(null)
   const [reviewStatus, setReviewStatus] = useState<'RESOLVED' | 'DISMISSED'>('RESOLVED')
+  const [reviewNote, setReviewNote] = useState('')
+
+  const [affectedBookings, setAffectedBookings] = useState<any[]>([])
+  const [isAffectedBookingsLoading, setIsAffectedBookingsLoading] = useState(false)
+  const [isAffectedModalOpen, setIsAffectedModalOpen] = useState(false)
+  const [selectedBookingForChange, setSelectedBookingForChange] = useState<any | null>(null)
+  const [roomCandidates, setRoomCandidates] = useState<any[]>([])
+  const [isCandidatesLoading, setIsCandidatesLoading] = useState(false)
+  const [isCandidatesModalOpen, setIsCandidatesModalOpen] = useState(false)
+  const [isMigrating, setIsMigrating] = useState(false)
 
   const [orderIncidents, setOrderIncidents] = useState<OrderIncidentItem[]>([])
   const [isOrderIncidentsLoading, setIsOrderIncidentsLoading] = useState(false)
@@ -150,6 +178,8 @@ export const IncidentManagement = () => {
   const [expandedIncidentId, setExpandedIncidentId] = useState<string | null>(null)
   const [expandedIncidentDetails, setExpandedIncidentDetails] = useState<IncidentItem | null>(null)
   const [isExpandedLoading, setIsExpandedLoading] = useState(false)
+  const [cleaningMedia, setCleaningMedia] = useState<CleaningTaskMediaItem[]>([])
+  const [isMediaLoading, setIsMediaLoading] = useState(false)
 
   const fetchPrimaryData = async () => {
     try {
@@ -163,7 +193,7 @@ export const IncidentManagement = () => {
       setReports(reportsResponse.data)
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
-      toast.error(error?.response?.data?.message || 'Failed to load damage reports')
+      toast.error(error?.response?.data?.message || 'Không thể tải báo cáo hư hại')
       setReports([])
     } finally {
       setIsLoading(false)
@@ -330,6 +360,18 @@ export const IncidentManagement = () => {
     return result
   }, [filteredReports])
 
+  const fetchCleaningMedia = async (taskId: string) => {
+    try {
+      setIsMediaLoading(true)
+      const response = await cleaningTaskApi.getCleaningMedia({ cleaning_task_id: taskId })
+      setCleaningMedia(response.data)
+    } catch (err) {
+      console.error('Failed to fetch cleaning media', err)
+    } finally {
+      setIsMediaLoading(false)
+    }
+  }
+
   const openGroupDetailModal = async (group: OrderIncidentGroup) => {
     setDetailGroup(group)
     setIsDetailOpen(true)
@@ -379,6 +421,11 @@ export const IncidentManagement = () => {
         setDetailReport(group.items[0])
         const response = await incidentApi.getById(group.items[0].report_id)
         setDetailIncident(response.data)
+        if (response.data.cleaning_task_id) {
+          fetchCleaningMedia(response.data.cleaning_task_id)
+        } else {
+          setCleaningMedia([])
+        }
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
@@ -400,6 +447,11 @@ export const IncidentManagement = () => {
     try {
       const res = await incidentApi.getById(incidentId)
       setExpandedIncidentDetails(res.data)
+      if (res.data.cleaning_task_id) {
+        fetchCleaningMedia(res.data.cleaning_task_id)
+      } else {
+        setCleaningMedia([])
+      }
     } catch (err) {
       toast.error('Failed to load incident details')
     } finally {
@@ -417,11 +469,13 @@ export const IncidentManagement = () => {
     setOrderIncidents([])
     setExpandedIncidentId(null)
     setExpandedIncidentDetails(null)
+    setCleaningMedia([])
   }
 
   const openReviewModal = (report: DamageReportItem | OrderIncidentItem) => {
     setReviewTarget(report)
     setReviewStatus('RESOLVED')
+    setReviewNote('')
     setIsReviewModalOpen(true)
   }
 
@@ -432,7 +486,10 @@ export const IncidentManagement = () => {
 
     try {
       setIsReviewSaving(true)
-      await incidentApi.updateStatus(targetId, { status: reviewStatus })
+      await incidentApi.updateStatus(targetId, {
+        status: reviewStatus,
+        resolution_note: reviewNote
+      })
       toast.success(reviewStatus === 'RESOLVED' ? 'Incident marked as RESOLVED' : 'Incident marked as DISMISSED')
 
       setIsReviewModalOpen(false)
@@ -476,6 +533,52 @@ export const IncidentManagement = () => {
     }
   }
 
+  const fetchAffectedBookings = async (incidentId: string) => {
+    try {
+      setIsAffectedBookingsLoading(true)
+      const res = await incidentApi.getAffectedBookings(incidentId)
+      setAffectedBookings(res.data)
+      setIsAffectedModalOpen(true)
+    } catch (err) {
+      toast.error('Không thể tải danh sách booking bị ảnh hưởng')
+    } finally {
+      setIsAffectedBookingsLoading(false)
+    }
+  }
+
+  const handleOpenRoomChange = async (booking: any) => {
+    setSelectedBookingForChange(booking)
+    try {
+      setIsCandidatesLoading(true)
+      setIsCandidatesModalOpen(true)
+      const res = await incidentApi.getRoomChangeCandidates(booking.id)
+      setRoomCandidates(res.data)
+    } catch (err) {
+      toast.error('Không thể tìm phòng thay thế')
+    } finally {
+      setIsCandidatesLoading(false)
+    }
+  }
+
+  const handleExecuteRoomChange = async (targetPodId: string) => {
+    if (!selectedBookingForChange) return
+    try {
+      setIsMigrating(true)
+      await incidentApi.executeRoomChange(selectedBookingForChange.id, targetPodId)
+      toast.success('Đổi phòng thành công')
+      setIsCandidatesModalOpen(false)
+      // Refresh affected bookings
+      if (detailIncident?.id) {
+        const res = await incidentApi.getAffectedBookings(detailIncident.id)
+        setAffectedBookings(res.data)
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Lỗi khi đổi phòng')
+    } finally {
+      setIsMigrating(false)
+    }
+  }
+
   const applyFilters = () => {
     setFilters(draftFilters)
     setIsFilterPanelOpen(false)
@@ -499,45 +602,29 @@ export const IncidentManagement = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Quản lý Sự cố (Đền bù)</h1>
+          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+            <AlertCircle className="text-rose-600 h-8 w-8" />
+            Quản lý Sự cố & Đền bù
+          </h1>
           <p className="text-gray-500 mt-1">Quản lý và xử lý các báo cáo hư hại tài sản trong phạm vi của bạn.</p>
         </div>
 
-        <button
-          onClick={async () => {
-            await refreshScope()
-            await fetchPrimaryData()
-          }}
-          disabled={isLoading}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
-        >
-          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-          Làm mới
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={async () => {
+              await refreshScope()
+              await fetchPrimaryData()
+            }}
+            disabled={isLoading}
+            className="p-2.5 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-all shadow-sm"
+          >
+            <RefreshCw className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
-      <div className="flex gap-6 border-b border-gray-200 mb-6">
-        <button
-          className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'CLEANER'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          onClick={() => setActiveTab('CLEANER')}
-        >
-          Nhân viên dọn dẹp gửi
-        </button>
-        <button
-          className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'USER'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          onClick={() => setActiveTab('USER')}
-        >
-          Khách hàng gửi
-        </button>
-      </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 px-5 py-5 mb-6">
         <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
@@ -708,6 +795,14 @@ export const IncidentManagement = () => {
                     <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Tổng tiền đơn hàng</p>
                     <p className="text-sm font-bold text-gray-900">{formatCurrency(orderDetail.order.final_total_price)}</p>
                   </div>
+                  {orderDetail.order.damage_payment_status && orderDetail.order.damage_payment_status !== 'NO_INCIDENT' && (
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Thanh toán sự cố</p>
+                      <p className={`text-sm font-bold ${orderDetail.order.damage_payment_status === 'PAID' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        {orderDetail.order.damage_payment_status === 'PAID' ? 'Đã thanh toán' : 'Chờ thanh toán'}
+                      </p>
+                    </div>
+                  )}
                 </>
               )}
               <div className={orderDetail?.order ? "col-span-1 md:col-span-2 border-t border-gray-200 mt-2 pt-4" : ""}>
@@ -731,23 +826,33 @@ export const IncidentManagement = () => {
 
             <div className="border-t border-gray-100 pt-6">
               <div className="flex items-center justify-between mb-4">
-                <h4 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
-                  Danh sách sự cố
-                </h4>
+                <div className="flex items-center gap-3">
+                  <h4 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
+                    Danh sách sự cố
+                  </h4>
+                  {orderDetail?.order?.damage_payment_status && orderDetail.order.damage_payment_status !== 'NO_INCIDENT' && (
+                    <span className={`px-3 py-1 rounded-full text-[10px] font-bold border transition-all ${orderDetail.order.damage_payment_status === 'PAID'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse'
+                      }`}>
+                      {orderDetail.order.damage_payment_status === 'PAID' ? 'HÓA ĐƠN ĐÃ THANH TOÁN' : 'HÓA ĐƠN CHỜ THANH TOÁN'}
+                    </span>
+                  )}
+                </div>
                 <button
                   onClick={handleCreateDamageBill}
                   disabled={
-                    isCreatingDamageBill || 
-                    orderIncidents.filter(i => i.incident_type !== 'REPLENISHMENT_REQUEST').some(i => !['RESOLVED', 'DISMISSED'].includes(i.status)) || 
-                    orderIncidents.filter(i => i.incident_type !== 'REPLENISHMENT_REQUEST' && i.status === 'RESOLVED').length === 0 || 
+                    isCreatingDamageBill ||
+                    orderIncidents.filter(i => i.incident_type !== 'REPLENISHMENT_REQUEST').some(i => !['RESOLVED', 'DISMISSED'].includes(i.status)) ||
+                    orderIncidents.filter(i => i.incident_type !== 'REPLENISHMENT_REQUEST' && i.status === 'RESOLVED').length === 0 ||
                     isReadOnly ||
                     (orderDetail?.order?.damage_payment_status && orderDetail.order.damage_payment_status !== 'NO_INCIDENT')
                   }
-                  className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
+                  className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:opacity-50 shadow-sm"
                 >
-                  {isCreatingDamageBill ? 'Đang tạo Hóa đơn...' : 
-                   (orderDetail?.order?.damage_payment_status && orderDetail.order.damage_payment_status !== 'NO_INCIDENT') 
-                   ? 'Đã tạo hóa đơn đền bù' : 'Tạo hóa đơn đền bù'}
+                  {isCreatingDamageBill ? 'Đang tạo Hóa đơn...' :
+                    (orderDetail?.order?.damage_payment_status && orderDetail.order.damage_payment_status !== 'NO_INCIDENT')
+                      ? 'Hóa đơn đã được tạo' : 'Tạo hóa đơn đền bù'}
                 </button>
               </div>
 
@@ -866,24 +971,93 @@ export const IncidentManagement = () => {
                                 </div>
                               </div>
 
-                              {expandedIncidentDetails.photo_urls && expandedIncidentDetails.photo_urls.length > 0 && (
-                                <div>
-                                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Hình ảnh bằng chứng ({expandedIncidentDetails.photo_urls.length})</p>
-                                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                                    {expandedIncidentDetails.photo_urls.map((url, index) => (
-                                      <a
-                                        key={url}
-                                        href={url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="group relative block aspect-video overflow-hidden rounded-lg border border-gray-200 bg-gray-100"
-                                      >
-                                        <img src={url} alt={`Evidence ${index + 1}`} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
-                                      </a>
-                                    ))}
-                                  </div>
+                              {(expandedIncidentDetails.resolution_note || expandedIncidentDetails.escalation_note) && (
+                                <div className="space-y-3 rounded-xl border border-blue-50 bg-blue-50/30 p-4">
+                                  {expandedIncidentDetails.resolution_note && (
+                                    <div>
+                                      <p className="text-[10px] font-bold uppercase tracking-wide text-blue-600">Ghi chú xử lý (Resolution Note)</p>
+                                      <p className="mt-1 text-sm text-gray-700">{expandedIncidentDetails.resolution_note}</p>
+                                    </div>
+                                  )}
+                                  {expandedIncidentDetails.escalation_note && (
+                                    <div>
+                                      <p className="text-[10px] font-bold uppercase tracking-wide text-amber-600">Ghi chú chuyển cấp (Escalation Note)</p>
+                                      <p className="mt-1 text-sm text-gray-700">{expandedIncidentDetails.escalation_note}</p>
+                                    </div>
+                                  )}
                                 </div>
                               )}
+
+                              <>
+                                {/* <div>
+                                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Hình ảnh đính kèm báo cáo ({expandedIncidentDetails.photo_urls?.length || 0})</p>
+                                  {expandedIncidentDetails.photo_urls && expandedIncidentDetails.photo_urls.length > 0 ? (
+                                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                                      {expandedIncidentDetails.photo_urls.map((url, index) => (
+                                        <a
+                                          key={url}
+                                          href={url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="group relative block aspect-video overflow-hidden rounded-lg border border-gray-200 bg-gray-100"
+                                        >
+                                          <img src={url} alt={`Evidence ${index + 1}`} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+                                        </a>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-2 py-4 px-4 bg-gray-50/50 rounded-xl border border-dashed border-gray-200 text-gray-400 italic text-sm">
+                                      <ImageIcon className="w-4 h-4 opacity-40" />
+                                      <span>Không có hình ảnh đính kèm</span>
+                                    </div>
+                                  )}
+                                </div> */}
+
+                                {isMediaLoading ? (
+                                  <div className="flex justify-center py-4">
+                                    <RefreshCw className="h-5 w-5 animate-spin text-gray-400" />
+                                  </div>
+                                ) : cleaningMedia.length > 0 && (
+                                  <div>
+                                    <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Bằng chứng từ Nhiệm vụ dọn dẹp ({cleaningMedia.length})</p>
+                                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                                      {cleaningMedia.map((m) => {
+                                        const url = m.media_url || m.media?.url;
+                                        const isVideo = m.file_type === 'VIDEO' || url?.toLowerCase().endsWith('.mp4') || url?.toLowerCase().endsWith('.mov');
+
+                                        return (
+                                          <div key={m.id} className="relative group aspect-video overflow-hidden rounded-lg border border-gray-200 bg-gray-100">
+                                            {isVideo ? (
+                                              <video
+                                                src={url}
+                                                controls
+                                                playsInline
+                                                preload="metadata"
+                                                className="h-full w-full object-cover"
+                                              />
+                                            ) : (
+                                              <a href={url} target="_blank" rel="noreferrer" className="block h-full w-full">
+                                                <img src={url} alt={`Evidence ${m.media_type}`} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+                                              </a>
+                                            )}
+                                            <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/60 text-[10px] text-white rounded">
+                                              {m.media_type}
+                                            </div>
+                                            <a
+                                              href={url}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              className="absolute bottom-1 right-1 p-1 bg-white/80 rounded shadow text-[10px] font-bold text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                              Xem
+                                            </a>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </>
                             </div>
                           ) : null}
                         </div>
@@ -985,11 +1159,26 @@ export const IncidentManagement = () => {
               </div>
             </div>
 
-            {/* escalation_note và resolution_note không tồn tại trên backend nên đã loại bỏ hiển thị ở đây */}
+            {(detailReport.resolution_note || detailReport.escalation_note) && (
+              <div className="space-y-3 rounded-xl border border-blue-50 bg-blue-50/30 p-4">
+                {detailReport.resolution_note && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-blue-600">Ghi chú xử lý (Resolution Note)</p>
+                    <p className="mt-1 text-sm text-gray-700">{detailReport.resolution_note}</p>
+                  </div>
+                )}
+                {detailReport.escalation_note && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-amber-600">Ghi chú chuyển cấp (Escalation Note)</p>
+                    <p className="mt-1 text-sm text-gray-700">{detailReport.escalation_note}</p>
+                  </div>
+                )}
+              </div>
+            )}
 
-            {detailPhotos.length > 0 && (
-              <div>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Hình ảnh bằng chứng ({detailPhotos.length})</p>
+            {/* <div>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Hình ảnh đính kèm báo cáo ({detailPhotos.length})</p>
+              {detailPhotos.length > 0 ? (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {detailPhotos.map((url, index) => (
                     <a
@@ -1003,11 +1192,78 @@ export const IncidentManagement = () => {
                     </a>
                   ))}
                 </div>
+              ) : (
+                <div className="flex items-center gap-2 py-4 px-4 bg-gray-50/50 rounded-xl border border-dashed border-gray-200 text-gray-400 italic text-sm">
+                  <ImageIcon className="w-4 h-4 opacity-40" />
+                  <span>Không có hình ảnh đính kèm</span>
+                </div>
+              )}
+            </div> */}
+
+            {isMediaLoading ? (
+              <div className="flex justify-center py-4">
+                <RefreshCw className="h-5 w-5 animate-spin text-gray-400" />
+              </div>
+            ) : cleaningMedia.length > 0 && (
+              <div>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Bằng chứng từ Nhiệm vụ dọn dẹp ({cleaningMedia.length})</p>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {cleaningMedia.map((m) => {
+                    const url = m.media_url || m.media?.url;
+                    const isVideo = m.file_type === 'VIDEO' || url?.toLowerCase().endsWith('.mp4') || url?.toLowerCase().endsWith('.mov');
+
+                    return (
+                      <div key={m.id} className="relative group aspect-video overflow-hidden rounded-lg border border-gray-200 bg-gray-100">
+                        {isVideo ? (
+                          <video
+                            src={url}
+                            controls
+                            playsInline
+                            preload="metadata"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <a href={url} target="_blank" rel="noreferrer" className="block h-full w-full">
+                            <img src={url} alt={`Evidence ${m.media_type}`} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+                          </a>
+                        )}
+                        <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/60 text-[10px] text-white rounded">
+                          {m.media_type}
+                        </div>
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="absolute bottom-1 right-1 p-1 bg-white/80 rounded shadow text-[10px] font-bold text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          Xem
+                        </a>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {(detailStatus === 'RESOLVED' && (['HIGH', 'CRITICAL'] as IncidentSeverity[]).includes(detailSeverity)) && (
+              <div className="mt-6 border-t border-gray-100 pt-4 flex justify-between items-center bg-rose-50/30 p-4 rounded-xl border border-rose-100">
+                <div>
+                  <p className="text-sm font-bold text-rose-700">Sự cố nghiêm trọng</p>
+                  <p className="text-xs text-rose-600 mt-0.5">Phòng đang trong trạng thái bảo trì. Cần hỗ trợ đổi phòng cho khách hàng bị ảnh hưởng.</p>
+                </div>
+                <button
+                  onClick={() => detailIncident && fetchAffectedBookings(detailIncident.id)}
+                  disabled={isAffectedBookingsLoading}
+                  className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700 disabled:opacity-50 shadow-sm flex items-center gap-2"
+                >
+                  {isAffectedBookingsLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />}
+                  Xử lý đổi phòng cho khách
+                </button>
               </div>
             )}
 
             {(detailStatus === 'PENDING' && detailReport?.incident_type !== 'REPLENISHMENT_REQUEST') && (
-              <div className="flex justify-end border-t border-gray-100 pt-4">
+              <div className="flex justify-end border-t border-gray-100 pt-4 mt-6">
                 <button
                   onClick={() => {
                     if (detailReport) openReviewModal(detailReport)
@@ -1066,6 +1322,17 @@ export const IncidentManagement = () => {
             </button>
           </div>
 
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wider text-gray-500">Ghi chú xử lý (Tùy chọn)</label>
+            <textarea
+              value={reviewNote}
+              onChange={(e) => setReviewNote(e.target.value)}
+              placeholder="Nhập phương án giải quyết hoặc lý do từ chối..."
+              className="w-full rounded-lg border border-gray-200 p-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              rows={3}
+            />
+          </div>
+
           <div className="flex justify-end gap-3 pt-2">
             <button
               disabled={isReviewSaving}
@@ -1085,6 +1352,141 @@ export const IncidentManagement = () => {
         </div>
       </Modal>
 
+      {/* MODAL AFFECTED BOOKINGS */}
+      <Modal
+        isOpen={isAffectedModalOpen}
+        onClose={() => setIsAffectedModalOpen(false)}
+        title="Khách hàng bị ảnh hưởng"
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg bg-rose-50 p-4 border border-rose-100">
+            <p className="text-sm text-rose-800">
+              Dưới đây là danh sách các khách hàng có lịch đặt chỗ tại phòng đang bảo trì.
+              Vui lòng thực hiện đổi phòng cho khách để đảm bảo trải nghiệm.
+            </p>
+          </div>
+
+          <div className="overflow-hidden rounded-xl border border-gray-100">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500">Khách hàng</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500">Thời gian</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500">Trạng thái</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-500">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {affectedBookings.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-8 text-center text-gray-400">Không có khách hàng nào bị ảnh hưởng</td>
+                  </tr>
+                ) : (
+                  affectedBookings.map((b) => (
+                    <tr key={b.id} className="hover:bg-gray-50/50">
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-gray-900">{b.user?.name || 'Khách vãng lai'}</p>
+                        <p className="text-xs text-gray-500">{b.user?.phone || '-'}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-xs text-gray-700">{formatDateTime(b.start_time)}</p>
+                        <p className="text-xs text-gray-400">đến {formatDateTime(b.end_time)}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${b.status === 'CHECKED_IN' ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'bg-gray-50 text-gray-700 border border-gray-100'
+                          }`}>
+                          {b.status === 'CHECKED_IN' ? 'Đang sử dụng' : 'Đã đặt trước'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => handleOpenRoomChange(b)}
+                          className="text-xs font-bold text-blue-600 hover:underline"
+                        >
+                          Đổi phòng
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <button
+              onClick={() => setIsAffectedModalOpen(false)}
+              className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-200"
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* MODAL ROOM CHANGE CANDIDATES */}
+      <Modal
+        isOpen={isCandidatesModalOpen}
+        onClose={() => !isMigrating && setIsCandidatesModalOpen(false)}
+        title="Chọn phòng thay thế"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="border-b border-gray-100 pb-4">
+            <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">Khách hàng</p>
+            <p className="text-sm font-medium text-gray-900">{selectedBookingForChange?.user?.name || '-'}</p>
+            <div className="mt-2 flex items-center gap-4 text-xs text-gray-600">
+              <p>Khung giờ: {formatDateTime(selectedBookingForChange?.start_time)} - {formatDateTime(selectedBookingForChange?.end_time)}</p>
+            </div>
+          </div>
+
+          {isCandidatesLoading ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3">
+              <RefreshCw className="h-8 w-8 animate-spin text-blue-500" />
+              <p className="text-sm text-gray-500">Đang tìm phòng trống khả dụng...</p>
+            </div>
+          ) : roomCandidates.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3 text-gray-400">
+              <StoreIcon className="h-10 w-10 opacity-20" />
+              <p className="text-sm">Không tìm thấy phòng trống nào phù hợp trong khu vực</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 max-h-[400px] overflow-y-auto pr-2">
+              {roomCandidates.map((p) => (
+                <button
+                  key={p.id}
+                  disabled={isMigrating}
+                  onClick={() => handleExecuteRoomChange(p.id)}
+                  className="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:border-blue-500 hover:bg-blue-50/50 transition-all text-left group"
+                >
+                  <div>
+                    <p className="font-bold text-gray-900 group-hover:text-blue-700">{p.name}</p>
+                    <p className="text-xs text-gray-500">Mã: {p.code}</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-100">
+                      Sẵn sàng
+                    </span>
+                    <p className="text-[10px] text-gray-400 mt-1 italic">Click để chọn</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="flex justify-end pt-2">
+            <button
+              disabled={isMigrating}
+              onClick={() => setIsCandidatesModalOpen(false)}
+              className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-200"
+            >
+              Hủy
+            </button>
+          </div>
+        </div>
+      </Modal>
+
       {/* FILTER PANEL */}
       <div className={`fixed inset-0 z-50 ${isFilterPanelOpen ? '' : 'pointer-events-none'}`} aria-hidden={!isFilterPanelOpen}>
         <div
@@ -1096,34 +1498,24 @@ export const IncidentManagement = () => {
           role="dialog"
           aria-modal="true"
         >
-          <div className="h-full flex flex-col">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Bộ lọc sự cố</h2>
-                <p className="text-xs text-gray-500 mt-1">Lọc theo trạng thái, người gửi, khu vực và ngày.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsFilterPanelOpen(false)}
-                className="text-gray-400 hover:text-gray-700 transition-colors"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-8">
+          <Modal
+            isOpen={isFilterPanelOpen}
+            onClose={() => setIsFilterPanelOpen(false)}
+            title="Bộ lọc sự cố"
+            size="2xl"
+          >
+            <div className="space-y-8">
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <label className="block text-sm font-semibold text-gray-900">Trạng thái</label>
-                  <span className="text-xs text-gray-500 whitespace-nowrap">Đã chọn {draftFilters.statuses.length || 'Tất cả'}</span>
+                  <label className="block text-sm font-bold text-gray-900 uppercase tracking-wide">Trạng thái</label>
+                  <span className="text-[10px] font-bold text-gray-400 bg-gray-50 px-2 py-0.5 rounded border border-gray-100 uppercase">Đã chọn {draftFilters.statuses.length || 'Tất cả'}</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() => setDraftFilters(prev => ({ ...prev, statuses: [] }))}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftFilters.statuses.length === 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${draftFilters.statuses.length === 0 ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100' : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'}`}
                   >
-                    {draftFilters.statuses.length === 0 && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
                     Tất cả
                   </button>
                   {INCIDENT_STATUSES.map(status => {
@@ -1144,9 +1536,9 @@ export const IncidentManagement = () => {
                             return { ...prev, statuses: nextStatuses }
                           })
                         }}
-                        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                        className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100' : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'}`}
                       >
-                        {isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
+                        {isSelected && <Check className="w-3 h-3 inline-block mr-1.5 -ml-0.5" />}
                         {translateStatus(status)}
                       </button>
                     )
@@ -1156,17 +1548,16 @@ export const IncidentManagement = () => {
 
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <label className="block text-sm font-semibold text-gray-900">Khu vực (Cluster)</label>
-                  <span className="text-xs text-gray-500 whitespace-nowrap">Đã chọn {draftFilters.clusterIds.length || 'Tất cả'}</span>
+                  <label className="block text-sm font-bold text-gray-900 uppercase tracking-wide">Khu vực (Cluster)</label>
+                  <span className="text-[10px] font-bold text-gray-400 bg-gray-50 px-2 py-0.5 rounded border border-gray-100 uppercase">Đã chọn {draftFilters.clusterIds.length || 'Tất cả'}</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() => setDraftFilters(prev => ({ ...prev, clusterIds: [] }))}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftFilters.clusterIds.length === 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${draftFilters.clusterIds.length === 0 ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100' : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'}`}
                   >
-                    {draftFilters.clusterIds.length === 0 && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
-                    Tất cả
+                    Tất cả cụm
                   </button>
                   {clusters.map(cluster => {
                     const isSelected = draftFilters.clusterIds.includes(cluster.id);
@@ -1186,9 +1577,9 @@ export const IncidentManagement = () => {
                             return { ...prev, clusterIds: nextIds }
                           })
                         }}
-                        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                        className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100' : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'}`}
                       >
-                        {isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
+                        {isSelected && <Check className="w-3 h-3 inline-block mr-1.5 -ml-0.5" />}
                         {cluster.name}
                       </button>
                     )
@@ -1197,85 +1588,48 @@ export const IncidentManagement = () => {
               </div>
 
               <div>
-                <style>{`
-                  .custom-calendar .react-datepicker { border: none; font-family: inherit; width: 100%; display: flex; flex-direction: column; }
-                  .custom-calendar .react-datepicker__month-container { width: 100%; display: flex; flex-direction: column; }
-                  .custom-calendar .react-datepicker__header { background: white; border-bottom: none; padding-top: 16px; width: 100%; }
-                  .custom-calendar .react-datepicker__current-month { font-weight: 500; font-size: 16px; color: #111827; margin-bottom: 12px; }
-                  .custom-calendar .react-datepicker__day-names { display: flex; justify-content: center; gap: 20px; margin-bottom: 8px; }
-                  .custom-calendar .react-datepicker__week { display: flex; justify-content: center; gap: 25px; margin-bottom: 4px; }
-                  .custom-calendar .react-datepicker__day-name { color: #6b7280; font-weight: 500; font-size: 13px; flex: 1; display: flex; align-items: center; justify-content: center; width: auto; max-width: 48px; }
-                  .custom-calendar .react-datepicker__day { font-weight: 400; font-size: 14px; color: #374151; border-radius: 9999px; outline: none; margin: 0; flex: 1; display: flex; align-items: center; justify-content: center; aspect-ratio: 1/1; max-width: 48px; max-height: 48px; width: auto; }
-                  .custom-calendar .react-datepicker__day:hover { background-color: #f3f4f6; border-radius: 9999px; }
-                  .custom-calendar .react-datepicker__day--in-range, .custom-calendar .react-datepicker__day--in-selecting-range { background-color: #f3f4f6; color: #111827; border-radius: 0; }
-                  .custom-calendar .react-datepicker__day--range-start,
-                  .custom-calendar .react-datepicker__day--range-end,
-                  .custom-calendar .react-datepicker__day--selecting-range-start,
-                  .custom-calendar .react-datepicker__day--selecting-range-end { background-color: #111827 !important; color: #fff !important; border-radius: 9999px !important; font-weight: 500; }
-                  .custom-calendar .react-datepicker__navigation { top: 16px; }
-                  .custom-calendar .react-datepicker__navigation-icon::before { border-color: #6b7280; border-width: 2px 2px 0 0; height: 8px; width: 8px; top: 1px; }
-                `}</style>
                 <div className="flex items-center justify-between mb-3">
-                  <label className="block text-sm font-semibold text-gray-900">Khoảng thời gian</label>
+                  <label className="block text-sm font-bold text-gray-900 uppercase tracking-wide">Khoảng thời gian</label>
                 </div>
-                <div className="border border-gray-200 rounded-xl shadow-sm bg-white custom-calendar w-full overflow-hidden">
-                  <div className="w-full p-4">
-                    <DatePicker
-                      selected={draftFilters.dateRange[0]}
-                      onChange={(update: [Date | null, Date | null]) => setDraftFilters(prev => ({ ...prev, dateRange: update }))}
-                      startDate={draftFilters.dateRange[0] || undefined}
-                      endDate={draftFilters.dateRange[1] || undefined}
-                      selectsRange
-                      inline
-                      monthsShown={1}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-white">
-                    <button
-                      type="button"
-                      onClick={() => setDraftFilters(prev => ({ ...prev, dateRange: [null, null] }))}
-                      className="text-sm font-semibold text-gray-900 underline hover:text-gray-700 transition"
-                    >
-                      Xóa
-                    </button>
-                    <button
-                      type="button"
-                      onClick={applyFilters}
-                      className="px-5 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition"
-                    >
-                      Lưu
-                    </button>
-                  </div>
+                <div className="border border-gray-100 rounded-2xl overflow-hidden bg-white p-6 shadow-inner custom-calendar">
+                  <DatePicker
+                    selected={draftFilters.dateRange[0]}
+                    onChange={(update: [Date | null, Date | null]) => setDraftFilters(prev => ({ ...prev, dateRange: update }))}
+                    startDate={draftFilters.dateRange[0] || undefined}
+                    endDate={draftFilters.dateRange[1] || undefined}
+                    selectsRange
+                    inline
+                  />
                 </div>
               </div>
-            </div>
 
-            <div className="px-6 py-5 border-t border-gray-100 bg-white flex items-center justify-between gap-3 lg:rounded-b-xl">
-              <button
-                type="button"
-                onClick={resetDraftFilters}
-                className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
-              >
-                Đặt lại
-              </button>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-100">
                 <button
                   type="button"
-                  onClick={() => setIsFilterPanelOpen(false)}
-                  className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+                  onClick={resetDraftFilters}
+                  className="px-6 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
                 >
-                  Hủy
+                  Thiết lập lại
                 </button>
-                <button
-                  type="button"
-                  onClick={applyFilters}
-                  className="px-4 py-2.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-                >
-                  Áp dụng
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsFilterPanelOpen(false)}
+                    className="px-6 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={applyFilters}
+                    className="px-8 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-bold hover:bg-gray-800 transition-all shadow-lg shadow-gray-200"
+                  >
+                    Áp dụng
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          </Modal>
         </div>
       </div>
     </div>

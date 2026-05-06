@@ -67,7 +67,8 @@ export interface CleaningTaskMediaItem {
   id: string
   cleaning_task_id: string
   media_type: 'BEFORE' | 'AFTER'
-  file_type: 'IMAGE' | 'VIDEO' | 'FILE'
+  file_type: 'IMAGE' | 'VIDEO' | 'PHOTO' | 'FILE'
+  media_url?: string
   media: {
     url: string
     public_id?: string
@@ -146,6 +147,18 @@ interface CleaningTaskWithMediaResponse {
   data: CleaningTaskWithMediaPayload
 }
 
+export interface CleaningMediaFilters {
+  cleaning_task_id?: string
+  media_type?: 'BEFORE' | 'AFTER'
+  file_type?: 'IMAGE' | 'VIDEO' | 'PHOTO'
+}
+
+interface CleaningMediaListResponse {
+  success: boolean
+  count: number
+  data: CleaningTaskMediaItem[]
+}
+
 interface CleaningTaskDeleteResponse {
   success: boolean
   message: string
@@ -203,6 +216,14 @@ export const cleaningTaskApi = {
   },
 
   getWithMedia: (id: string) => api.get<CleaningTaskWithMediaResponse>(`/cleaning-tasks/${id}/with-media`).then((r) => r.data),
+
+  getCleaningMedia: (filters: CleaningMediaFilters) => {
+    const params = new URLSearchParams()
+    if (filters.cleaning_task_id) params.append('cleaning_task_id', filters.cleaning_task_id)
+    if (filters.media_type) params.append('media_type', filters.media_type)
+    if (filters.file_type) params.append('file_type', filters.file_type)
+    return api.get<CleaningMediaListResponse>('/cleaning-media', { params }).then((r) => r.data)
+  },
 
   create: (payload: CreateCleaningTaskPayload) => {
     return api.post<CleaningTaskSingleResponse>('/cleaning-tasks', payload).then((r) => r.data)

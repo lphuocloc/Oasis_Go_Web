@@ -101,7 +101,7 @@ export const PodManagement = () => {
       })
       setPods(response.data)
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to load pods')
+      toast.error(error?.response?.data?.message || 'Không thể tải danh sách Pod')
     } finally {
       setIsLoading(false)
     }
@@ -149,7 +149,7 @@ export const PodManagement = () => {
     try {
       await Promise.all([refreshScope(), fetchPods()])
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to refresh pod data')
+      toast.error(error?.response?.data?.message || 'Không thể làm mới dữ liệu Pod')
     }
   }
 
@@ -190,7 +190,7 @@ export const PodManagement = () => {
       const response = await podApi.getById(podId)
       setDetailPod(response.data)
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to load pod detail')
+      toast.error(error?.response?.data?.message || 'Không thể tải chi tiết Pod')
       closeDetailModal()
     } finally {
       setIsDetailLoading(false)
@@ -217,7 +217,7 @@ export const PodManagement = () => {
     if (!statusPod) return
 
     if (nextStatus === 'MAINTENANCE' && !maintenanceReason.trim()) {
-      toast.error('Maintenance reason is required')
+      toast.error('Vui lòng nhập lý do bảo trì')
       return
     }
 
@@ -229,7 +229,7 @@ export const PodManagement = () => {
     try {
       setIsStatusSaving(true)
       const response = await podApi.updateStatus(statusPod.id, payload)
-      toast.success(`Updated status of ${response.data.code}`)
+      toast.success(`Đã cập nhật trạng thái cho ${response.data.code}`)
 
       if (detailPod?.id === statusPod.id) {
         setDetailPod(response.data)
@@ -238,7 +238,7 @@ export const PodManagement = () => {
       closeStatusModal()
       await fetchPods()
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to update pod status')
+      toast.error(error?.response?.data?.message || 'Không thể cập nhật trạng thái Pod')
     } finally {
       setIsStatusSaving(false)
     }
@@ -252,7 +252,7 @@ export const PodManagement = () => {
         const res = await userApi.getActiveUsers('cleaner')
         setCleaners(res.data)
       } catch (error: any) {
-        toast.error(error?.response?.data?.message || 'Failed to load cleaners')
+        toast.error(error?.response?.data?.message || 'Không thể tải danh sách nhân viên dọn dẹp')
       }
     }
   }
@@ -266,7 +266,7 @@ export const PodManagement = () => {
 
   const handleAssignCleaner = async () => {
     if (!assignPod || !selectedCleaner) {
-      toast.error('Please select a cleaner')
+      toast.error('Vui lòng chọn nhân viên dọn dẹp')
       return
     }
     try {
@@ -276,11 +276,11 @@ export const PodManagement = () => {
         cleaner_id: selectedCleaner,
         request_source: 'USER_REQUEST'
       })
-      toast.success('Cleaner assigned successfully')
+      toast.success('Đã gán nhân viên dọn dẹp thành công')
       closeAssignModal()
       fetchPods()
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to assign cleaner')
+      toast.error(error?.response?.data?.message || 'Không thể gán nhân viên dọn dẹp')
     } finally {
       setIsAssigning(false)
     }
@@ -313,8 +313,8 @@ export const PodManagement = () => {
     <div className="p-8 bg-gray-50 min-h-screen">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Pod Management</h1>
-          <p className="text-gray-500 mt-1">View and manage pods in your assigned clusters.</p>
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Quản lý Pod</h1>
+          <p className="text-gray-500 mt-1">Xem và quản lý các Pod trong cụm được phân công.</p>
         </div>
 
         <button
@@ -323,7 +323,7 @@ export const PodManagement = () => {
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
         >
           <RefreshCw className={`w-4 h-4 ${isTableLoading ? 'animate-spin' : ''}`} />
-          Refresh
+          Làm mới
         </button>
       </div>
 
@@ -331,7 +331,7 @@ export const PodManagement = () => {
         <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="min-w-[220px] pr-4 xl:border-r xl:border-gray-200">
-              <p className="text-xs uppercase font-semibold tracking-wide text-gray-500">Total Pods</p>
+              <p className="text-xs uppercase font-semibold tracking-wide text-gray-500">Tổng số Pod</p>
               <p className="text-[34px] leading-tight font-bold text-gray-900 mt-1">{pods.length}</p>
             </div>
 
@@ -368,7 +368,7 @@ export const PodManagement = () => {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by code, string..."
+                placeholder="Tìm kiếm theo mã, tên..."
                 className="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
               />
             </div>
@@ -379,7 +379,7 @@ export const PodManagement = () => {
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
             >
               <SlidersHorizontal className="w-4 h-4" />
-              Filters
+              Bộ lọc
             </button>
           </div>
         </div>
@@ -389,12 +389,12 @@ export const PodManagement = () => {
         {isTableLoading ? (
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-20 text-center text-gray-400">
             <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 opacity-20" />
-            Loading pods and clusters...
+            Đang tải danh sách Pod và cụm...
           </div>
         ) : filteredPods.length === 0 ? (
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-20 text-center text-gray-400">
             <Boxes className="w-12 h-12 mx-auto mb-4 opacity-20" />
-            No pods found in your scope
+            Không tìm thấy Pod nào trong phạm vi quản lý của bạn
           </div>
         ) : (
           (() => {
@@ -432,7 +432,7 @@ export const PodManagement = () => {
                       return (
                         <div key={prefix} className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
                           <div className="px-5 py-3 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
-                            <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Dãy {prefix}</span>
+                            <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">Dãy {prefix}</span>
                             <div className="flex gap-2">
                               {upperRow.length > 0 && <span className="text-[9px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-bold uppercase">Tầng trên ({upperRow.length})</span>}
                               {lowerRow.length > 0 && <span className="text-[9px] bg-slate-50 text-slate-600 px-2 py-0.5 rounded-full font-bold uppercase">Tầng dưới ({lowerRow.length})</span>}
@@ -449,10 +449,10 @@ export const PodManagement = () => {
                                     onClick={() => openDetailModal(pod.id)}
                                     className={`w-24 h-16 rounded-xl border-2 shadow-sm flex flex-col items-center justify-center transition-all hover:scale-105 group relative cursor-pointer ${getPodStatusBorderColor(pod.status)}`}
                                   >
-                                    <span className="text-xs font-black">{pod.code}</span>
+                                    <span className="text-xs font-bold">{pod.code}</span>
                                     <span className="text-[8px] font-bold opacity-60 mt-0.5 truncate px-1 w-full text-center">{pod.status}</span>
                                     <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-white border border-gray-100 rounded-full flex items-center justify-center shadow-sm">
-                                      <span className="text-[8px] font-black text-gray-400">U</span>
+                                      <span className="text-[8px] font-bold text-gray-400">U</span>
                                     </div>
                                   </div>
                                 ))}
@@ -468,10 +468,10 @@ export const PodManagement = () => {
                                     onClick={() => openDetailModal(pod.id)}
                                     className={`w-24 h-16 rounded-xl border-2 shadow-sm flex flex-col items-center justify-center transition-all hover:scale-105 group relative cursor-pointer ${getPodStatusBorderColor(pod.status)}`}
                                   >
-                                    <span className="text-xs font-black">{pod.code}</span>
+                                    <span className="text-xs font-bold">{pod.code}</span>
                                     <span className="text-[8px] font-bold opacity-60 mt-0.5 truncate px-1 w-full text-center">{pod.status}</span>
                                     <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-white border border-gray-100 rounded-full flex items-center justify-center shadow-sm">
-                                      <span className="text-[8px] font-black text-gray-400">L</span>
+                                      <span className="text-[8px] font-bold text-gray-400">L</span>
                                     </div>
                                   </div>
                                 ))}
@@ -487,7 +487,7 @@ export const PodManagement = () => {
                                     onClick={() => openDetailModal(pod.id)}
                                     className={`w-24 h-16 rounded-xl border-2 shadow-sm flex flex-col items-center justify-center transition-all hover:scale-105 cursor-pointer ${getPodStatusBorderColor(pod.status)}`}
                                   >
-                                    <span className="text-xs font-black">{pod.code}</span>
+                                    <span className="text-xs font-bold">{pod.code}</span>
                                     <span className="text-[8px] font-bold opacity-60 mt-0.5 truncate px-1 w-full text-center">{pod.status}</span>
                                   </div>
                                 ))}
@@ -505,309 +505,277 @@ export const PodManagement = () => {
         )}
       </div>
 
-      {/* Filter panel */}
-      <div className={`fixed inset-0 z-50 ${isFilterPanelOpen ? '' : 'pointer-events-none'}`} aria-hidden={!isFilterPanelOpen}>
-        <div
-          className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${isFilterPanelOpen ? 'opacity-100' : 'opacity-0'}`}
-          onClick={() => setIsFilterPanelOpen(false)}
-        />
-        <div
-          className={`absolute right-0 top-0 h-full w-full max-w-xl overflow-hidden bg-white shadow-2xl border-l border-gray-200 transform transition-transform duration-300 lg:right-4 lg:top-4 lg:bottom-4 lg:h-auto lg:w-[calc(100%-2rem)] lg:border lg:rounded-xl flex flex-col ${isFilterPanelOpen ? 'translate-x-0' : 'translate-x-[110%]'}`}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
-              <p className="text-xs text-gray-500 mt-1">Filter pods by status and cluster.</p>
+      <Modal
+        isOpen={isFilterPanelOpen}
+        onClose={() => setIsFilterPanelOpen(false)}
+        title="Bộ lọc Pod"
+        size="xl"
+      >
+        <div className="space-y-8">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-semibold text-gray-900">Trạng thái</label>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsFilterPanelOpen(false)}
-              className="text-gray-400 hover:text-gray-700 transition-colors"
-            >
-              <X className="w-6 h-6" />
-            </button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-8">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <label className="block text-sm font-semibold text-gray-900">Status</label>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setDraftFilters(prev => ({ ...prev, status: toggleArrayFilter(prev.status, 'all', POD_STATUSES.length) }))}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftFilters.status.length === 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-                >
-                  {draftFilters.status.length === 0 && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
-                  All
-                </button>
-                {POD_STATUSES.map(status => {
-                  const isSelected = draftFilters.status.includes(status)
-                  return (
-                    <button
-                      key={status}
-                      type="button"
-                      onClick={() => setDraftFilters(prev => ({ ...prev, status: toggleArrayFilter(prev.status, status, POD_STATUSES.length) }))}
-                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-                    >
-                      {isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
-                      {status}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <label className="block text-sm font-semibold text-gray-900">Cluster</label>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setDraftFilters(prev => ({ ...prev, cluster_id: toggleArrayFilter(prev.cluster_id, 'all', clusters.length) }))}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftFilters.cluster_id.length === 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-                >
-                  {draftFilters.cluster_id.length === 0 && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
-                  All Clusters
-                </button>
-                {clusters.map(cluster => {
-                  const isSelected = draftFilters.cluster_id.includes(cluster.id)
-                  return (
-                    <button
-                      key={cluster.id}
-                      type="button"
-                      onClick={() => setDraftFilters(prev => ({ ...prev, cluster_id: toggleArrayFilter(prev.cluster_id, cluster.id, clusters.length) }))}
-                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-                    >
-                      {isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
-                      {cluster.name}
-                    </button>
-                  )
-                })}
-              </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setDraftFilters(prev => ({ ...prev, status: toggleArrayFilter(prev.status, 'all', POD_STATUSES.length) }))}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftFilters.status.length === 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+              >
+                {draftFilters.status.length === 0 && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
+                Tất cả
+              </button>
+              {POD_STATUSES.map(status => {
+                const isSelected = draftFilters.status.includes(status)
+                return (
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() => setDraftFilters(prev => ({ ...prev, status: toggleArrayFilter(prev.status, status, POD_STATUSES.length) }))}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                  >
+                    {isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
+                    {status}
+                  </button>
+                )
+              })}
             </div>
           </div>
 
-          <div className="px-6 py-5 border-t border-gray-100 bg-white flex items-center justify-between gap-3 lg:rounded-b-xl">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-semibold text-gray-900">Cụm (Cluster)</label>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setDraftFilters(prev => ({ ...prev, cluster_id: toggleArrayFilter(prev.cluster_id, 'all', clusters.length) }))}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftFilters.cluster_id.length === 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+              >
+                {draftFilters.cluster_id.length === 0 && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
+                Tất cả cụm
+              </button>
+              {clusters.map(cluster => {
+                const isSelected = draftFilters.cluster_id.includes(cluster.id)
+                return (
+                  <button
+                    key={cluster.id}
+                    type="button"
+                    onClick={() => setDraftFilters(prev => ({ ...prev, cluster_id: toggleArrayFilter(prev.cluster_id, cluster.id, clusters.length) }))}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                  >
+                    {isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
+                    {cluster.name}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
             <button
               type="button"
               onClick={resetDraftFilters}
-              className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+              className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              Reset
+              Thiết lập lại
             </button>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setIsFilterPanelOpen(false)}
-                className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
               >
-                Cancel
+                Hủy
               </button>
               <button
                 type="button"
                 onClick={applyFilters}
-                className="px-4 py-2.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
               >
-                Apply
+                Áp dụng
               </button>
             </div>
           </div>
         </div>
-      </div>
+      </Modal>
 
-      {/* Detail panel */}
-      <div className={`fixed inset-0 z-50 ${isDetailOpen ? '' : 'pointer-events-none'}`} aria-hidden={!isDetailOpen}>
-        <div
-          className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${isDetailOpen ? 'opacity-100' : 'opacity-0'}`}
-          onClick={closeDetailModal}
-        />
-        <div
-          className={`absolute right-0 top-0 h-full w-full max-w-[960px] bg-white shadow-2xl border-l border-gray-200 transform transition-transform duration-300 lg:right-4 lg:top-4 lg:bottom-4 lg:h-auto lg:w-[calc(100%-2rem)] lg:border lg:rounded-xl flex flex-col ${isDetailOpen ? 'translate-x-0' : 'translate-x-[110%]'}`}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Pod Details</h2>
-            </div>
-            <button
-              type="button"
-              onClick={closeDetailModal}
-              className="text-gray-400 hover:text-gray-700 transition-colors"
-            >
-              <X className="w-6 h-6" />
-            </button>
+      <Modal
+        isOpen={isDetailOpen}
+        onClose={closeDetailModal}
+        title="Chi tiết Pod"
+        size="5xl"
+      >
+        {isDetailLoading ? (
+          <div className="py-20 text-center text-gray-500">
+            <RefreshCw className="w-10 h-10 animate-spin mx-auto mb-4 text-indigo-500" />
+            <p className="font-medium animate-pulse">Đang tải chi tiết Pod...</p>
           </div>
-
-          <div className="flex-1 overflow-y-auto px-6 py-6">
-            {isDetailLoading ? (
-              <div className="py-8 text-center text-gray-500">
-                <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 opacity-20" />
-                Loading pod details...
+        ) : !detailPod ? (
+          <div className="py-20 text-center text-gray-400">Không tìm thấy chi tiết cho Pod này.</div>
+        ) : (
+          <div className="space-y-8">
+            {/* Header Status Section */}
+            <div className="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between bg-gray-50/80 p-6 rounded-2xl border border-gray-100">
+              <div className="flex items-center gap-4">
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-sm border-2 bg-white ${getPodStatusBorderColor(detailPod.status)}`}>
+                  <LayoutTemplate className="w-8 h-8 text-gray-700" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xl font-bold text-gray-900">{detailPod.code}</h3>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${statusBadgeClass(detailPod.status)}`}>
+                      {detailPod.status}
+                    </span>
+                  </div>
+                  <p className="text-sm font-medium text-gray-500 mt-0.5">{detailPod.name}</p>
+                </div>
               </div>
-            ) : !detailPod ? (
-              <div className="py-8 text-center text-gray-500">No details found for this pod.</div>
-            ) : (
-              <div className="space-y-8">
-                {/* Header Status Section */}
-                <div className="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between bg-gray-50/50 p-6 rounded-2xl border border-gray-100">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-sm border-2 ${getPodStatusBorderColor(detailPod.status)}`}>
-                      <LayoutTemplate className="w-8 h-8" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-xl font-black text-gray-900">{detailPod.code}</h3>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${statusBadgeClass(detailPod.status)}`}>
-                          {detailPod.status}
-                        </span>
-                      </div>
-                      <p className="text-sm font-medium text-gray-500 mt-0.5">{detailPod.name}</p>
-                    </div>
-                  </div>
 
-                  {detailPod.status === 'MAINTENANCE' && detailPod.maintenance_status && (
-                    <div className="bg-rose-50 text-rose-700 px-4 py-2 rounded-xl border border-rose-100 text-xs font-medium max-w-xs">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <Wrench className="w-3.5 h-3.5" />
-                        <span className="font-bold uppercase tracking-wide">Maintenance Note</span>
-                      </div>
-                      {detailPod.maintenance_status}
-                    </div>
-                  )}
+              {detailPod.status === 'MAINTENANCE' && detailPod.maintenance_status && (
+                <div className="bg-rose-50 text-rose-700 px-4 py-2 rounded-xl border border-rose-100 text-xs font-medium max-w-xs shadow-sm">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Wrench className="w-3.5 h-3.5" />
+                    <span className="font-bold uppercase tracking-wide">Ghi chú bảo trì</span>
+                  </div>
+                  {detailPod.maintenance_status}
                 </div>
+              )}
+            </div>
 
-                {/* Primary Info Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-1">Location Info</h4>
-                    <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3 text-gray-500">
-                          <div className="p-2 bg-indigo-50 text-indigo-500 rounded-lg">
-                            <Boxes className="w-4 h-4" />
-                          </div>
-                          <span className="text-xs font-bold uppercase tracking-tight">Cluster</span>
-                        </div>
-                        <span className="text-sm font-bold text-gray-900 truncate max-w-[180px]">
-                          {detailPod.cluster?.name ?? clusterMap.get(detailPod.cluster_id)?.name ?? detailPod.cluster_id}
-                        </span>
+            {/* Primary Info Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-1">Vị trí & Cụm</h4>
+                <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 text-gray-500">
+                      <div className="p-2 bg-indigo-50 text-indigo-500 rounded-lg">
+                        <Boxes className="w-4 h-4" />
                       </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3 text-gray-500">
-                          <div className="p-2 bg-rose-50 text-rose-500 rounded-lg">
-                            <MapPin className="w-4 h-4" />
-                          </div>
-                          <span className="text-xs font-bold uppercase tracking-tight">Level</span>
-                        </div>
-                        <span className="text-sm font-bold text-gray-900">
-                          {getLevel(detailPod.code) === 'U' ? 'Upper Floor (Tầng trên)' : 'Lower Floor (Tầng dưới)'}
-                        </span>
-                      </div>
+                      <span className="text-xs font-bold uppercase tracking-tight">Cụm</span>
                     </div>
+                    <span className="text-sm font-bold text-gray-900 truncate max-w-[180px]">
+                      {detailPod.cluster?.name ?? clusterMap.get(detailPod.cluster_id)?.name ?? detailPod.cluster_id}
+                    </span>
                   </div>
-
-                  <div className="space-y-4">
-                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-1">Maintenance History</h4>
-                    <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3 text-gray-500">
-                          <div className="p-2 bg-emerald-50 text-emerald-500 rounded-lg">
-                            <History className="w-4 h-4" />
-                          </div>
-                          <span className="text-xs font-bold uppercase tracking-tight">Last Cleaned</span>
-                        </div>
-                        <span className="text-sm font-bold text-gray-900">
-                          {detailPod.last_cleaned_at ? new Date(detailPod.last_cleaned_at).toLocaleString() : '—'}
-                        </span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 text-gray-500">
+                      <div className="p-2 bg-rose-50 text-rose-500 rounded-lg">
+                        <MapPin className="w-4 h-4" />
                       </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3 text-gray-500">
-                          <div className="p-2 bg-blue-50 text-blue-500 rounded-lg">
-                            <Clock className="w-4 h-4" />
-                          </div>
-                          <span className="text-xs font-bold uppercase tracking-tight">Added Date</span>
-                        </div>
-                        <span className="text-sm font-bold text-gray-900">
-                          {detailPod.createdAt ? new Date(detailPod.createdAt).toLocaleDateString() : '—'}
-                        </span>
-                      </div>
+                      <span className="text-xs font-bold uppercase tracking-tight">Vị trí tầng</span>
                     </div>
+                    <span className="text-sm font-bold text-gray-900">
+                      {getLevel(detailPod.code) === 'U' ? 'Tầng trên (Upper)' : 'Tầng dưới (Lower)'}
+                    </span>
                   </div>
                 </div>
+              </div>
 
-                {/* Technical Specs Grid */}
-                <div className="space-y-4">
-                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-1">Technical Specifications</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-                    <div className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center group hover:border-indigo-200 transition-colors">
-                      <div className="p-3 bg-indigo-50 text-indigo-500 rounded-xl mb-3 group-hover:scale-110 transition-transform">
-                        <Volume2 className="w-5 h-5" />
+              <div className="space-y-4">
+                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-1">Thời gian vận hành</h4>
+                <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 text-gray-500">
+                      <div className="p-2 bg-emerald-50 text-emerald-500 rounded-lg">
+                        <History className="w-4 h-4" />
                       </div>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Soundproof</span>
-                      <span className="text-sm font-black text-gray-900 mt-1">{detailPod.soundproof_level}/5</span>
+                      <span className="text-xs font-bold uppercase tracking-tight">Dọn dẹp cuối</span>
                     </div>
-
-                    <div className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center group hover:border-cyan-200 transition-colors">
-                      <div className="p-3 bg-cyan-50 text-cyan-500 rounded-xl mb-3 group-hover:scale-110 transition-transform">
-                        <Wind className="w-5 h-5" />
+                    <span className="text-sm font-bold text-gray-900">
+                      {detailPod.last_cleaned_at ? new Date(detailPod.last_cleaned_at).toLocaleString('vi-VN') : '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 text-gray-500">
+                      <div className="p-2 bg-blue-50 text-blue-500 rounded-lg">
+                        <Clock className="w-4 h-4" />
                       </div>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Ventilation</span>
-                      <span className="text-sm font-black text-gray-900 mt-1">{detailPod.ventilation_level}/5</span>
+                      <span className="text-xs font-bold uppercase tracking-tight">Ngày ra mắt</span>
                     </div>
-
-                    <div className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center group hover:border-amber-200 transition-colors">
-                      <div className="p-3 bg-amber-50 text-amber-500 rounded-xl mb-3 group-hover:scale-110 transition-transform">
-                        <Zap className="w-5 h-5" />
-                      </div>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Outlets</span>
-                      <span className="text-sm font-black text-gray-900 mt-1">{detailPod.power_outlets} ports</span>
-                    </div>
-
-                    <div className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center group hover:border-emerald-200 transition-colors">
-                      <div className="p-3 bg-emerald-50 text-emerald-500 rounded-xl mb-3 group-hover:scale-110 transition-transform">
-                        <Wifi className="w-5 h-5" />
-                      </div>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Wi-Fi</span>
-                      <span className="text-sm font-black text-gray-900 mt-1">{detailPod.wifi_available ? 'Available' : 'No'}</span>
-                    </div>
-
-                    <div className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center group hover:border-violet-200 transition-colors">
-                      <div className="p-3 bg-violet-50 text-violet-500 rounded-xl mb-3 group-hover:scale-110 transition-transform">
-                        <Timer className="w-5 h-5" />
-                      </div>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Max Session</span>
-                      <span className="text-sm font-black text-gray-900 mt-1">{detailPod.max_session_duration}m</span>
-                    </div>
+                    <span className="text-sm font-bold text-gray-900">
+                      {detailPod.createdAt ? new Date(detailPod.createdAt).toLocaleDateString('vi-VN') : '—'}
+                    </span>
                   </div>
                 </div>
+              </div>
+            </div>
 
-                {/* Description */}
-                {detailPod.description && (
-                  <div className="space-y-4">
-                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-1">Detailed Description</h4>
-                    <div className="bg-gray-50 border border-gray-100 rounded-2xl p-6">
-                      <p className="text-sm text-gray-600 leading-relaxed italic">
-                        "{detailPod.description}"
-                      </p>
-                    </div>
+            {/* Technical Specs Grid */}
+            <div className="space-y-4">
+              <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-1">Cấu hình kỹ thuật</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+                <div className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center group hover:border-indigo-200 transition-all shadow-sm">
+                  <div className="p-3 bg-indigo-50 text-indigo-500 rounded-xl mb-3 group-hover:scale-110 transition-transform">
+                    <Volume2 className="w-5 h-5" />
                   </div>
-                )}
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Cách âm</span>
+                  <span className="text-sm font-bold text-gray-900 mt-1">{detailPod.soundproof_level}/5</span>
+                </div>
+
+                <div className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center group hover:border-cyan-200 transition-all shadow-sm">
+                  <div className="p-3 bg-cyan-50 text-cyan-500 rounded-xl mb-3 group-hover:scale-110 transition-transform">
+                    <Wind className="w-5 h-5" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Thông gió</span>
+                  <span className="text-sm font-bold text-gray-900 mt-1">{detailPod.ventilation_level}/5</span>
+                </div>
+
+                <div className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center group hover:border-amber-200 transition-all shadow-sm">
+                  <div className="p-3 bg-amber-50 text-amber-500 rounded-xl mb-3 group-hover:scale-110 transition-transform">
+                    <Zap className="w-5 h-5" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Ổ cắm điện</span>
+                  <span className="text-sm font-bold text-gray-900 mt-1">{detailPod.power_outlets} cổng</span>
+                </div>
+
+                <div className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center group hover:border-emerald-200 transition-all shadow-sm">
+                  <div className="p-3 bg-emerald-50 text-emerald-500 rounded-xl mb-3 group-hover:scale-110 transition-transform">
+                    <Wifi className="w-5 h-5" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Wi-Fi</span>
+                  <span className="text-sm font-bold text-gray-900 mt-1">{detailPod.wifi_available ? 'Sẵn sàng' : 'Không có'}</span>
+                </div>
+
+                <div className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col items-center text-center group hover:border-violet-200 transition-all shadow-sm">
+                  <div className="p-3 bg-violet-50 text-violet-500 rounded-xl mb-3 group-hover:scale-110 transition-transform">
+                    <Timer className="w-5 h-5" />
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Phiên tối đa</span>
+                  <span className="text-sm font-bold text-gray-900 mt-1">{detailPod.max_session_duration}ph</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Description */}
+            {detailPod.description && (
+              <div className="space-y-4">
+                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-1">Ghi chú & Mô tả</h4>
+                <div className="bg-gray-50 border border-gray-100 rounded-2xl p-6 shadow-inner">
+                  <p className="text-sm text-gray-600 leading-relaxed italic">
+                    "{detailPod.description}"
+                  </p>
+                </div>
               </div>
             )}
+
+            <div className="flex justify-end pt-4 border-t border-gray-100">
+              <button
+                onClick={closeDetailModal}
+                className="px-6 py-2.5 bg-gray-900 text-white font-bold rounded-xl hover:bg-gray-800 transition-all shadow-lg shadow-gray-200"
+              >
+                Đóng chi tiết
+              </button>
+            </div>
           </div>
-        </div>
-      </div>
+        )}
+      </Modal>
 
       <Modal
         isOpen={isStatusModalOpen}
         onClose={closeStatusModal}
-        title={statusPod ? `Update Status - ${statusPod.code}` : 'Update Pod Status'}
+        title={statusPod ? `Cập nhật trạng thái - ${statusPod.code}` : 'Cập nhật trạng thái Pod'}
         size="md"
         footer={(
           <>
@@ -816,21 +784,21 @@ export const PodManagement = () => {
               disabled={isStatusSaving}
               className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
             >
-              Cancel
+              Hủy
             </button>
             <button
               onClick={handleUpdateStatus}
               disabled={isStatusSaving}
               className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-60"
             >
-              {isStatusSaving ? 'Updating...' : 'Update Status'}
+              {isStatusSaving ? 'Đang cập nhật...' : 'Cập nhật trạng thái'}
             </button>
           </>
         )}
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Trạng thái</label>
             <select
               value={nextStatus}
               onChange={(e) => setNextStatus(e.target.value as PodStatus)}
@@ -844,12 +812,12 @@ export const PodManagement = () => {
 
           {nextStatus === 'MAINTENANCE' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Maintenance Reason</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Lý do bảo trì</label>
               <textarea
                 rows={3}
                 value={maintenanceReason}
                 onChange={(e) => setMaintenanceReason(e.target.value)}
-                placeholder="Describe maintenance issue"
+                placeholder="Mô tả sự cố cần bảo trì"
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
               />
             </div>
@@ -860,7 +828,7 @@ export const PodManagement = () => {
       <Modal
         isOpen={isAssignModalOpen}
         onClose={closeAssignModal}
-        title={assignPod ? `Assign Cleaner - ${assignPod.code}` : 'Assign Cleaner'}
+        title={assignPod ? `Gán nhân viên dọn dẹp - ${assignPod.code}` : 'Gán nhân viên dọn dẹp'}
         size="md"
         footer={(
           <>
@@ -869,30 +837,30 @@ export const PodManagement = () => {
               disabled={isAssigning}
               className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
             >
-              Cancel
+              Hủy
             </button>
             <button
               onClick={handleAssignCleaner}
               disabled={isAssigning || !selectedCleaner}
               className="px-4 py-2 rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {isAssigning ? 'Assigning...' : 'Assign Task'}
+              {isAssigning ? 'Đang gán...' : 'Gán nhiệm vụ'}
             </button>
           </>
         )}
       >
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            Select a cleaner to create a cleaning task for pod <strong>{assignPod?.name}</strong>.
+            Chọn nhân viên để tạo nhiệm vụ dọn dẹp cho Pod <strong>{assignPod?.name}</strong>.
           </p>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Cleaner</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Nhân viên dọn dẹp</label>
             <select
               value={selectedCleaner}
               onChange={(e) => setSelectedCleaner(e.target.value)}
               className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white"
             >
-              <option value="" disabled>-- Select a cleaner --</option>
+              <option value="" disabled>-- Chọn nhân viên --</option>
               {cleaners.map((c) => (
                 <option key={c.id || c._id} value={c.id || c._id}>{c.name} ({c.email})</option>
               ))}

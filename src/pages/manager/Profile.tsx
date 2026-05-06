@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { userApi } from '../../api/lib/userApi'
-import { Edit2, Save, X, Upload, Mail, Phone, User as UserIcon, Shield, LogOut } from 'lucide-react'
+import { Edit2, Save, X, Upload, Mail, Phone, User as UserIcon, Shield, LogOut, Camera } from 'lucide-react'
 import { toast } from 'react-toastify'
 
 export const ManagerProfile = () => {
@@ -55,10 +55,10 @@ export const ManagerProfile = () => {
         avatar: formData.avatar
       })
       await checkAuth()
-      toast.success('Profile updated successfully')
+      toast.success('Cập nhật hồ sơ thành công')
       setIsEditMode(false)
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to update profile')
+      toast.error(error?.response?.data?.message || 'Không thể cập nhật hồ sơ')
     } finally {
       setLoading(false)
     }
@@ -82,13 +82,18 @@ export const ManagerProfile = () => {
     return (first + last) || 'U'
   }
 
+  const formatDate = (dateString?: string) => {
+    const date = dateString ? new Date(dateString) : new Date()
+    return `Tháng ${date.getMonth() + 1}, ${date.getFullYear()}`
+  }
+
   if (!user) {
     return (
       <div className="p-6 lg:p-8 bg-gray-50 min-h-screen">
         <div className="flex items-center justify-center h-64">
           <div className="flex flex-col items-center gap-3 text-gray-400">
             <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            <p className="font-medium">Loading profile...</p>
+            <p className="font-medium">Đang tải hồ sơ...</p>
           </div>
         </div>
       </div>
@@ -96,66 +101,29 @@ export const ManagerProfile = () => {
   }
 
   return (
-    <div className="p-6 lg:p-8 bg-gray-50 min-h-[calc(100vh-64px)]">
+    <div className="p-4 lg:p-8 bg-[#F8FAFC] min-h-[calc(100vh-64px)]">
       <div className="max-w-4xl mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Profile Settings</h1>
-            <p className="text-gray-500 mt-1">Manage your personal information and preferences.</p>
-          </div>
-          {!isEditMode && (
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setIsEditMode(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm"
-              >
-                <Edit2 className="w-4 h-4" />
-                Edit Profile
-              </button>
-              <button
-                onClick={logout}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-red-600 rounded-lg hover:bg-red-50 hover:border-red-100 transition-colors font-medium shadow-sm"
-              >
-                <LogOut className="w-4 h-4" />
-                Logout
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Profile Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-6 sm:p-8">
-            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-8 pb-8 border-b border-gray-100">
-              <div className="relative group">
+        {/* Header Section */}
+        <div className="relative mb-8 rounded-2xl bg-white shadow-sm border border-gray-100 p-6 sm:p-8">
+          <div className="flex flex-col sm:flex-row items-center sm:items-end gap-6">
+              <div className="relative">
                 {formData.avatar ? (
                   <img
                     src={formData.avatar}
                     alt="Profile"
-                    className="w-28 h-28 sm:w-24 sm:h-24 rounded-full object-cover ring-4 ring-gray-50"
+                    className="w-24 h-24 sm:w-32 sm:h-32 rounded-2xl object-cover ring-4 ring-white shadow-lg bg-white"
                   />
                 ) : (
-                  <div className="w-28 h-28 sm:w-24 sm:h-24 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center ring-4 ring-gray-50">
-                    <span className="text-white text-3xl font-bold">{getInitials()}</span>
+                  <div className="w-24 h-24 sm:w-32 sm:h-32 bg-white rounded-2xl flex items-center justify-center ring-4 ring-white shadow-lg">
+                    <div className="w-full h-full rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                      <span className="text-white text-3xl sm:text-4xl font-bold">{getInitials()}</span>
+                    </div>
                   </div>
                 )}
+                
                 {isEditMode && (
-                  <label className="absolute bottom-1 right-1 bg-white shadow-md border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-full p-2 cursor-pointer transition-colors z-10 hidden sm:flex">
-                    <Upload className="w-4 h-4" />
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleAvatarChange}
-                      className="hidden"
-                    />
-                  </label>
-                )}
-
-                {/* Mobile avatar upload */}
-                {isEditMode && (
-                  <label className="sm:hidden mt-4 inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-sm font-medium text-gray-700 rounded-lg cursor-pointer transition-colors">
-                    <Upload className="w-4 h-4" />
-                    Change Photo
+                  <label className="absolute -bottom-2 -right-2 bg-white shadow-xl border border-gray-100 text-blue-600 rounded-xl p-2.5 cursor-pointer hover:scale-110 transition-all z-10">
+                    <Camera className="w-5 h-5" />
                     <input
                       type="file"
                       accept="image/*"
@@ -165,109 +133,190 @@ export const ManagerProfile = () => {
                   </label>
                 )}
               </div>
-              <div className="text-center sm:text-left mt-4 sm:mt-2">
-                <h2 className="text-2xl font-bold text-gray-900 mb-1.5">
-                  {formData.name || 'Your Name'}
-                </h2>
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-semibold capitalize border border-blue-100">
-                  <Shield className="w-3.5 h-3.5" />
-                  {user.role}
+
+              <div className="flex-1 mb-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
+                      {formData.name || 'Họ và tên'}
+                    </h1>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-bold uppercase tracking-wider border border-blue-100">
+                        <Shield className="w-3 h-3" />
+                        {user.role}
+                      </span>
+                      <span className="text-gray-400 text-sm font-medium">•</span>
+                      <span className="text-gray-500 text-sm font-medium">{user.email}</span>
+                    </div>
+                  </div>
+
+                  {!isEditMode && (
+                    <div className="flex items-center gap-3 mt-2 sm:mt-0">
+                      <button
+                        onClick={() => setIsEditMode(true)}
+                        className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-gray-900 text-white rounded-xl hover:bg-black transition-all font-semibold shadow-lg shadow-gray-200 active:scale-95"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                        Sửa hồ sơ
+                      </button>
+                      <button
+                        onClick={logout}
+                        className="inline-flex items-center justify-center p-2.5 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-all border border-rose-100 active:scale-95"
+                        title="Đăng xuất"
+                      >
+                        <LogOut className="w-5 h-5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Info Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left Column: Stats or Summary */}
+          <div className="lg:col-span-1 space-y-6">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <h3 className="text-sm font-bold text-gray-900 uppercase tracking-widest mb-4">Tổng quan</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between py-3 border-b border-gray-50">
+                  <span className="text-gray-500 text-sm font-medium">Trạng thái</span>
+                  <span className="text-emerald-600 text-sm font-bold flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Đang hoạt động
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-3 border-b border-gray-50">
+                  <span className="text-gray-500 text-sm font-medium">Vai trò</span>
+                  <span className="text-gray-900 text-sm font-bold capitalize">{user.role}</span>
+                </div>
+                <div className="flex items-center justify-between py-3">
+                  <span className="text-gray-500 text-sm font-medium">Thành viên từ</span>
+                  <span className="text-gray-900 text-sm font-bold">{formatDate(user.createdAt)}</span>
                 </div>
               </div>
             </div>
 
-            {/* Profile Info */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-1.5">
-                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                  <UserIcon className="w-4 h-4 text-gray-400" />
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  disabled={!isEditMode}
-                  className={`w-full px-4 py-2.5 rounded-lg transition-all border outline-none ${
-                    isEditMode
-                      ? 'bg-white border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                      : 'bg-gray-50 border-transparent text-gray-700 cursor-not-allowed'
-                  }`}
-                  placeholder="Enter your full name"
-                />
-              </div>
+            <div className="bg-gradient-to-br from-indigo-600 to-blue-700 rounded-2xl p-6 text-white shadow-xl shadow-blue-100">
+              <h3 className="text-sm font-bold uppercase tracking-widest opacity-80 mb-2">Thông báo</h3>
+              <p className="text-sm leading-relaxed opacity-90">
+                Hãy cập nhật thông tin cá nhân của bạn để mọi người có thể dễ dàng liên lạc khi cần thiết.
+              </p>
+            </div>
+          </div>
 
-              <div className="space-y-1.5">
-                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                  <Mail className="w-4 h-4 text-gray-400" />
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={user.email}
-                  disabled
-                  className="w-full px-4 py-2.5 rounded-lg bg-gray-50 border-transparent text-gray-500 cursor-not-allowed focus:outline-none"
-                />
-              </div>
+          {/* Right Column: Form Fields */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+              <div className="p-6 sm:p-8">
+                <div className="flex items-center gap-3 mb-8">
+                  <div className="p-2 bg-gray-50 rounded-lg">
+                    <UserIcon className="w-5 h-5 text-gray-900" />
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-900">Thông tin cá nhân</h2>
+                </div>
 
-              <div className="space-y-1.5">
-                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                  <Phone className="w-4 h-4 text-gray-400" />
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                  disabled={!isEditMode}
-                  className={`w-full px-4 py-2.5 rounded-lg transition-all border outline-none ${
-                    isEditMode
-                      ? 'bg-white border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                      : 'bg-gray-50 border-transparent text-gray-700 cursor-not-allowed'
-                  }`}
-                  placeholder="Enter your phone number"
-                />
-              </div>
+                <div className="grid grid-cols-1 gap-8">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Họ và tên</label>
+                    <div className="relative group">
+                      <UserIcon className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
+                      <input
+                        type="text"
+                        name="name"
+                        value={formData.name}
+                        onChange={handleInputChange}
+                        disabled={!isEditMode}
+                        className={`w-full pl-12 pr-4 py-3.5 rounded-xl transition-all border outline-none font-medium ${
+                          isEditMode
+                            ? 'bg-white border-gray-200 focus:ring-4 focus:ring-blue-50 focus:border-blue-500'
+                            : 'bg-gray-50 border-transparent text-gray-600 cursor-not-allowed'
+                        }`}
+                        placeholder="Nhập họ và tên của bạn"
+                      />
+                    </div>
+                  </div>
 
-              <div className="space-y-1.5">
-                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                  <Shield className="w-4 h-4 text-gray-400" />
-                  Account Role
-                </label>
-                <input
-                  type="text"
-                  value={user.role}
-                  // @ts-ignore
-                  disabled
-                  className="w-full px-4 py-2.5 rounded-lg bg-gray-50 border-transparent text-gray-500 cursor-not-allowed focus:outline-none capitalize"
-                />
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Địa chỉ Email</label>
+                    <div className="relative">
+                      <Mail className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="email"
+                        value={user.email}
+                        disabled
+                        className="w-full pl-12 pr-4 py-3.5 rounded-xl bg-gray-50 border-transparent text-gray-500 cursor-not-allowed font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Số điện thoại</label>
+                    <div className="relative group">
+                      <Phone className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
+                      <input
+                        type="tel"
+                        name="phone"
+                        value={formData.phone}
+                        onChange={handleInputChange}
+                        disabled={!isEditMode}
+                        className={`w-full pl-12 pr-4 py-3.5 rounded-xl transition-all border outline-none font-medium ${
+                          isEditMode
+                            ? 'bg-white border-gray-200 focus:ring-4 focus:ring-blue-50 focus:border-blue-500'
+                            : 'bg-gray-50 border-transparent text-gray-600 cursor-not-allowed'
+                        }`}
+                        placeholder="Nhập số điện thoại của bạn"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Vai trò tài khoản</label>
+                    <div className="relative">
+                      <Shield className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="text"
+                        value={user.role}
+                        disabled
+                        className="w-full pl-12 pr-4 py-3.5 rounded-xl bg-gray-50 border-transparent text-gray-500 cursor-not-allowed font-medium capitalize"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {isEditMode && (
+                  <div className="flex items-center justify-end gap-3 pt-10 mt-10 border-t border-gray-50">
+                    <button
+                      onClick={handleCancel}
+                      className="px-6 py-3 border border-gray-200 text-gray-700 bg-white rounded-xl hover:bg-gray-50 transition-all font-bold active:scale-95"
+                    >
+                      Hủy bỏ
+                    </button>
+                    <button
+                      onClick={handleSave}
+                      disabled={loading}
+                      className="inline-flex items-center gap-2 px-8 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all font-bold shadow-lg shadow-blue-100 disabled:opacity-50 active:scale-95"
+                    >
+                      {loading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Đang lưu...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4" />
+                          Lưu thay đổi
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
-
-            {isEditMode && (
-              <div className="flex items-center justify-end gap-3 pt-8 mt-8 border-t border-gray-100">
-                <button
-                  onClick={handleCancel}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 border border-gray-200 text-gray-700 bg-white rounded-lg hover:bg-gray-50 transition-colors font-medium shadow-sm"
-                >
-                  <X className="w-4 h-4" />
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={loading}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm disabled:opacity-50"
-                >
-                  <Save className="w-4 h-4" />
-                  {loading ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
-            )}
           </div>
         </div>
-      </div>
     </div>
   )
 }

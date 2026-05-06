@@ -11,7 +11,9 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Package,
+  AlertCircle
 } from 'lucide-react'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
@@ -106,6 +108,10 @@ export const LostAndFoundManagement = () => {
 
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const [totalRequests, setTotalRequests] = useState(0)
+  const [summaryItems, setSummaryItems] = useState<LostFoundItem[]>([])
+  const [summaryRequests, setSummaryRequests] = useState<LostItemRequest[]>([])
 
   // Modals state
   const [isDetailOpen, setIsDetailOpen] = useState(false)
@@ -127,6 +133,47 @@ export const LostAndFoundManagement = () => {
 
   const [isActionLoading, setIsActionLoading] = useState(false)
 
+  const activeSummary = useMemo(() => {
+    if (activeTab === 'ITEMS') {
+      const total = totalItems
+      if (total === 0) return []
+      return LOST_FOUND_STATUSES.map(s => {
+        const count = summaryItems.filter(i => i.status === s).length
+        return {
+          status: s,
+          count,
+          percent: total > 0 ? Math.round((count / total) * 100) : 0
+        }
+      })
+    } else {
+      const total = totalRequests
+      if (total === 0) return []
+      return LOST_ITEM_REQUEST_STATUSES.map(s => {
+        const count = summaryRequests.filter(r => r.status === s).length
+        return {
+          status: s,
+          count,
+          percent: total > 0 ? Math.round((count / total) * 100) : 0
+        }
+      })
+    }
+  }, [activeTab, totalItems, totalRequests, summaryItems, summaryRequests])
+
+  const statusDotClass = (status: string) => {
+    switch (status) {
+      case 'FOUND': return 'bg-blue-500'
+      case 'IN_STORAGE': return 'bg-amber-500'
+      case 'CLAIM_PENDING': return 'bg-purple-500'
+      case 'RETURNED': return 'bg-emerald-500'
+      case 'DISPOSED': return 'bg-gray-400'
+      case 'PENDING': return 'bg-amber-500'
+      case 'MATCHED': return 'bg-purple-500'
+      case 'CLOSED': return 'bg-emerald-500'
+      case 'REJECTED': return 'bg-red-500'
+      default: return 'bg-gray-300'
+    }
+  }
+
   const fetchData = async () => {
     try {
       setIsLoading(true)
@@ -135,21 +182,35 @@ export const LostAndFoundManagement = () => {
       setWarehouses(warehousesRes.data)
 
       if (activeTab === 'ITEMS') {
-        const itemsRes = await lostFoundApi.getAll({
-          status: statusFilter === 'all' ? undefined : (statusFilter as LostFoundStatus),
-          page,
-          limit: 10
-        })
+        const [itemsRes, allItemsRes] = await Promise.all([
+          lostFoundApi.getAll({
+            status: statusFilter === 'all' ? undefined : (statusFilter as LostFoundStatus),
+            page,
+            limit: 10
+          }),
+          lostFoundApi.getAll({ limit: 1000 })
+        ])
         setItems(itemsRes.data)
-        if (itemsRes.pagination) setTotalPages(itemsRes.pagination.total_pages)
+        setSummaryItems(allItemsRes.data)
+        if (itemsRes.pagination) {
+          setTotalPages(itemsRes.pagination.total_pages)
+          setTotalItems(itemsRes.pagination.total_items)
+        }
       } else {
-        const requestsRes = await lostFoundApi.getRequests({
-          status: statusFilter === 'all' ? undefined : (statusFilter as LostItemRequestStatus),
-          page,
-          limit: 10
-        })
+        const [requestsRes, allRequestsRes] = await Promise.all([
+          lostFoundApi.getRequests({
+            status: statusFilter === 'all' ? undefined : (statusFilter as LostItemRequestStatus),
+            page,
+            limit: 10
+          }),
+          lostFoundApi.getRequests({ limit: 1000 })
+        ])
         setRequests(requestsRes.data)
-        if (requestsRes.pagination) setTotalPages(requestsRes.pagination.total_pages)
+        setSummaryRequests(allRequestsRes.data)
+        if (requestsRes.pagination) {
+          setTotalPages(requestsRes.pagination.total_pages)
+          setTotalRequests(requestsRes.pagination.total_items)
+        }
       }
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Không thể tải dữ liệu')
@@ -294,7 +355,7 @@ export const LostAndFoundManagement = () => {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <Boxes className="text-blue-600 h-8 w-8" />
+            <Package className="text-blue-600 h-8 w-8" />
             Quản lý Lost & Found
           </h1>
           <p className="text-gray-500 mt-1">Theo dõi đồ thất lạc và xử lý yêu cầu từ khách hàng.</p>
@@ -314,13 +375,13 @@ export const LostAndFoundManagement = () => {
         <div className="flex p-1 bg-gray-100 rounded-xl w-full sm:w-auto">
           <button
             onClick={() => { setActiveTab('ITEMS'); setStatusFilter('all'); }}
-            className={`flex-1 sm:flex-none px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'ITEMS' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`flex-1 sm:flex-none px-6 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'ITEMS' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
           >
             Kho đồ nhặt được
           </button>
           <button
             onClick={() => { setActiveTab('REQUESTS'); setStatusFilter('all'); }}
-            className={`flex-1 sm:flex-none px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'REQUESTS' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`flex-1 sm:flex-none px-6 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'REQUESTS' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
           >
             Yêu cầu báo mất
           </button>
@@ -345,12 +406,12 @@ export const LostAndFoundManagement = () => {
             >
               <span className="flex items-center gap-2">
                 <SlidersHorizontal className="h-4 w-4 text-gray-400" />
-                <span className="font-medium text-gray-700">
+                <span className="font-semibold text-gray-700 text-xs uppercase tracking-wider">
                   {statusFilter === 'all'
                     ? 'Tất cả trạng thái'
                     : activeTab === 'ITEMS'
-                      ? translateStatus(statusFilter as any)
-                      : translateRequestStatus(statusFilter as any)
+                      ? translateStatus(statusFilter as LostFoundStatus)
+                      : translateRequestStatus(statusFilter as LostItemRequestStatus)
                   }
                 </span>
               </span>
@@ -362,7 +423,7 @@ export const LostAndFoundManagement = () => {
                 <div className="fixed inset-0 z-10" onClick={() => setIsStatusDropdownOpen(false)} />
                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-20 animate-in fade-in zoom-in-95 duration-200">
                   <div className="px-3 py-1 mb-1">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Lọc theo trạng thái</p>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Lọc theo trạng thái</p>
                   </div>
                   <button
                     onClick={() => { setStatusFilter('all'); setIsStatusDropdownOpen(false); }}
@@ -384,6 +445,45 @@ export const LostAndFoundManagement = () => {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      </div>
+
+      {/* Summary Bar */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+        <div className="flex flex-col xl:flex-row xl:items-center gap-8">
+          <div className="min-w-[200px] xl:border-r border-gray-100 pr-8">
+            <p className="text-[10px] uppercase font-bold tracking-wide text-gray-400">Tổng số {activeTab === 'ITEMS' ? 'đồ vật' : 'yêu cầu'}</p>
+            <p className="text-[40px] font-bold text-gray-900 leading-none mt-2">
+              {activeTab === 'ITEMS' ? totalItems : totalRequests}
+            </p>
+          </div>
+
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-semibold text-gray-700">Thống kê trạng thái</p>
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Tỉ lệ phần trăm</span>
+            </div>
+            <div className="flex h-3 rounded-full overflow-hidden bg-gray-100 mb-4">
+              {activeSummary.map((item, idx) => (
+                <div
+                  key={idx}
+                  className={statusDotClass(item.status)}
+                  style={{ width: `${item.percent}%` }}
+                />
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-y-2 gap-x-4">
+              {activeSummary.filter(s => s.count > 0).map((item, idx) => (
+                <div key={idx} className="flex items-center gap-1.5">
+                  <div className={`w-2 h-2 rounded-full ${statusDotClass(item.status)}`} />
+                  <span className="text-xs font-medium text-gray-600">
+                    {activeTab === 'ITEMS' ? translateStatus(item.status as LostFoundStatus) : translateRequestStatus(item.status as LostItemRequestStatus)}:
+                  </span>
+                  <span className="text-xs font-bold text-gray-900">{item.count}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -424,9 +524,11 @@ export const LostAndFoundManagement = () => {
                         <div className="h-12 w-12 rounded-xl bg-gray-100 flex items-center justify-center overflow-hidden border border-gray-200">
                           {row.photo_urls?.[0] ? <img src={row.photo_urls[0]} className="h-full w-full object-cover" /> : <Boxes className="text-gray-300" />}
                         </div>
-                        <div>
-                          <p className="font-bold text-gray-900">{row.item_name}</p>
-                          <p className="text-xs text-gray-400 font-mono">#{row.serial_number}</p>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                            {row.item_name}
+                          </p>
+                          <p className="text-[10px] font-mono text-gray-400 mt-0.5">#{row.serial_number?.slice(0, 8) || row.id.slice(0, 8)}</p>
                         </div>
                       </div>
                     </td>
@@ -732,83 +834,105 @@ export const LostAndFoundManagement = () => {
         </div>
       </SlidePanel>
 
-      {/* 4. SlidePanel Chi tiết */}
-      <SlidePanel
+      {/* 4. Modal Chi tiết */}
+      <Modal
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
         title={activeTab === 'ITEMS' ? 'Chi tiết đồ vật' : 'Chi tiết yêu cầu'}
-        width="max-w-2xl"
+        size="3xl"
       >
         {selectedItem && (
-          <div className="p-6">
-            <div className="flex flex-col md:flex-row gap-6">
-              <div className="w-full md:w-1/3">
-                <div className="aspect-square rounded-2xl bg-gray-100 overflow-hidden border border-gray-200">
-                  {selectedItem.photo_urls?.[0] ? <img src={selectedItem.photo_urls[0]} className="h-full w-full object-cover" /> : <Boxes className="h-full w-full p-10 text-gray-300" />}
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row gap-8">
+              {/* Left: Image */}
+              <div className="w-full md:w-2/5">
+                <div className="aspect-square rounded-3xl bg-gray-100 overflow-hidden border border-gray-200 shadow-inner relative group">
+                  {selectedItem.photo_urls?.[0] ? (
+                    <img 
+                      src={selectedItem.photo_urls[0]} 
+                      className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" 
+                      alt={selectedItem.item_name}
+                    />
+                  ) : (
+                    <div className="h-full w-full flex flex-col items-center justify-center text-gray-300">
+                      <Boxes className="w-16 h-16 mb-2" />
+                      <span className="text-xs font-medium italic">Không có ảnh</span>
+                    </div>
+                  )}
+                  <div className="absolute top-4 left-4">
+                    <span className={`px-3 py-1 rounded-lg text-[10px] font-bold border uppercase tracking-wide shadow-sm ${statusBadgeClass(selectedItem.status)}`}>
+                      {translateStatus(selectedItem.status)}
+                    </span>
+                  </div>
                 </div>
               </div>
-              <div className="w-full md:w-2/3 space-y-6">
+
+              {/* Right: Info */}
+              <div className="w-full md:w-3/5 space-y-6">
                 <div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold border ${statusBadgeClass(selectedItem.status)}`}>
-                    {translateStatus(selectedItem.status)}
-                  </span>
-                  <h2 className="text-2xl font-extrabold text-gray-900 mt-2">{selectedItem.item_name}</h2>
-                  <p className="text-sm font-mono text-gray-400">Serial: {selectedItem.serial_number}</p>
+                  <h2 className="text-3xl font-bold text-gray-900 tracking-tight">{selectedItem.item_name}</h2>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Mã định danh:</span>
+                    <span className="text-xs font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                      {selectedItem.serial_number || selectedItem.id.slice(0, 12)}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-3 bg-gray-50 rounded-xl">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase">Pod nhặt được</p>
-                    <p className="text-sm font-bold text-gray-700">{selectedItem.pod?.name || selectedItem.pod_id}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Vị trí (Pod)</p>
+                    <p className="text-sm font-bold text-gray-800 truncate">{selectedItem.pod?.name || selectedItem.pod_id || 'Không rõ'}</p>
                   </div>
-                  <div className="p-3 bg-gray-50 rounded-xl">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase">Thời gian nhặt</p>
-                    <p className="text-sm font-bold text-gray-700">{formatDateTime(selectedItem.found_at)}</p>
+                  <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Thời gian</p>
+                    <p className="text-sm font-bold text-gray-800">{formatDateTime(selectedItem.found_at)}</p>
                   </div>
-                  <div className="p-3 bg-gray-50 rounded-xl">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase">Người báo cáo (Staff)</p>
-                    <p className="text-sm font-bold text-gray-700">{selectedItem.found_by_user?.name || selectedItem.found_by_user_id}</p>
+                  <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Người nhặt (Staff)</p>
+                    <p className="text-sm font-bold text-gray-800 truncate">{selectedItem.found_by_user?.name || 'Ẩn danh'}</p>
                   </div>
-                  <div className="p-3 bg-gray-50 rounded-xl">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase">Kho lưu trữ</p>
-                    <p className="text-sm font-bold text-gray-700">{warehouses.find(w => w.id === selectedItem.warehouse_id)?.name || 'Chưa có'}</p>
+                  <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Kho lưu trữ</p>
+                    <p className="text-sm font-bold text-gray-800 truncate">{warehouses.find(w => w.id === selectedItem.warehouse_id)?.name || 'Chưa nhập kho'}</p>
                   </div>
                 </div>
 
                 {selectedItem.claimed_by_user && (
-                  <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="p-1.5 bg-emerald-100 rounded-lg">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                      </div>
-                      <p className="text-xs font-bold text-emerald-700 uppercase">Khách hàng (Người nhận)</p>
+                  <div className="p-5 bg-emerald-50/50 rounded-3xl border border-emerald-100 shadow-sm relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-3 opacity-10">
+                      <CheckCircle2 className="h-12 w-12 text-emerald-600" />
                     </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-emerald-600 font-medium">Họ tên:</span>
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <div className="p-2 bg-emerald-100/50 rounded-xl">
+                        <Handshake className="h-4 w-4 text-emerald-600" />
+                      </div>
+                      <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-wide">Thông tin người nhận</p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2">
+                      <div className="flex justify-between items-center py-1.5 border-b border-emerald-100/50">
+                        <span className="text-xs text-emerald-600 font-semibold">Khách hàng</span>
                         <span className="text-sm font-bold text-gray-900">{selectedItem.claimed_by_user.name}</span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-emerald-600 font-medium">Số điện thoại:</span>
+                      <div className="flex justify-between items-center py-1.5">
+                        <span className="text-xs text-emerald-600 font-semibold">Liên hệ</span>
                         <span className="text-sm font-bold text-gray-900">{selectedItem.claimed_by_user.phone || '-'}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-emerald-600 font-medium">Email:</span>
-                        <span className="text-sm font-bold text-gray-900">{selectedItem.claimed_by_user.email || '-'}</span>
                       </div>
                     </div>
                   </div>
                 )}
 
                 <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Mô tả</p>
-                  <p className="text-sm text-gray-600 bg-gray-50 p-4 rounded-xl italic">"{selectedItem.description || 'Không có mô tả chi tiết'}"</p>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2 px-1">Mô tả chi tiết</p>
+                  <p className="text-sm text-gray-600 bg-gray-50/80 p-5 rounded-2xl italic leading-relaxed border border-gray-100">
+                    "{selectedItem.description || 'Không có mô tả chi tiết từ nhân viên.'}"
+                  </p>
                 </div>
               </div>
             </div>
           </div>
         )}
-      </SlidePanel>
+      </Modal>
     </div>
   )
 }

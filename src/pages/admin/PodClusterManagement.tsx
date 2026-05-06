@@ -699,9 +699,9 @@ export const PodClusterManagement = () => {
               <div>
                 <h3 className="text-sm font-medium text-gray-700 mb-3">Existing Images</h3>
                 {isImagesLoading ? (
-                  <p className="text-sm text-gray-400">Loading images...</p>
+                  <p className="text-sm text-gray-400">Đang tải ảnh...</p>
                 ) : images.length === 0 ? (
-                  <p className="text-sm text-gray-400">This cluster has no images yet.</p>
+                  <p className="text-sm text-gray-400">Cụm này chưa có ảnh.</p>
                 ) : (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {images.map((image) => (
@@ -714,7 +714,7 @@ export const PodClusterManagement = () => {
                           size="sm"
                           className="absolute top-2 right-2 h-7 px-2 text-xs"
                         >
-                          Delete
+                          Xóa
                         </Button>
                       </div>
                     ))}
@@ -730,14 +730,14 @@ export const PodClusterManagement = () => {
               disabled={isSaving}
               variant="outline"
             >
-              Cancel
+              Hủy
             </Button>
             <Button
               type="submit"
               form="pod-cluster-form"
               disabled={isSaving}
             >
-              {isSaving ? 'Saving...' : editingCluster ? 'Save Changes' : 'Create Pod Cluster'}
+              {isSaving ? 'Đang lưu...' : editingCluster ? 'Lưu thay đổi' : 'Tạo cụm Pod'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -751,7 +751,7 @@ export const PodClusterManagement = () => {
       >
         <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-5xl">
           <DialogHeader>
-            <DialogTitle>Assign Items By Pod Cluster</DialogTitle>
+            <DialogTitle>Gán vật tư theo cụm Pod</DialogTitle>
             <DialogDescription className="sr-only">
               Assign items in bulk by pod cluster.
             </DialogDescription>

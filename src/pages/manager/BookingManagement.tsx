@@ -929,293 +929,246 @@ export const BookingManagement = () => {
         </>
       )}
 
-      {/* Filter panel */}
-      <div className={`fixed inset-0 z-50 ${isFilterPanelOpen ? '' : 'pointer-events-none'}`} aria-hidden={!isFilterPanelOpen}>
-        <div className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${isFilterPanelOpen ? 'opacity-100' : 'opacity-0'}`} onClick={() => setIsFilterPanelOpen(false)} />
-        <div className={`absolute right-0 top-0 h-full w-full max-w-4xl overflow-hidden bg-white shadow-2xl border-l border-gray-200 transform transition-transform duration-300 lg:right-4 lg:top-4 lg:bottom-4 lg:h-auto lg:w-[calc(100%-2rem)] lg:border lg:rounded-xl flex flex-col ${isFilterPanelOpen ? 'translate-x-0' : 'translate-x-[110%]'}`} role="dialog" aria-modal="true">
-          <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
-              <p className="text-xs text-gray-500 mt-1">Filter {activeTab} by status and pod.</p>
+      <Modal
+        isOpen={isFilterPanelOpen}
+        onClose={() => setIsFilterPanelOpen(false)}
+        title="Bộ lọc nâng cao"
+        size="2xl"
+      >
+        <div className="space-y-8">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-bold text-gray-900 uppercase tracking-wide">Trạng thái {activeTab === 'bookings' ? 'Booking' : 'Đơn hàng'}</label>
             </div>
-            <button type="button" onClick={() => setIsFilterPanelOpen(false)} className="text-gray-400 hover:text-gray-700 transition-colors">
-              <X className="w-6 h-6" />
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => resetDraftFilters()}
+                className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${
+                  activeTab === 'bookings' 
+                    ? (draftBookingFilters.status.length === 0 ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-100' : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50')
+                    : (draftOrderFilters.status.length === 0 ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-100' : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50')
+                }`}
+              >
+                Tất cả
+              </button>
+              {(activeTab === 'bookings' ? BOOKING_STATUSES : BOOKING_ORDER_STATUSES).map((status: any) => {
+                const isSelected = activeTab === 'bookings' 
+                  ? draftBookingFilters.status.includes(status)
+                  : draftOrderFilters.status.includes(status);
+                return (
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() => {
+                      if (activeTab === 'bookings') {
+                        setDraftBookingFilters(prev => ({ ...prev, status: toggleArrayFilter(prev.status, status, BOOKING_STATUSES.length) }))
+                      } else {
+                        setDraftOrderFilters(prev => ({ ...prev, status: toggleArrayFilter(prev.status, status, BOOKING_ORDER_STATUSES.length) }))
+                      }
+                    }}
+                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${isSelected ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-100' : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'}`}
+                  >
+                    {isSelected && <Check className="w-3 h-3 inline-block mr-1.5 -ml-0.5" />}
+                    {status}
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
-          <style>{`
-            .custom-calendar .react-datepicker { border: none; font-family: inherit; width: 100%; display: flex; flex-direction: column; }
-            .custom-calendar .react-datepicker__month-container { width: 100%; display: flex; flex-direction: column; }
-            .custom-calendar .react-datepicker__header { background: white; border-bottom: none; padding-top: 16px; width: 100%; }
-            .custom-calendar .react-datepicker__current-month { font-weight: 500; font-size: 16px; color: #111827; margin-bottom: 12px; }
-            .custom-calendar .react-datepicker__day-names { display: flex; justify-content: center; gap: 20px; margin-bottom: 8px; }
-            .custom-calendar .react-datepicker__week { display: flex; justify-content: center; gap: 25px; margin-bottom: 4px; }
-            .custom-calendar .react-datepicker__day-name { color: #6b7280; font-weight: 500; font-size: 13px; flex: 1; display: flex; align-items: center; justify-content: center; width: auto; max-width: 48px; }
-            .custom-calendar .react-datepicker__day { font-weight: 400; font-size: 14px; color: #374151; border-radius: 9999px; outline: none; margin: 0; flex: 1; display: flex; align-items: center; justify-content: center; aspect-ratio: 1/1; max-width: 48px; max-height: 48px; width: auto; }
-            .custom-calendar .react-datepicker__day:hover { background-color: #f3f4f6; border-radius: 9999px; }
-            .custom-calendar .react-datepicker__day--in-range, .custom-calendar .react-datepicker__day--in-selecting-range { background-color: #f3f4f6; color: #111827; border-radius: 0; }
-            .custom-calendar .react-datepicker__day--range-start,
-            .custom-calendar .react-datepicker__day--range-end,
-            .custom-calendar .react-datepicker__day--selecting-range-start,
-            .custom-calendar .react-datepicker__day--selecting-range-end { background-color: #111827 !important; color: #fff !important; border-radius: 9999px !important; font-weight: 500; }
-            .custom-calendar .react-datepicker__navigation { top: 16px; }
-            .custom-calendar .react-datepicker__navigation-icon::before { border-color: #6b7280; border-width: 2px 2px 0 0; height: 8px; width: 8px; top: 1px; }
-          `}</style>
-          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-8">
-            {activeTab === 'bookings' ? (
-              <>
-                <div>
-                  <div className="flex items-center justify-between mb-3"><label className="block text-sm font-semibold text-gray-900">Status</label></div>
-                  <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => setDraftBookingFilters(prev => ({ ...prev, status: toggleArrayFilter(prev.status, 'all', BOOKING_STATUSES.length) }))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftBookingFilters.status.length === 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{draftBookingFilters.status.length === 0 && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}All</button>
-                    {BOOKING_STATUSES.map(status => {
-                      const isSelected = draftBookingFilters.status.includes(status)
-                      return (
-                        <button key={status} type="button" onClick={() => setDraftBookingFilters(prev => ({ ...prev, status: toggleArrayFilter(prev.status, status, BOOKING_STATUSES.length) }))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}{status}</button>
-                      )
-                    })}
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-3"><label className="block text-sm font-semibold text-gray-900">Pod</label></div>
-                  <PodGridSelector
-                    pods={podOptions}
-                    selectedPodId={draftBookingFilters.pod_id}
-                    onSelect={(id) => setDraftBookingFilters(prev => ({ ...prev, pod_id: toggleArrayFilter(prev.pod_id, id, podOptions.length) }))}
-                    showAllOption={true}
-                    allOptionLabel="All scoped pods"
-                  />
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-3"><label className="block text-sm font-semibold text-gray-900">Date Range (Booking Time)</label></div>
-                  <div className="border border-gray-200 rounded-xl shadow-sm bg-white custom-calendar w-full overflow-hidden">
-                    <div className="w-full p-4">
-                      <DatePicker
-                        selected={draftBookingFilters.dateRange[0]}
-                        onChange={(update: [Date | null, Date | null]) => setDraftBookingFilters(prev => ({ ...prev, dateRange: update }))}
-                        startDate={draftBookingFilters.dateRange[0] || undefined}
-                        endDate={draftBookingFilters.dateRange[1] || undefined}
-                        selectsRange
-                        inline
-                        monthsShown={1}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-white">
-                      <button
-                        type="button"
-                        onClick={() => setDraftBookingFilters(prev => ({ ...prev, dateRange: [null, null] }))}
-                        className="text-sm font-semibold text-gray-900 underline hover:text-gray-700 transition"
-                      >
-                        Clear
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => applyFilters()}
-                        className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-semibold transition hover:bg-gray-800"
-                      >
-                        Apply Date
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div>
-                  <div className="flex items-center justify-between mb-3"><label className="block text-sm font-semibold text-gray-900">Status</label></div>
-                  <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => setDraftOrderFilters(prev => ({ ...prev, status: toggleArrayFilter(prev.status, 'all', BOOKING_ORDER_STATUSES.length) }))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftOrderFilters.status.length === 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{draftOrderFilters.status.length === 0 && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}All</button>
-                    {BOOKING_ORDER_STATUSES.map(status => {
-                      const isSelected = draftOrderFilters.status.includes(status)
-                      return (
-                        <button key={status} type="button" onClick={() => setDraftOrderFilters(prev => ({ ...prev, status: toggleArrayFilter(prev.status, status, BOOKING_ORDER_STATUSES.length) }))} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}{status}</button>
-                      )
-                    })}
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-3"><label className="block text-sm font-semibold text-gray-900">Pod</label></div>
-                  <PodGridSelector
-                    pods={podOptions}
-                    selectedPodId={draftOrderFilters.pod_id}
-                    onSelect={(id) => setDraftOrderFilters(prev => ({ ...prev, pod_id: toggleArrayFilter(prev.pod_id, id, podOptions.length) }))}
-                    showAllOption={true}
-                    allOptionLabel="All pods in scope"
-                  />
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-3"><label className="block text-sm font-semibold text-gray-900">Date Range (Order Creation)</label></div>
-                  <div className="border border-gray-200 rounded-xl shadow-sm bg-white custom-calendar w-full overflow-hidden">
-                    <div className="w-full p-4">
-                      <DatePicker
-                        selected={draftOrderFilters.dateRange[0]}
-                        onChange={(update: [Date | null, Date | null]) => setDraftOrderFilters(prev => ({ ...prev, dateRange: update }))}
-                        startDate={draftOrderFilters.dateRange[0] || undefined}
-                        endDate={draftOrderFilters.dateRange[1] || undefined}
-                        selectsRange
-                        inline
-                        monthsShown={1}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-white">
-                      <button
-                        type="button"
-                        onClick={() => setDraftOrderFilters(prev => ({ ...prev, dateRange: [null, null] }))}
-                        className="text-sm font-semibold text-gray-900 underline hover:text-gray-700 transition"
-                      >
-                        Clear
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => applyFilters()}
-                        className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-semibold transition hover:bg-gray-800"
-                      >
-                        Apply Date
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-bold text-gray-900 uppercase tracking-wide">Lọc theo Pod</label>
+            </div>
+            <div className="bg-gray-50/50 rounded-2xl p-4 border border-gray-100">
+              <PodGridSelector
+                pods={podOptions}
+                selectedPodId={activeTab === 'bookings' ? draftBookingFilters.pod_id : draftOrderFilters.pod_id}
+                onSelect={(id) => {
+                  if (activeTab === 'bookings') {
+                    setDraftBookingFilters(prev => ({ ...prev, pod_id: toggleArrayFilter(prev.pod_id, id, podOptions.length) }))
+                  } else {
+                    setDraftOrderFilters(prev => ({ ...prev, pod_id: toggleArrayFilter(prev.pod_id, id, podOptions.length) }))
+                  }
+                }}
+                showAllOption={true}
+                allOptionLabel="Tất cả Pod"
+              />
+            </div>
           </div>
-          <div className="px-6 py-5 border-t border-gray-100 bg-white flex items-center justify-between gap-3 lg:rounded-b-xl">
-            <button type="button" onClick={resetDraftFilters} className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50">Reset</button>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={() => setIsFilterPanelOpen(false)} className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50">Cancel</button>
-              <button type="button" onClick={applyFilters} className="px-4 py-2.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700">Apply</button>
+
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-bold text-gray-900 uppercase tracking-wide">Khoảng thời gian</label>
+            </div>
+            <div className="border border-gray-100 rounded-2xl overflow-hidden bg-white p-6 shadow-inner custom-calendar">
+              <DatePicker
+                selected={activeTab === 'bookings' ? draftBookingFilters.dateRange[0] : draftOrderFilters.dateRange[0]}
+                onChange={(update: [Date | null, Date | null]) => {
+                  if (activeTab === 'bookings') {
+                    setDraftBookingFilters(prev => ({ ...prev, dateRange: update }))
+                  } else {
+                    setDraftOrderFilters(prev => ({ ...prev, dateRange: update }))
+                  }
+                }}
+                startDate={(activeTab === 'bookings' ? draftBookingFilters.dateRange[0] : draftOrderFilters.dateRange[0]) || undefined}
+                endDate={(activeTab === 'bookings' ? draftBookingFilters.dateRange[1] : draftOrderFilters.dateRange[1]) || undefined}
+                selectsRange
+                inline
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={resetDraftFilters}
+              className="px-6 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Thiết lập lại
+            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsFilterPanelOpen(false)}
+                className="px-6 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={applyFilters}
+                className="px-8 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
+              >
+                Áp dụng bộ lọc
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      </Modal>
 
-      <div className={`fixed inset-0 z-50 ${isBookingDetailOpen ? '' : 'pointer-events-none'}`} aria-hidden={!isBookingDetailOpen}>
-        <div
-          className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${isBookingDetailOpen ? 'opacity-100' : 'opacity-0'}`}
-          onClick={() => {
-            setIsBookingDetailOpen(false)
-            setSelectedBooking(null)
-            setIsBookingDetailLoading(false)
-          }}
-        />
-        <div
-          className={`absolute right-0 top-0 h-full w-full max-w-[960px] bg-white shadow-2xl border-l border-gray-200 transform transition-transform duration-300 lg:right-4 lg:top-4 lg:bottom-4 lg:h-auto lg:w-[calc(100%-2rem)] lg:border lg:rounded-xl flex flex-col ${isBookingDetailOpen ? 'translate-x-0' : 'translate-x-[110%]'}`}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Booking Detail</h2>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setIsBookingDetailOpen(false)
-                setSelectedBooking(null)
-                setIsBookingDetailLoading(false)
-              }}
-              className="text-gray-400 hover:text-gray-700 transition-colors"
-            >
-              <X className="w-6 h-6" />
-            </button>
+
+      <Modal
+        isOpen={isBookingDetailOpen}
+        onClose={() => {
+          setIsBookingDetailOpen(false)
+          setSelectedBooking(null)
+          setIsBookingDetailLoading(false)
+        }}
+        title="Chi tiết Booking"
+        size="5xl"
+      >
+        {isBookingDetailLoading ? (
+          <div className="py-20 text-center text-gray-500">
+            <RefreshCw className="w-10 h-10 animate-spin mx-auto mb-4 text-blue-500" />
+            <p className="animate-pulse">Đang tải chi tiết booking...</p>
           </div>
+        ) : !selectedBooking ? (
+          <div className="py-20 text-center text-gray-400">Không có dữ liệu booking.</div>
+        ) : (
+          <div className="space-y-8">
+            {(() => {
+              let bg = '', iconBg = '', title = '', desc = '', Icon = null;
+              if (selectedBooking.status === 'IN_USE') {
+                bg = 'from-emerald-50 to-white border-emerald-100';
+                iconBg = 'bg-white text-emerald-500 shadow-sm border border-emerald-50';
+                title = 'Đang sử dụng'; desc = 'Booking hiện đang hoạt động.'; Icon = <Clock className="w-8 h-8" />;
+              } else if (selectedBooking.status === 'BOOKED') {
+                bg = 'from-blue-50 to-white border-blue-100';
+                iconBg = 'bg-white text-blue-500 shadow-sm border border-blue-50';
+                title = 'Đã đặt'; desc = 'Booking đã được xác nhận và sắp tới.'; Icon = <CalendarClock className="w-8 h-8" />;
+              } else if (selectedBooking.status === 'COMPLETED') {
+                bg = 'from-gray-50 to-white border-gray-100';
+                iconBg = 'bg-white text-gray-500 shadow-sm border border-gray-50';
+                title = 'Hoàn tất'; desc = 'Booking đã kết thúc.'; Icon = <CheckCircle className="w-8 h-8" />;
+              } else if (selectedBooking.status === 'CANCELLED') {
+                bg = 'from-rose-50 to-white border-rose-100';
+                iconBg = 'bg-white text-rose-500 shadow-sm border border-rose-50';
+                title = 'Đã hủy'; desc = 'Booking đã bị hủy.'; Icon = <Ban className="w-8 h-8" />;
+              } else {
+                bg = 'from-gray-50 to-white border-gray-100';
+                iconBg = 'bg-white text-gray-500 shadow-sm border border-gray-50';
+                title = selectedBooking.status; desc = 'Trạng thái booking đang chờ.'; Icon = <Boxes className="w-8 h-8" />;
+              }
 
-          <div className="flex-1 overflow-y-auto px-6 py-6">
-            {isBookingDetailLoading ? (
-              <div className="py-8 text-center text-gray-500">Loading booking detail...</div>
-            ) : !selectedBooking ? (
-              <div className="py-8 text-center text-gray-500">No booking data.</div>
-            ) : (
-              <div className="space-y-6">
-                {(() => {
-                  let bg = '', iconBg = '', title = '', desc = '', Icon = null;
-                  if (selectedBooking.status === 'IN_USE') {
-                    bg = 'from-emerald-50/80 to-white border-emerald-100';
-                    iconBg = 'bg-white text-emerald-500 shadow-sm border border-emerald-50';
-                    title = 'In Use'; desc = 'Booking is currently active.'; Icon = <Clock className="w-6 h-6" />;
-                  } else if (selectedBooking.status === 'BOOKED') {
-                    bg = 'from-blue-50/80 to-white border-blue-100';
-                    iconBg = 'bg-white text-blue-500 shadow-sm border border-blue-50';
-                    title = 'Booked'; desc = 'Booking is confirmed and upcoming.'; Icon = <CalendarClock className="w-6 h-6" />;
-                  } else if (selectedBooking.status === 'COMPLETED') {
-                    bg = 'from-gray-50/80 to-white border-gray-100';
-                    iconBg = 'bg-white text-gray-500 shadow-sm border border-gray-50';
-                    title = 'Completed'; desc = 'Booking has been fulfilled.'; Icon = <CheckCircle className="w-6 h-6" />;
-                  } else if (selectedBooking.status === 'CANCELLED') {
-                    bg = 'from-rose-50/80 to-white border-rose-100';
-                    iconBg = 'bg-white text-rose-500 shadow-sm border border-rose-50';
-                    title = 'Cancelled'; desc = 'Booking has been cancelled.'; Icon = <Ban className="w-6 h-6" />;
-                  } else {
-                    bg = 'from-gray-50/80 to-white border-gray-100';
-                    iconBg = 'bg-white text-gray-500 shadow-sm border border-gray-50';
-                    title = selectedBooking.status; desc = 'Booking status pending.'; Icon = <Boxes className="w-6 h-6" />;
-                  }
+              return (
+                <div className={`rounded-3xl p-10 flex flex-col items-center text-center bg-gradient-to-b border shadow-sm ${bg}`}>
+                  <div className={`w-20 h-20 rounded-2xl flex items-center justify-center mb-6 ${iconBg}`}>
+                    {Icon}
+                  </div>
+                  <h3 className="text-2xl font-black text-gray-900 mb-2 uppercase tracking-tight">{title}</h3>
+                  <p className="text-sm text-gray-600 max-w-sm leading-relaxed">{desc}</p>
+                </div>
+              )
+            })()}
 
-                  return (
-                    <div className={`rounded-2xl p-8 flex flex-col items-center text-center bg-gradient-to-b border shadow-sm ${bg}`}>
-                      <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-4 ${iconBg}`}>
-                        {Icon}
-                      </div>
-                      <h3 className="text-xl font-bold text-gray-900 mb-2">{title}</h3>
-                      <p className="text-sm text-gray-600 max-w-sm">{desc}</p>
-                    </div>
-                  )
-                })()}
-
-                {selectedBooking.status === 'COMPLETED' && (
-                  <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shrink-0 border border-gray-200">
-                      <X className="w-4 h-4 text-gray-500" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">Booking đã hoàn tất, không thể tiếp tục tiếp nhận hành động</p>
-                      <p className="text-xs text-gray-500 mt-0.5">Mọi thao tác quản lý đã bị vô hiệu hóa.</p>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex flex-col text-sm">
-                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                    <span className="text-gray-500">Booking ID</span>
-                    <span className="font-medium text-gray-900 break-all">{selectedBooking.id}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                    <span className="text-gray-500">Order ID</span>
-                    <span className="font-medium text-gray-900 break-all">{selectedBooking.order_id}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                    <span className="text-gray-500">Pod ID</span>
-                    <span className="font-medium text-gray-900 break-all">{selectedBooking.pod_id}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                    <span className="text-gray-500">Start Time</span>
-                    <span className="font-medium text-gray-900">{formatDateTime(selectedBooking.start_time)}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                    <span className="text-gray-500">End Time</span>
-                    <span className="font-medium text-gray-900">{formatDateTime(selectedBooking.end_time)}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                    <span className="text-gray-500">Checkin State</span>
-                    <span className="font-medium text-gray-900">{selectedBooking.checkin_state ?? '—'}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                    <span className="text-gray-500">Cleaner Access</span>
-                    <span className="font-medium text-gray-900">{selectedBooking.cleaner_access_allowed ? 'Allowed' : 'Disabled'}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                    <span className="text-gray-500">Base Price</span>
-                    <span className="font-medium text-gray-900">{formatMoney(selectedBooking.base_price)}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                    <span className="text-gray-500">Total Price</span>
-                    <span className="font-medium text-gray-900">{formatMoney(selectedBooking.total_price)}</span>
-                  </div>
+            {selectedBooking.status === 'COMPLETED' && (
+              <div className="p-5 rounded-2xl bg-gray-50/50 border border-gray-100 flex items-center gap-4 shadow-sm">
+                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shrink-0 border border-gray-200 shadow-sm">
+                  <ShieldOff className="w-5 h-5 text-gray-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-gray-900">Booking đã hoàn tất</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Mọi thao tác quản lý đã bị vô hiệu hóa để bảo vệ dữ liệu lịch sử.</p>
                 </div>
               </div>
             )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-4">
+                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-1">Thông tin định danh</h4>
+                <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4 shadow-sm">
+                  <div className="flex flex-col gap-1 py-1 border-b border-gray-50">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase">Booking ID</span>
+                    <span className="text-sm font-mono font-bold text-gray-900 break-all">{selectedBooking.id}</span>
+                  </div>
+                  <div className="flex flex-col gap-1 py-1 border-b border-gray-50">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase">Order ID</span>
+                    <span className="text-sm font-mono font-bold text-gray-900 break-all">{selectedBooking.order_id}</span>
+                  </div>
+                  <div className="flex flex-col gap-1 py-1">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase">Pod ID</span>
+                    <span className="text-sm font-mono font-bold text-gray-900 break-all">{selectedBooking.pod_id}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-1">Lịch trình & Chi phí</h4>
+                <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between py-1 border-b border-gray-50">
+                    <span className="text-xs font-bold text-gray-500 uppercase">Bắt đầu</span>
+                    <span className="text-sm font-bold text-gray-900">{formatDateTime(selectedBooking.start_time)}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 border-b border-gray-50">
+                    <span className="text-xs font-bold text-gray-500 uppercase">Kết thúc</span>
+                    <span className="text-sm font-bold text-gray-900">{formatDateTime(selectedBooking.end_time)}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 border-b border-gray-50">
+                    <span className="text-xs font-bold text-gray-500 uppercase">Check-in</span>
+                    <span className="text-sm font-bold text-blue-600">{selectedBooking.checkin_state || 'Chưa check-in'}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-xs font-bold text-gray-500 uppercase">Tổng cộng</span>
+                    <span className="text-lg font-bold text-emerald-600">{formatMoney(selectedBooking.total_price)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-gray-100">
+              <button
+                onClick={() => setIsBookingDetailOpen(false)}
+                className="px-8 py-3 bg-gray-900 text-white font-bold rounded-xl hover:bg-gray-800 transition-all shadow-lg shadow-gray-200"
+              >
+                Đóng
+              </button>
+            </div>
           </div>
-        </div>
-      </div>
+        )}
+      </Modal>
+
 
       <Modal
         isOpen={isRelatedOpen}
@@ -1272,156 +1225,131 @@ export const BookingManagement = () => {
         )}
       </Modal>
 
-      <div className={`fixed inset-0 z-50 ${isOrderDetailOpen ? '' : 'pointer-events-none'}`} aria-hidden={!isOrderDetailOpen}>
-        <div
-          className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${isOrderDetailOpen ? 'opacity-100' : 'opacity-0'}`}
-          onClick={() => {
-            setIsOrderDetailOpen(false)
-            setSelectedOrderDetail(null)
-            setIsOrderDetailLoading(false)
-          }}
-        />
-        <div
-          className={`absolute right-0 top-0 h-full w-full max-w-[960px] bg-white shadow-2xl border-l border-gray-200 transform transition-transform duration-300 lg:right-4 lg:top-4 lg:bottom-4 lg:h-auto lg:w-[calc(100%-2rem)] lg:border lg:rounded-xl flex flex-col ${isOrderDetailOpen ? 'translate-x-0' : 'translate-x-[110%]'}`}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Booking Order Detail</h2>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setIsOrderDetailOpen(false)
-                setSelectedOrderDetail(null)
-                setIsOrderDetailLoading(false)
-              }}
-              className="text-gray-400 hover:text-gray-700 transition-colors"
-            >
-              <X className="w-6 h-6" />
-            </button>
+      <Modal
+        isOpen={isOrderDetailOpen}
+        onClose={() => {
+          setIsOrderDetailOpen(false)
+          setSelectedOrderDetail(null)
+          setIsOrderDetailLoading(false)
+        }}
+        title="Chi tiết Đơn hàng"
+        size="7xl"
+      >
+        {isOrderDetailLoading ? (
+          <div className="py-20 text-center text-gray-500">
+            <RefreshCw className="w-10 h-10 animate-spin mx-auto mb-4 text-emerald-500" />
+            <p className="animate-pulse font-medium">Đang tải chi tiết đơn hàng...</p>
           </div>
+        ) : !selectedOrderDetail ? (
+          <div className="py-20 text-center text-gray-400">Không có dữ liệu đơn hàng.</div>
+        ) : (
+          <div className="flex-1 -m-6 bg-gray-50/50">
+            <div className="flex flex-col lg:flex-row h-[calc(100vh-12rem)] min-h-[600px]">
+              {/* Left Column: Summary */}
+              <div className="w-full lg:w-[400px] shrink-0 p-6 lg:p-8 lg:border-r border-gray-100 overflow-y-auto">
+                <div className="space-y-8">
+                  {(() => {
+                    let bg = '', iconBg = '', title = '', desc = '', Icon = null;
+                    if (selectedOrderDetail.order.status === 'PAID') {
+                      bg = 'bg-white border-emerald-100 shadow-emerald-50';
+                      iconBg = 'bg-emerald-50 text-emerald-600';
+                      title = 'Đã thanh toán'; desc = 'Giao dịch hoàn tất thành công.'; Icon = <CheckCircle className="w-6 h-6" />;
+                    } else if (selectedOrderDetail.order.status === 'PENDING') {
+                      bg = 'bg-white border-amber-100 shadow-amber-50';
+                      iconBg = 'bg-amber-50 text-amber-600';
+                      title = 'Chờ thanh toán'; desc = 'Đang chờ khách hàng xác nhận.'; Icon = <Clock className="w-6 h-6" />;
+                    } else if (selectedOrderDetail.order.status === 'CANCEL' || selectedOrderDetail.order.status === 'FULLY_CANCELLED') {
+                      bg = 'bg-white border-rose-100 shadow-rose-50';
+                      iconBg = 'bg-rose-50 text-rose-600';
+                      title = 'Đã hủy'; desc = 'Đơn hàng này đã bị hủy bỏ.'; Icon = <Ban className="w-6 h-6" />;
+                    } else {
+                      bg = 'bg-white border-gray-100';
+                      iconBg = 'bg-gray-100 text-gray-600';
+                      title = selectedOrderDetail.order.status; desc = 'Chi tiết trạng thái đơn hàng.'; Icon = <CreditCard className="w-6 h-6" />;
+                    }
 
-          <div className="flex-1 overflow-y-auto px-6 py-6">
-            {isOrderDetailLoading ? (
-              <div className="py-8 text-center text-gray-500">Loading booking order detail...</div>
-            ) : !selectedOrderDetail ? (
-              <div className="py-8 text-center text-gray-500">No booking order data.</div>
-            ) : (
-              <div className="space-y-6">
-                {(() => {
-                  let bg = '', iconBg = '', title = '', desc = '', Icon = null;
-                  if (selectedOrderDetail.order.status === 'PAID') {
-                    bg = 'from-emerald-50/80 to-white border-emerald-100';
-                    iconBg = 'bg-white text-emerald-500 shadow-sm border border-emerald-50';
-                    title = 'Order Paid'; desc = 'Payment successful.'; Icon = <CheckCircle className="w-6 h-6" />;
-                  } else if (selectedOrderDetail.order.status === 'PENDING') {
-                    bg = 'from-amber-50/80 to-white border-amber-100';
-                    iconBg = 'bg-white text-amber-500 shadow-sm border border-amber-50';
-                    title = 'Payment Pending'; desc = 'Awaiting customer payment.'; Icon = <Clock className="w-6 h-6" />;
-                  } else if (selectedOrderDetail.order.status === 'CANCEL' || selectedOrderDetail.order.status === 'FULLY_CANCELLED') {
-                    bg = 'from-rose-50/80 to-white border-rose-100';
-                    iconBg = 'bg-white text-rose-500 shadow-sm border border-rose-50';
-                    title = 'Order Cancelled'; desc = 'The order has been cancelled.'; Icon = <Ban className="w-6 h-6" />;
-                  } else {
-                    bg = 'from-gray-50/80 to-white border-gray-100';
-                    iconBg = 'bg-white text-gray-500 shadow-sm border border-gray-50';
-                    title = selectedOrderDetail.order.status; desc = 'Order status details.'; Icon = <CreditCard className="w-6 h-6" />;
-                  }
-
-                  return (
-                    <div className={`rounded-2xl p-8 flex flex-col items-center text-center bg-gradient-to-b border shadow-sm ${bg}`}>
-                      <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-4 ${iconBg}`}>
-                        {Icon}
+                    return (
+                      <div className={`rounded-2xl p-6 border shadow-lg transition-all ${bg}`}>
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${iconBg}`}>
+                          {Icon}
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900 uppercase tracking-tight">{title}</h3>
+                        <p className="text-xs text-gray-500 mt-1">{desc}</p>
                       </div>
-                      <h3 className="text-xl font-bold text-gray-900 mb-2">{title}</h3>
-                      <p className="text-sm text-gray-600 max-w-sm">{desc}</p>
-                    </div>
-                  )
-                })()}
+                    )
+                  })()}
 
-                {selectedOrderDetail.order.damage_payment_status && selectedOrderDetail.order.damage_payment_status !== 'NO_INCIDENT' && (
-                  <div className={`rounded-xl overflow-hidden shadow-sm border ${selectedOrderDetail.order.damage_payment_status === 'PAID' ? 'border-emerald-200' : 'border-rose-200'}`}>
-                    <div className={`px-4 py-3 border-b flex items-center justify-between ${selectedOrderDetail.order.damage_payment_status === 'PAID' ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
-                      <h3 className={`font-semibold flex items-center gap-2 ${selectedOrderDetail.order.damage_payment_status === 'PAID' ? 'text-emerald-800' : 'text-rose-800'}`}>
-                        <CreditCard className="w-4 h-4" />
-                        Hóa Đơn Đền Bù Sự Cố
-                      </h3>
-                      <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${selectedOrderDetail.order.damage_payment_status === 'PAID' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-200 text-rose-800'
-                        }`}>
-                        {selectedOrderDetail.order.damage_payment_status === 'PAID' ? 'ĐÃ THANH TOÁN (PAID)' : 'CHỜ THANH TOÁN (PENDING)'}
-                      </span>
-                    </div>
-                    <div className="p-4 bg-white flex justify-between items-center">
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-50 pb-2">Thông tin khách hàng</h4>
+                    <div className="space-y-3">
                       <div>
-                        <p className="text-sm text-gray-600">Trạng thái thanh toán hóa đơn đền bù của đơn hàng này.</p>
+                        <p className="text-xs font-bold text-gray-400 uppercase">Tên khách hàng</p>
+                        <p className="text-sm font-bold text-gray-900 mt-0.5">{selectedOrderDetail.order.user?.name || '—'}</p>
                       </div>
-                      {selectedOrderDetail.order.damage_payment_status !== 'PAID' && (
-                        <div className="text-right">
-                          <p className="text-sm text-gray-500 mb-1">Số tiền cần thanh toán</p>
-                          <p className="text-xl font-bold text-rose-600">{formatMoney(selectedOrderDetail.order.outstanding_damage_amount || 0)}</p>
-                        </div>
-                      )}
+                      <div>
+                        <p className="text-xs font-bold text-gray-400 uppercase">Email liên hệ</p>
+                        <p className="text-sm font-medium text-gray-700 mt-0.5 break-all">{selectedOrderDetail.order.user?.email || '—'}</p>
+                      </div>
                     </div>
                   </div>
-                )}
 
-                <div className="flex flex-col text-sm">
-                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                    <span className="text-gray-500">Order ID</span>
-                    <span className="font-medium text-gray-900 break-all">{selectedOrderDetail.order.id}</span>
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-50 pb-2">Tóm tắt tài chính</h4>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-gray-500">TỔNG CỘNG</span>
+                        <span className="text-lg font-bold text-gray-900">{formatMoney(selectedOrderDetail.order.final_total_price)}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                    <span className="text-gray-500">User Name</span>
-                    <span className="font-medium text-gray-900">{selectedOrderDetail.order.user?.name || 'Unknown User'}</span>
+                </div>
+              </div>
+
+              {/* Right Column: Detailed Lists */}
+              <div className="flex-1 p-6 lg:p-8 overflow-y-auto space-y-10">
+                {/* Bookings Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between px-1">
+                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wide flex items-center gap-2">
+                      <CalendarClock className="w-3.5 h-3.5" />
+                      Danh sách Booking ({selectedOrderDetail.bookings.length})
+                    </h4>
                   </div>
-                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                    <span className="text-gray-500">User Email</span>
-                    <span className="font-medium text-gray-900">{selectedOrderDetail.order.user?.email || '—'}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-4 border-b border-gray-100">
-                    <span className="text-gray-500">Final Total</span>
-                    <span className="font-medium text-gray-900">{formatMoney(selectedOrderDetail.order.final_total_price)}</span>
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                    {selectedOrderDetail.bookings.map((booking) => (
+                      <div key={booking.id} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all group">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-50 text-blue-600 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                              <Boxes className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-gray-900 uppercase">{booking.pod?.code ?? podMap.get(booking.pod_id)?.code ?? '—'}</p>
+                              <p className="text-[10px] text-gray-400 font-mono">{compactId(booking.id)}</p>
+                            </div>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${bookingStatusBadgeClass(booking.status)}`}>
+                            {booking.status}
+                          </span>
+                        </div>
+                        <div className="space-y-2 border-t border-gray-50 pt-3">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-400">Thời gian</span>
+                            <span className="font-bold text-gray-700">{dayjs(booking.start_time).format('HH:mm DD/MM')} - {dayjs(booking.end_time).format('HH:mm DD/MM')}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Bookings in this order</h3>
-                  {selectedOrderDetail.bookings.length === 0 ? (
-                    <p className="text-sm text-gray-500">No bookings visible in your manager scope.</p>
-                  ) : (
-                    <div className="space-y-3 max-h-[42vh] overflow-auto pr-1">
-                      {selectedOrderDetail.bookings.map((booking) => (
-                        <div key={booking.id} className="border border-gray-200 rounded-lg p-3 text-sm flex items-center justify-between">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1">
-                            <div>
-                              <p className="text-xs text-gray-500 uppercase">Pod</p>
-                              <p className="font-medium text-gray-900">{booking.pod?.code ?? podMap.get(booking.pod_id)?.code ?? compactId(booking.pod_id)}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-gray-500 uppercase">Start Time</p>
-                              <p className="font-medium text-gray-900">{formatDateTime(booking.start_time)}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-gray-500 uppercase">End Time</p>
-                              <p className="font-medium text-gray-900">{formatDateTime(booking.end_time)}</p>
-                            </div>
-                          </div>
-                          <div className="ml-4 flex items-center justify-center">
-                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${bookingStatusBadgeClass(booking.status)}`}>
-                              {booking.status}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="border-t border-gray-100 pt-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-semibold text-gray-900">Sự cố của đơn hàng này</h3>
+                {/* Incidents & Damage Bills */}
+                <div className="space-y-4 pt-6 border-t border-gray-100">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-1">
+                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wide flex items-center gap-2">
+                      <CreditCard className="w-3.5 h-3.5" />
+                      Sự cố & Đền bù đơn hàng
+                    </h4>
                     <button
                       onClick={handleCreateDamageBill}
                       disabled={
@@ -1431,37 +1359,43 @@ export const BookingManagement = () => {
                         isReadOnly ||
                         (selectedOrderDetail.order.damage_payment_status && selectedOrderDetail.order.damage_payment_status !== 'NO_INCIDENT')
                       }
-                      className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-md shadow-indigo-100"
                     >
-                      {isCreatingDamageBill ? 'Đang tạo Hóa đơn...' : 
-                       (selectedOrderDetail.order.damage_payment_status && selectedOrderDetail.order.damage_payment_status !== 'NO_INCIDENT') 
-                       ? 'Đã tạo hóa đơn đền bù' : 'Tạo hóa đơn đền bù cho đơn hàng'}
+                      {isCreatingDamageBill ? (
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <CreditCard className="w-3 h-3" />
+                      )}
+                      {(selectedOrderDetail.order.damage_payment_status && selectedOrderDetail.order.damage_payment_status !== 'NO_INCIDENT') 
+                        ? 'Đã tạo hóa đơn đền bù' : 'Tạo hóa đơn đền bù'}
                     </button>
                   </div>
 
                   {isOrderIncidentsLoading ? (
-                    <div className="flex justify-center py-4 text-gray-400">Đang tải sự cố của đơn hàng...</div>
+                    <div className="py-10 text-center text-gray-400 animate-pulse">Đang tải sự cố...</div>
                   ) : selectedOrderIncidents.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-gray-200 p-4 text-sm text-gray-500">Không có sự cố nào khác trong đơn hàng này.</div>
+                    <div className="bg-white border-2 border-dashed border-gray-100 rounded-2xl p-10 text-center">
+                      <p className="text-sm text-gray-400">Không có sự cố nào ghi nhận trong đơn hàng này.</p>
+                    </div>
                   ) : (
                     <div className="space-y-3">
                       {selectedOrderIncidents.map(inc => (
-                        <div key={inc.id} className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 p-3">
+                        <div key={inc.id} className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
                           <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-900">{inc.description}</p>
-                            <div className="mt-1 flex flex-wrap gap-2 text-xs text-gray-500">
-                              <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-gray-200">Pod: {inc.pod_id?.slice(0, 8)}...</span>
+                            <p className="text-sm font-bold text-gray-900 leading-snug">{inc.description}</p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <span className="text-[10px] font-bold bg-gray-50 text-gray-500 px-2 py-0.5 rounded-md border border-gray-100 uppercase tracking-tight">Pod: {inc.pod_id?.slice(0, 8)}...</span>
                               {inc.items && inc.items.length > 0 && (
-                                <span className="bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded border border-rose-100">
-                                  {inc.items.join(', ')}
+                                <span className="text-[10px] font-bold bg-rose-50 text-rose-700 px-2 py-0.5 rounded-md border border-rose-100 uppercase tracking-tight">
+                                  Hư hại: {inc.items.join(', ')}
                                 </span>
                               )}
                             </div>
                           </div>
-                          <div className="flex flex-col items-end gap-2 ml-4">
+                          <div className="flex flex-col items-end gap-2 shrink-0">
                             <div className="flex items-center gap-2">
-                              <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${incidentStatusBadgeClass(inc.status)}`}>{translateIncidentStatus(inc.status)}</span>
-                              <span className={`inline-flex rounded-md px-2 py-1 text-[10px] uppercase tracking-wider ${incidentSeverityBadgeClass(inc.severity)}`}>{translateIncidentSeverity(inc.severity)}</span>
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide ${incidentStatusBadgeClass(inc.status)}`}>{translateIncidentStatus(inc.status)}</span>
+                              <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide ${incidentSeverityBadgeClass(inc.severity)}`}>{translateIncidentSeverity(inc.severity)}</span>
                             </div>
                             {inc.total_amount_value !== undefined && (
                               <span className="text-sm font-bold text-gray-900">{formatMoney(inc.total_amount_value)}</span>
@@ -1472,13 +1406,11 @@ export const BookingManagement = () => {
                     </div>
                   )}
                 </div>
-
-
               </div>
-            )}
+            </div>
           </div>
-        </div>
-      </div>
+        )}
+      </Modal>
     </div>
   )
 }

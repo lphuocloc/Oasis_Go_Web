@@ -1,6 +1,6 @@
 import { api } from '../api'
 
-export const SUPPORT_REQUEST_STATUSES = ['PENDING', 'PROCESSING', 'IN_PROGRESS', 'ESCALATED', 'RESOLVED', 'REJECTED', 'CANCELED'] as const
+export const SUPPORT_REQUEST_STATUSES = ['PENDING', 'PROCESSING', 'IN_PROGRESS', 'ESCALATED', 'RESOLVED', 'REJECTED', 'CANCELED', 'EXPIRED'] as const
 export type SupportRequestStatus = (typeof SUPPORT_REQUEST_STATUSES)[number]
 
 export const SUPPORT_REQUEST_TYPES = ['MAINTENANCE', 'CHANGE_POD'] as const

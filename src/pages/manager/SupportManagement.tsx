@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowDown, ArrowRightLeft, ArrowUp, Check, Eye, RefreshCw, Search, SlidersHorizontal, Clock, X, AlertCircle } from 'lucide-react'
+import { ArrowDown, ArrowRightLeft, ArrowUp, Check, Eye, RefreshCw, Search, SlidersHorizontal, Clock, X, AlertCircle, Image as ImageIcon } from 'lucide-react'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { toast } from 'react-toastify'
@@ -49,6 +49,8 @@ const supportStatusClass = (status: SupportRequestStatus) => {
       return 'bg-gray-100 text-gray-700 border border-gray-200'
     case 'CANCELED':
       return 'bg-gray-100 text-gray-400 border border-gray-200'
+    case 'EXPIRED':
+      return 'bg-amber-50 text-amber-600 border border-amber-200'
     default:
       return 'bg-slate-100 text-slate-700 border border-slate-200'
   }
@@ -69,6 +71,8 @@ const supportStatusDotClass = (status: SupportRequestStatus) => {
     case 'REJECTED':
     case 'CANCELED':
       return 'bg-gray-400'
+    case 'EXPIRED':
+      return 'bg-amber-500'
     default:
       return 'bg-slate-400'
   }
@@ -83,7 +87,7 @@ const PROCESSING_STATUS: SupportRequestStatus = 'PROCESSING'
 type StatusTransitionModalState = {
   isOpen: boolean
   request: SupportRequestItem | null
-  targetStatus: 'ESCALATED' | 'RESOLVED' | 'REJECTED'
+  targetStatus: 'ESCALATED' | 'RESOLVED' | 'REJECTED' | 'EXPIRED'
   resolutionNote: string
   escalationNote: string
   severity: SupportMaintenanceSeverity
@@ -106,6 +110,7 @@ const normalizeStatus = (status?: string | null): SupportRequestStatus => {
   if (normalized === 'RESOLVED') return 'RESOLVED'
   if (normalized === 'REJECTED') return 'REJECTED'
   if (normalized === 'CANCELED') return 'CANCELED'
+  if (normalized === 'EXPIRED') return 'EXPIRED'
   return 'PENDING'
 }
 
@@ -117,12 +122,13 @@ const getCreatedTimestamp = (item: SupportRequestItem) => item.created_at || (it
 const translateStatus = (status: SupportRequestStatus) => {
   switch (status) {
     case 'PENDING': return 'Chờ tiếp nhận'
-    case 'PROCESSING': return 'Đang xử lý'
-    case 'IN_PROGRESS': return 'Đang thực hiện'
+    case 'PROCESSING': return 'Đang điều tra'
+    case 'IN_PROGRESS': return 'Đang xử lý'
     case 'ESCALATED': return 'Chuyển cấp'
     case 'RESOLVED': return 'Đã giải quyết'
     case 'REJECTED': return 'Đã từ chối'
     case 'CANCELED': return 'Đã hủy'
+    case 'EXPIRED': return 'Hết hạn'
     default: return status
   }
 }
@@ -255,12 +261,17 @@ export const SupportManagement = () => {
         if (!filters.types.some(t => normalizedType(t) === normalizedTypeValue)) return false
       }
 
-      if (filters.clusterIds.length > 0) {
-        const podId = item.pod_id || item.pod?.id
-        const pod = podId ? podMap.get(podId) : undefined
-        const clusterId = item.pod?.cluster_id || pod?.cluster_id
-        if (!clusterId || !filters.clusterIds.includes(clusterId)) return false
-      }
+      // Enforce manager scoping
+      const managerClusterIds = clusters.map((c) => c.id)
+      const podId = item.pod_id || item.pod?.id
+      const pod = podId ? podMap.get(podId) : undefined
+      const clusterId = item.pod?.cluster_id || pod?.cluster_id
+
+      // If user selected specific clusters in filter panel, use those.
+      // Otherwise, restrict to the manager's assigned clusters.
+      const targetClusterIds = filters.clusterIds.length > 0 ? filters.clusterIds : managerClusterIds
+
+      if (!clusterId || !targetClusterIds.includes(clusterId)) return false
 
       if (fromDate || toDate) {
         const createdRaw = getCreatedTimestamp(item)
@@ -280,7 +291,6 @@ export const SupportManagement = () => {
       }
 
       if (!normalizedSearch) return true
-      const pod = item.pod_id ? podMap.get(item.pod_id) : undefined
       return [
         item.id,
         item.type,
@@ -332,7 +342,7 @@ export const SupportManagement = () => {
     })
 
     return sorted
-  }, [supportRequests, supportSearch, podMap, filters, sortKey, sortDirection])
+  }, [supportRequests, supportSearch, podMap, filters, sortKey, sortDirection, clusters])
 
   const requestTypes = useMemo(() => {
     const set = new Set<string>()
@@ -456,9 +466,11 @@ export const SupportManagement = () => {
     const supportsRoomChange = isChangePodRequest(detailRequest.type) || (isMaintenanceRequest(detailRequest.type) && (currentSeverity === 'HIGH' || currentSeverity === 'CRITICAL'))
     if (!supportsRoomChange) return
 
-    // Do not fetch pod candidates for finished requests to prevent API errors
+    // Do not fetch pod candidates for finished requests or completed bookings to prevent API errors
     const currentStatus = normalizeStatus(detailRequest.status)
+    const bookingStatus = String(detailRequest.booking?.status || bookingDetailsById[getBookingIdFromRequest(detailRequest)]?.status || '').toUpperCase()
     if (!['PROCESSING', 'IN_PROGRESS', 'ESCALATED'].includes(currentStatus)) return
+    if (bookingStatus === 'COMPLETED') return
 
     if (roomChangeCandidatesByRequest[detailRequest.id]) return
 
@@ -470,7 +482,7 @@ export const SupportManagement = () => {
       } catch (error: unknown) {
         const apiError = error as { response?: { data?: { message?: string } } }
         const errorMessage = apiError?.response?.data?.message || 'Lỗi: Không tải được danh sách phòng thay thế'
-        if (!errorMessage.includes('Room change is only allowed when booking is IN_USE')) {
+        if (!errorMessage.includes('Đổi phòng chỉ được thực hiện khi đơn đặt phòng đang trong quá trình sử dụng')) {
           toast.error(errorMessage)
         }
       } finally {
@@ -574,12 +586,14 @@ export const SupportManagement = () => {
   const getAllowedTransitions = (request: SupportRequestItem): SupportRequestStatus[] => {
     const current = normalizeStatus(request.status)
     const transitionMap: Record<string, SupportRequestStatus[]> = {
-      PENDING: ['PROCESSING', 'REJECTED'],
-      PROCESSING: ['IN_PROGRESS', 'ESCALATED', 'RESOLVED', 'REJECTED'],
-      IN_PROGRESS: ['ESCALATED', 'RESOLVED', 'REJECTED'],
-      ESCALATED: ['RESOLVED', 'REJECTED'],
+      PENDING: ['PROCESSING', 'REJECTED', 'CANCELED', 'EXPIRED'],
+      PROCESSING: ['IN_PROGRESS', 'ESCALATED', 'RESOLVED', 'REJECTED', 'CANCELED', 'EXPIRED'],
+      IN_PROGRESS: ['ESCALATED', 'RESOLVED', 'REJECTED', 'EXPIRED'],
+      ESCALATED: ['RESOLVED', 'REJECTED', 'EXPIRED'],
       RESOLVED: [],
-      REJECTED: []
+      REJECTED: [],
+      CANCELED: [],
+      EXPIRED: []
     }
     return transitionMap[current] || []
   }
@@ -632,11 +646,6 @@ export const SupportManagement = () => {
 
     if (!statusModal.resolutionNote.trim()) {
       toast.error('Vui lòng nhập ghi chú hướng giải quyết (Resolution note).')
-      return
-    }
-
-    if (targetStatus === 'REJECTED' && statusModal.resolutionNote.trim().length <= 10) {
-      toast.error('Lý do từ chối phải dài hơn 10 ký tự.')
       return
     }
 
@@ -717,7 +726,7 @@ export const SupportManagement = () => {
       await Promise.all([fetchSupportRequests(), fetchPods()])
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { message?: string } } }
-      toast.error(apiError?.response?.data?.message || 'Failed to change room.')
+      toast.error(apiError?.response?.data?.message || 'Lỗi: Không thể thực hiện đổi phòng.')
     } finally {
       setIsChangingPodRequestId(null)
     }
@@ -775,7 +784,8 @@ export const SupportManagement = () => {
   const detailBookingStatus = String(detailBooking?.status || detailRequest?.booking?.status || '').toUpperCase()
   const detailCanExecuteRoomChange = detailBookingStatus === 'IN_USE'
   const isCompletedReq = ['RESOLVED', 'REJECTED', 'CANCELED'].includes(detailCurrentStatus || '')
-  const shouldHideManagerActions = detailBookingStatus === 'COMPLETED' && !isCompletedReq
+  const shouldHideManagerActions = false // Allow manager actions regardless of booking status for resolution/rejection
+  const isCompletedBooking = detailBookingStatus === 'COMPLETED'
 
   return (
     <div className="p-6 lg:p-8 bg-gray-50 min-h-screen">
@@ -953,442 +963,415 @@ export const SupportManagement = () => {
         </div>
       </div>
 
-      {/* Filter panel (slide-in from right) */}
-      <div className={`fixed inset-0 z-50 ${isFilterPanelOpen ? '' : 'pointer-events-none'}`} aria-hidden={!isFilterPanelOpen}>
-        <div
-          className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${isFilterPanelOpen ? 'opacity-100' : 'opacity-0'}`}
-          onClick={() => setIsFilterPanelOpen(false)}
-        />
-        <div
-          className={`absolute right-0 top-0 h-full w-full max-w-xl overflow-hidden bg-white shadow-2xl border-l border-gray-200 transform transition-transform duration-300 lg:right-4 lg:top-4 lg:bottom-4 lg:h-auto lg:w-[calc(100%-2rem)] lg:border lg:rounded-xl ${isFilterPanelOpen ? 'translate-x-0' : 'translate-x-[110%]'}`}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="h-full flex flex-col">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Bộ lọc</h2>
-                <p className="text-xs text-gray-500 mt-1">Lọc theo trạng thái, loại và ngày.</p>
-              </div>
+      {/* Filter panel (Centered Modal) */}
+      <Modal
+        isOpen={isFilterPanelOpen}
+        onClose={() => setIsFilterPanelOpen(false)}
+        title="Bộ lọc nâng cao"
+        size="2xl"
+      >
+        <div className="space-y-8">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-bold text-gray-900 uppercase tracking-wide">Trạng thái</label>
+              <span className="text-[10px] font-bold text-gray-400 bg-gray-50 px-2 py-0.5 rounded border border-gray-100 uppercase">Đã chọn {draftFilters.statuses.length || 'Tất cả'}</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setDraftFilters(prev => ({ ...prev, statuses: [] }))}
+                className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${draftFilters.statuses.length === 0 ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100' : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'}`}
+              >
+                Tất cả
+              </button>
+              {SUPPORT_REQUEST_STATUSES.map(status => {
+                const isSelected = draftFilters.statuses.includes(status);
+                return (
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() => {
+                      setDraftFilters(prev => {
+                        if (isSelected) {
+                          return { ...prev, statuses: prev.statuses.filter(s => s !== status) }
+                        }
+                        const nextStatuses = [...prev.statuses, status]
+                        if (nextStatuses.length === SUPPORT_REQUEST_STATUSES.length) {
+                          return { ...prev, statuses: [] }
+                        }
+                        return { ...prev, statuses: nextStatuses }
+                      })
+                    }}
+                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100' : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'}`}
+                  >
+                    {isSelected && <Check className="w-3 h-3 inline-block mr-1.5 -ml-0.5" />}
+                    {translateStatus(status)}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-bold text-gray-900 uppercase tracking-wide">Loại yêu cầu</label>
+              <span className="text-[10px] font-bold text-gray-400 bg-gray-50 px-2 py-0.5 rounded border border-gray-100 uppercase">Đã chọn {draftFilters.types.length || 'Tất cả'}</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setDraftFilters(prev => ({ ...prev, types: [] }))}
+                className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${draftFilters.types.length === 0 ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100' : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'}`}
+              >
+                Tất cả
+              </button>
+              {requestTypes.map(type => {
+                const isSelected = draftFilters.types.includes(type);
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => {
+                      setDraftFilters(prev => {
+                        if (isSelected) {
+                          return { ...prev, types: prev.types.filter(t => t !== type) }
+                        }
+                        const nextTypes = [...prev.types, type]
+                        if (nextTypes.length === requestTypes.length) {
+                          return { ...prev, types: [] }
+                        }
+                        return { ...prev, types: nextTypes }
+                      })
+                    }}
+                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100' : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'}`}
+                  >
+                    {isSelected && <Check className="w-3 h-3 inline-block mr-1.5 -ml-0.5" />}
+                    {translateType(type)}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-bold text-gray-900 uppercase tracking-wide">Khu vực (Cluster)</label>
+              <span className="text-[10px] font-bold text-gray-400 bg-gray-50 px-2 py-0.5 rounded border border-gray-100 uppercase">Đã chọn {draftFilters.clusterIds.length || 'Tất cả'}</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setDraftFilters(prev => ({ ...prev, clusterIds: [] }))}
+                className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${draftFilters.clusterIds.length === 0 ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100' : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'}`}
+              >
+                Tất cả
+              </button>
+              {clusters.map(cluster => {
+                const isSelected = draftFilters.clusterIds.includes(cluster.id);
+                return (
+                  <button
+                    key={cluster.id}
+                    type="button"
+                    onClick={() => {
+                      setDraftFilters(prev => {
+                        if (isSelected) {
+                          return { ...prev, clusterIds: prev.clusterIds.filter(id => id !== cluster.id) }
+                        }
+                        const nextIds = [...prev.clusterIds, cluster.id]
+                        if (nextIds.length === clusters.length) {
+                          return { ...prev, clusterIds: [] }
+                        }
+                        return { ...prev, clusterIds: nextIds }
+                      })
+                    }}
+                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100' : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50'}`}
+                  >
+                    {isSelected && <Check className="w-3 h-3 inline-block mr-1.5 -ml-0.5" />}
+                    {cluster.name}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div>
+            <style>{`
+              .custom-calendar .react-datepicker { border: none; font-family: inherit; width: 100%; display: flex; flex-direction: column; }
+              .custom-calendar .react-datepicker__month-container { width: 100%; display: flex; flex-direction: column; }
+              .custom-calendar .react-datepicker__header { background: white; border-bottom: none; padding-top: 16px; width: 100%; }
+              .custom-calendar .react-datepicker__current-month { font-weight: 500; font-size: 16px; color: #111827; margin-bottom: 12px; }
+              .custom-calendar .react-datepicker__day-names { display: flex; justify-content: center; gap: 20px; margin-bottom: 8px; }
+              .custom-calendar .react-datepicker__week { display: flex; justify-content: center; gap: 25px; margin-bottom: 4px; }
+              .custom-calendar .react-datepicker__day-name { color: #6b7280; font-weight: 500; font-size: 13px; flex: 1; display: flex; align-items: center; justify-content: center; width: auto; max-width: 48px; }
+              .custom-calendar .react-datepicker__day { font-weight: 400; font-size: 14px; color: #374151; border-radius: 9999px; outline: none; margin: 0; flex: 1; display: flex; align-items: center; justify-content: center; aspect-ratio: 1/1; max-width: 48px; max-height: 48px; width: auto; }
+              .custom-calendar .react-datepicker__day:hover { background-color: #f3f4f6; border-radius: 9999px; }
+              .custom-calendar .react-datepicker__day--in-range, .custom-calendar .react-datepicker__day--in-selecting-range { background-color: #f3f4f6; color: #111827; border-radius: 0; }
+              .custom-calendar .react-datepicker__day--range-start,
+              .custom-calendar .react-datepicker__day--range-end,
+              .custom-calendar .react-datepicker__day--selecting-range-start,
+              .custom-calendar .react-datepicker__day--selecting-range-end { background-color: #111827 !important; color: #fff !important; border-radius: 9999px !important; font-weight: 500; }
+              .custom-calendar .react-datepicker__navigation { top: 16px; }
+              .custom-calendar .react-datepicker__navigation-icon::before { border-color: #6b7280; border-width: 2px 2px 0 0; height: 8px; width: 8px; top: 1px; }
+            `}</style>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-bold text-gray-900 uppercase tracking-wide">Khoảng thời gian</label>
+            </div>
+            <div className="border border-gray-100 rounded-2xl overflow-hidden bg-white p-6 shadow-inner custom-calendar">
+              <DatePicker
+                selected={draftFilters.dateRange[0]}
+                onChange={(update: [Date | null, Date | null]) => setDraftFilters(prev => ({ ...prev, dateRange: update }))}
+                startDate={draftFilters.dateRange[0] || undefined}
+                endDate={draftFilters.dateRange[1] || undefined}
+                selectsRange
+                inline
+                monthsShown={1}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={resetDraftFilters}
+              className="px-6 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Thiết lập lại
+            </button>
+            <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => setIsFilterPanelOpen(false)}
-                className="text-gray-400 hover:text-gray-700 transition-colors"
+                className="px-6 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                Hủy
               </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-8">
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <label className="block text-sm font-semibold text-gray-900">Trạng thái</label>
-                  <span className="text-xs text-gray-500 whitespace-nowrap">Đã chọn {draftFilters.statuses.length || 'Tất cả'}</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setDraftFilters(prev => ({ ...prev, statuses: [] }))}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftFilters.statuses.length === 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-                  >
-                    {draftFilters.statuses.length === 0 && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
-                    Tất cả
-                  </button>
-                  {SUPPORT_REQUEST_STATUSES.map(status => {
-                    const isSelected = draftFilters.statuses.includes(status);
-                    return (
-                      <button
-                        key={status}
-                        type="button"
-                        onClick={() => {
-                          setDraftFilters(prev => {
-                            if (isSelected) {
-                              return { ...prev, statuses: prev.statuses.filter(s => s !== status) }
-                            }
-                            const nextStatuses = [...prev.statuses, status]
-                            if (nextStatuses.length === SUPPORT_REQUEST_STATUSES.length) {
-                              return { ...prev, statuses: [] }
-                            }
-                            return { ...prev, statuses: nextStatuses }
-                          })
-                        }}
-                        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-                      >
-                        {isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
-                        {translateStatus(status)}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <label className="block text-sm font-semibold text-gray-900">Loại yêu cầu</label>
-                  <span className="text-xs text-gray-500 whitespace-nowrap">Đã chọn {draftFilters.types.length || 'Tất cả'}</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setDraftFilters(prev => ({ ...prev, types: [] }))}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftFilters.types.length === 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-                  >
-                    {draftFilters.types.length === 0 && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
-                    Tất cả
-                  </button>
-                  {requestTypes.map(type => {
-                    const isSelected = draftFilters.types.includes(type);
-                    return (
-                      <button
-                        key={type}
-                        type="button"
-                        onClick={() => {
-                          setDraftFilters(prev => {
-                            if (isSelected) {
-                              return { ...prev, types: prev.types.filter(t => t !== type) }
-                            }
-                            const nextTypes = [...prev.types, type]
-                            if (nextTypes.length === requestTypes.length) {
-                              return { ...prev, types: [] }
-                            }
-                            return { ...prev, types: nextTypes }
-                          })
-                        }}
-                        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-                      >
-                        {isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
-                        {translateType(type)}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <label className="block text-sm font-semibold text-gray-900">Khu vực (Cluster)</label>
-                  <span className="text-xs text-gray-500 whitespace-nowrap">Đã chọn {draftFilters.clusterIds.length || 'Tất cả'}</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setDraftFilters(prev => ({ ...prev, clusterIds: [] }))}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${draftFilters.clusterIds.length === 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-                  >
-                    {draftFilters.clusterIds.length === 0 && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
-                    Tất cả
-                  </button>
-                  {clusters.map(cluster => {
-                    const isSelected = draftFilters.clusterIds.includes(cluster.id);
-                    return (
-                      <button
-                        key={cluster.id}
-                        type="button"
-                        onClick={() => {
-                          setDraftFilters(prev => {
-                            if (isSelected) {
-                              return { ...prev, clusterIds: prev.clusterIds.filter(id => id !== cluster.id) }
-                            }
-                            const nextIds = [...prev.clusterIds, cluster.id]
-                            if (nextIds.length === clusters.length) {
-                              return { ...prev, clusterIds: [] }
-                            }
-                            return { ...prev, clusterIds: nextIds }
-                          })
-                        }}
-                        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${isSelected ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-                      >
-                        {isSelected && <Check className="w-4 h-4 inline-block mr-1.5 -ml-0.5" />}
-                        {cluster.name}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <style>{`
-                  .custom-calendar .react-datepicker { border: none; font-family: inherit; width: 100%; display: flex; flex-direction: column; }
-                  .custom-calendar .react-datepicker__month-container { width: 100%; display: flex; flex-direction: column; }
-                  .custom-calendar .react-datepicker__header { background: white; border-bottom: none; padding-top: 16px; width: 100%; }
-                  .custom-calendar .react-datepicker__current-month { font-weight: 500; font-size: 16px; color: #111827; margin-bottom: 12px; }
-                  .custom-calendar .react-datepicker__day-names { display: flex; justify-content: center; gap: 20px; margin-bottom: 8px; }
-                  .custom-calendar .react-datepicker__week { display: flex; justify-content: center; gap: 25px; margin-bottom: 4px; }
-                  .custom-calendar .react-datepicker__day-name { color: #6b7280; font-weight: 500; font-size: 13px; flex: 1; display: flex; align-items: center; justify-content: center; width: auto; max-width: 48px; }
-                  .custom-calendar .react-datepicker__day { font-weight: 400; font-size: 14px; color: #374151; border-radius: 9999px; outline: none; margin: 0; flex: 1; display: flex; align-items: center; justify-content: center; aspect-ratio: 1/1; max-width: 48px; max-height: 48px; width: auto; }
-                  .custom-calendar .react-datepicker__day:hover { background-color: #f3f4f6; border-radius: 9999px; }
-                  .custom-calendar .react-datepicker__day--in-range, .custom-calendar .react-datepicker__day--in-selecting-range { background-color: #f3f4f6; color: #111827; border-radius: 0; }
-                  .custom-calendar .react-datepicker__day--range-start,
-                  .custom-calendar .react-datepicker__day--range-end,
-                  .custom-calendar .react-datepicker__day--selecting-range-start,
-                  .custom-calendar .react-datepicker__day--selecting-range-end { background-color: #111827 !important; color: #fff !important; border-radius: 9999px !important; font-weight: 500; }
-                  .custom-calendar .react-datepicker__navigation { top: 16px; }
-                  .custom-calendar .react-datepicker__navigation-icon::before { border-color: #6b7280; border-width: 2px 2px 0 0; height: 8px; width: 8px; top: 1px; }
-                `}</style>
-                <div className="flex items-center justify-between mb-3">
-                  <label className="block text-sm font-semibold text-gray-900">Khoảng thời gian</label>
-                </div>
-                <div className="border border-gray-200 rounded-xl shadow-sm bg-white custom-calendar w-full overflow-hidden">
-                  <div className="w-full p-4">
-                    <DatePicker
-                      selected={draftFilters.dateRange[0]}
-                      onChange={(update: [Date | null, Date | null]) => setDraftFilters(prev => ({ ...prev, dateRange: update }))}
-                      startDate={draftFilters.dateRange[0] || undefined}
-                      endDate={draftFilters.dateRange[1] || undefined}
-                      selectsRange
-                      inline
-                      monthsShown={1}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-white">
-                    <button
-                      type="button"
-                      onClick={() => setDraftFilters(prev => ({ ...prev, dateRange: [null, null] }))}
-                      className="text-sm font-semibold text-gray-900 underline hover:text-gray-700 transition"
-                    >
-                      Xóa
-                    </button>
-                    <button
-                      type="button"
-                      onClick={applyFilters}
-                      className="px-5 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition"
-                    >
-                      Lưu
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="px-6 py-5 border-t border-gray-100 bg-white flex items-center justify-between gap-3 lg:rounded-b-xl">
               <button
                 type="button"
-                onClick={resetDraftFilters}
-                className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+                onClick={applyFilters}
+                className="px-8 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-bold hover:bg-gray-800 transition-all shadow-lg shadow-gray-200"
               >
-                Đặt lại
+                Áp dụng
               </button>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsFilterPanelOpen(false)}
-                  className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="button"
-                  onClick={applyFilters}
-                  className="px-4 py-2.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-                >
-                  Áp dụng
-                </button>
-              </div>
             </div>
           </div>
         </div>
-      </div>
+      </Modal>
 
-      {/* Detail panel (slide-in from right) */}
-      <div className={`fixed inset-0 z-50 ${detailRequest ? '' : 'pointer-events-none'}`} aria-hidden={!detailRequest}>
-        <div
-          className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${detailRequest ? 'opacity-100' : 'opacity-0'}`}
-          onClick={closeDetailModal}
-        />
-        <div
-          className={`absolute right-0 top-0 h-full w-full max-w-[1400px] bg-white shadow-2xl border-l border-gray-200 transform transition-transform duration-300 lg:right-4 lg:top-4 lg:bottom-4 lg:h-auto lg:w-[calc(100%-2rem)] lg:border lg:rounded-xl ${detailRequest ? 'translate-x-0' : 'translate-x-[110%]'}`}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="h-full flex flex-col">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Chi tiết yêu cầu</h2>
-              </div>
-              <button
-                type="button"
-                onClick={closeDetailModal}
-                className="text-gray-400 hover:text-gray-700 transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
 
-            <div className="flex-1 overflow-y-auto bg-gray-50/50">
-              {detailRequest && (
-                <div className="flex flex-col lg:flex-row h-full">
-                  {/* Left Column: Information */}
-                  <div className="w-full lg:w-[450px] shrink-0 p-6 lg:p-8 lg:border-r border-gray-100 overflow-y-auto">
-                    <div className="space-y-8 max-w-2xl">
-                      {/* Info Card */}
-                      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                        <h3 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wide">Chi tiết yêu cầu</h3>
-                        <div className="space-y-0 text-sm">
-                          <div className="flex justify-between items-center py-3 border-b border-gray-50">
-                            <span className="text-gray-500">Trạng thái</span>
-                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${detailCurrentStatus ? supportStatusClass(detailCurrentStatus as SupportRequestStatus) : ''}`}>
-                              {detailCurrentStatus ? translateStatus(detailCurrentStatus as SupportRequestStatus) : ''}
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center py-3 border-b border-gray-50">
-                            <span className="text-gray-500">Loại</span>
-                            <span className="font-medium text-gray-900">{translateType(detailRequest.type)}</span>
-                          </div>
-                          <div className="flex justify-between items-center py-3 border-b border-gray-50">
-                            <span className="text-gray-500">Thời gian tạo</span>
-                            <span className="font-medium text-gray-900">{formatDateTime(getCreatedTimestamp(detailRequest))}</span>
-                          </div>
-                          <div className="flex justify-between items-center py-3 border-b border-gray-50 gap-4">
-                            <span className="text-gray-500">Người dùng</span>
-                            <span className="font-medium text-gray-900 truncate text-right flex-1" title={detailRequest.user?.email || detailRequest.user?.full_name || detailRequest.user_id || '—'}>
-                              {detailRequest.user?.email || detailRequest.user?.full_name || detailRequest.user_id || '—'}
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center py-3 gap-4">
-                            <span className="text-gray-500">Phòng/Vị trí</span>
-                            <span className="font-medium text-gray-900 truncate text-right flex-1">
-                              {detailCurrentPod?.code || detailCurrentPodId || '—'} {detailCurrentPod?.cluster?.name ? `(${detailCurrentPod.cluster.name})` : ''}
-                            </span>
-                          </div>
-                          {isMaintenanceRequest(detailRequest.type) && ['RESOLVED', 'REJECTED', 'CANCELED'].includes(detailCurrentStatus || '') && (
-                            <div className="flex justify-between items-center pt-3 border-t border-gray-50">
-                              <span className="text-gray-500">Mức độ</span>
-                              <span className="font-medium text-gray-900">{translateSeverity(detailSeverity)}</span>
-                            </div>
-                          )}
-                        </div>
+      {/* Detail Request Modal */}
+      <Modal
+        isOpen={Boolean(detailRequest)}
+        onClose={closeDetailModal}
+        title="Chi tiết yêu cầu"
+        size="7xl"
+      >
+        <div className="flex-1 -m-6 bg-gray-50/50">
+          {detailRequest && (
+            <div className="flex flex-col lg:flex-row h-[calc(100vh-12rem)] min-h-[600px]">
+              {/* Left Column: Information */}
+              <div className="w-full lg:w-[450px] shrink-0 p-6 lg:p-8 lg:border-r border-gray-100 overflow-y-auto">
+                <div className="space-y-8 max-w-2xl">
+                  {/* Info Card */}
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                    <h3 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wide">Chi tiết yêu cầu</h3>
+                    <div className="space-y-0 text-sm">
+                      <div className="flex justify-between items-center py-3 border-b border-gray-50">
+                        <span className="text-gray-500">Trạng thái</span>
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${detailCurrentStatus ? supportStatusClass(detailCurrentStatus as SupportRequestStatus) : ''}`}>
+                          {detailCurrentStatus ? translateStatus(detailCurrentStatus as SupportRequestStatus) : ''}
+                        </span>
                       </div>
-
-                      {/* Description Card */}
-                      <div>
-                        <h3 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wide">Mô tả</h3>
-                        <div className="bg-white text-sm text-gray-700 border border-gray-100 shadow-sm rounded-2xl p-5 whitespace-pre-wrap leading-relaxed">
-                          {detailRequest.description || <span className="text-gray-400 italic">Không có mô tả cho yêu cầu này.</span>}
-                        </div>
+                      <div className="flex justify-between items-center py-3 border-b border-gray-50">
+                        <span className="text-gray-500">Loại</span>
+                        <span className="font-medium text-gray-900">{translateType(detailRequest.type)}</span>
                       </div>
-
-                      {/* Attachments */}
-                      {detailRequest.images && detailRequest.images.length > 0 && (
-                        <div>
-                          <h3 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wide">Tệp đính kèm</h3>
-                          <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
-                            {detailRequest.images.map((img, i) => (
-                              <div key={i} className="flex-shrink-0 group relative overflow-hidden rounded-xl border border-gray-200">
-                                <img src={img} alt={`Attachment ${i + 1}`} className="h-32 lg:h-40 w-auto object-cover group-hover:scale-105 transition-transform duration-300" />
-                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
-                              </div>
-                            ))}
-                          </div>
+                      <div className="flex justify-between items-center py-3 border-b border-gray-50">
+                        <span className="text-gray-500">Thời gian tạo</span>
+                        <span className="font-medium text-gray-900">{formatDateTime(getCreatedTimestamp(detailRequest))}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-3 border-b border-gray-50 gap-4">
+                        <span className="text-gray-500">Người dùng</span>
+                        <span className="font-medium text-gray-900 truncate text-right flex-1" title={detailRequest.user?.email || detailRequest.user?.full_name || detailRequest.user_id || '—'}>
+                          {detailRequest.user?.email || detailRequest.user?.full_name || detailRequest.user_id || '—'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center py-3 gap-4">
+                        <span className="text-gray-500">Phòng/Vị trí</span>
+                        <span className="font-medium text-gray-900 truncate text-right flex-1">
+                          {detailCurrentPod?.code || detailCurrentPodId || '—'} {detailCurrentPod?.cluster?.name ? `(${detailCurrentPod.cluster.name})` : ''}
+                        </span>
+                      </div>
+                      {isMaintenanceRequest(detailRequest.type) && ['RESOLVED', 'REJECTED', 'CANCELED'].includes(detailCurrentStatus || '') && (
+                        <div className="flex justify-between items-center pt-3 border-t border-gray-50">
+                          <span className="text-gray-500">Mức độ</span>
+                          <span className="font-medium text-gray-900">{translateSeverity(detailSeverity)}</span>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  {/* Right Column: Actions */}
-                  <div className="flex-1 min-w-0 bg-white p-6 lg:p-8 overflow-y-auto border-t lg:border-t-0 border-gray-100 flex flex-col gap-8 shadow-[-4px_0_24px_-16px_rgba(0,0,0,0.05)]">
-
-                    {/* Status Badge Concept */}
-                    {(() => {
-                      let bg = '', iconBg = '', title = '', desc = '', Icon = null;
-
-                      if (shouldHideManagerActions) {
-                        bg = 'from-rose-50/80 to-white border-rose-100';
-                        iconBg = 'bg-white text-rose-500 shadow-sm border border-rose-50';
-                        title = 'Booking đã hoàn tất';
-                        desc = 'Không thể chỉnh sửa do booking đã kết thúc.';
-                        Icon = <X className="w-6 h-6" />;
-                      } else if (detailCurrentStatus === 'RESOLVED') {
-                        bg = 'from-emerald-50/80 to-white border-emerald-100';
-                        iconBg = 'bg-white text-emerald-500 shadow-sm border border-emerald-50';
-                        title = 'Yêu cầu đã hoàn tất!';
-                        desc = `Phòng đã được bàn giao và giải quyết thành công.`;
-                        Icon = <Check className="w-6 h-6" />;
-                      } else if (detailCurrentStatus === 'PROCESSING' || detailCurrentStatus === 'IN_PROGRESS') {
-                        bg = 'from-purple-50/80 to-white border-purple-100';
-                        iconBg = 'bg-white text-purple-500 shadow-sm border border-purple-50';
-                        title = 'Đang trong tiến trình';
-                        desc = 'Hệ thống đang thực hiện công việc.';
-                        Icon = <Clock className="w-6 h-6" />;
-                      } else if (detailCurrentStatus === 'REJECTED' || detailCurrentStatus === 'CANCELED') {
-                        bg = 'from-rose-50/80 to-white border-rose-100';
-                        iconBg = 'bg-white text-rose-500 shadow-sm border border-rose-50';
-                        title = detailCurrentStatus === 'REJECTED' ? 'Đã bị từ chối!' : 'Đã bị huỷ!';
-                        desc = 'Yêu cầu này không thể tiếp tục thực hiện.';
-                        Icon = <X className="w-6 h-6" />;
-                      } else if (detailCurrentStatus === 'ESCALATED') {
-                        bg = 'from-amber-50/80 to-white border-amber-100';
-                        iconBg = 'bg-white text-amber-500 shadow-sm border border-amber-50';
-                        title = 'Đã chuyển cấp';
-                        desc = 'Yêu cầu đang chờ quản lý cấp cao xem xét.';
-                        Icon = <AlertCircle className="w-6 h-6" />;
-                      } else {
-                        bg = 'from-blue-50/80 to-white border-blue-100';
-                        iconBg = 'bg-white text-blue-500 shadow-sm border border-blue-50';
-                        title = 'Chờ tiếp nhận';
-                        desc = 'Yêu cầu đang chờ quản lý bắt đầu xử lý.';
-                        Icon = <Clock className="w-6 h-6" />;
-                      }
-
-                      return (
-                        <div className={`rounded-2xl p-6 flex flex-col items-center text-center bg-gradient-to-b border shadow-sm ${bg}`}>
-                          <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${iconBg}`}>
-                            {Icon}
-                          </div>
-                          <h3 className="text-lg font-bold text-gray-900 mb-1">{title}</h3>
-                          <p className="text-sm text-gray-600">{desc}</p>
+                  {/* Unified Description & Media Card */}
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="px-5 py-4 border-b border-gray-50 bg-gray-50/30 flex justify-between items-center">
+                      <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Mô tả & Hình ảnh</h3>
+                      {detailRequest.images && detailRequest.images.length > 0 && (
+                        <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                          {detailRequest.images.length} ảnh
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-5 space-y-8">
+                      {/* Description Section */}
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">Nội dung mô tả</p>
+                        <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                          {detailRequest.description || (
+                            <span className="text-gray-400 italic flex items-center gap-2">
+                              <AlertCircle className="w-4 h-4" />
+                              Không có mô tả chi tiết cho yêu cầu này.
+                            </span>
+                          )}
                         </div>
-                      )
-                    })()}
+                      </div>
 
-                    {/* Controls & Actions */}
-                    {!shouldHideManagerActions && (
-                      <div className="space-y-6">
-
-                        {isMaintenanceRequest(detailRequest.type) && !isCompletedReq && (
-                          <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
-                            <label className="block text-sm font-bold text-gray-900 mb-3 uppercase tracking-wide">Mức độ bảo trì</label>
-                            <select
-                              value={detailSeverity}
-                              onChange={(event) => setSelectedSeverityByRequest((prev) => ({ ...prev, [detailRequest.id]: event.target.value as SupportMaintenanceSeverity }))}
-                              className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-white font-medium shadow-sm transition-shadow appearance-none cursor-pointer"
-                            >
-                              {SUPPORT_MAINTENANCE_SEVERITIES.map((severity) => (
-                                <option key={severity} value={severity}>{translateSeverity(severity)}</option>
-                              ))}
-                            </select>
+                      {/* Image Gallery Section */}
+                      <div className="pt-6 border-t border-gray-50">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-3">Hình ảnh minh chứng</p>
+                        {detailRequest.images && detailRequest.images.length > 0 ? (
+                          <div className="grid grid-cols-2 gap-3">
+                            {detailRequest.images.map((img, i) => (
+                              <div
+                                key={i}
+                                onClick={() => window.open(img, '_blank')}
+                                className="aspect-square relative group cursor-zoom-in overflow-hidden rounded-xl border border-gray-100 bg-gray-50 transition-all hover:ring-2 hover:ring-blue-500/20"
+                              >
+                                <img
+                                  src={img}
+                                  alt={`Attachment ${i + 1}`}
+                                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
+                                <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 backdrop-blur-sm p-1.5 rounded-lg shadow-sm">
+                                  <Eye className="w-4 h-4 text-gray-700" />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-3 py-4 px-4 bg-gray-50/50 rounded-xl border border-dashed border-gray-200 text-gray-400 italic text-sm">
+                            <ImageIcon className="w-5 h-5 opacity-40" />
+                            <span>Không có ảnh đính kèm cho yêu cầu này</span>
                           </div>
                         )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-                        <div>
-                          <h3 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wide">Thao tác nhanh</h3>
-                          <div className="flex flex-col gap-3">
-                            {detailCanAccept && (
-                              <button
-                                type="button"
-                                onClick={() => handleStartMaintenanceProcessing(detailRequest)}
-                                disabled={updatingSupportId === detailRequest.id}
-                                className="w-full px-4 py-3 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 shadow-sm disabled:opacity-60 transition"
-                              >
-                                Tiếp nhận yêu cầu
-                              </button>
-                            )}
+              {/* Right Column: Actions */}
+              <div className="flex-1 min-w-0 bg-white p-6 lg:p-8 overflow-y-auto border-t lg:border-t-0 border-gray-100 flex flex-col gap-8 shadow-[-4px_0_24px_-16px_rgba(0,0,0,0.05)]">
 
-                            {detailCanStartWork && (
-                              <button
-                                type="button"
-                                onClick={() => handleStartWork(detailRequest)}
-                                disabled={updatingSupportId === detailRequest.id}
-                                className="w-full px-4 py-3 rounded-xl bg-purple-600 text-white font-medium hover:bg-purple-700 shadow-sm disabled:opacity-60 transition"
-                              >
-                                Bắt đầu xử lý
-                              </button>
-                            )}
+                {/* Status Badge Concept */}
+                {(() => {
+                  let bg = '', iconBg = '', title = '', desc = '', Icon = null;
 
-                            {detailCanResolve && !isChangePodRequest(detailRequest.type) && (
+                  if (isCompletedBooking && !isCompletedReq) {
+                    bg = 'from-amber-50/80 to-white border-amber-100';
+                    iconBg = 'bg-white text-amber-500 shadow-sm border border-amber-50';
+                    title = 'Booking đã hoàn tất';
+                    desc = 'Khách đã trả phòng, vui lòng rà soát và đóng yêu cầu này nếu cần.';
+                    Icon = <AlertCircle className="w-6 h-6" />;
+                  } else if (detailCurrentStatus === 'RESOLVED') {
+                    bg = 'from-emerald-50/80 to-white border-emerald-100';
+                    iconBg = 'bg-white text-emerald-500 shadow-sm border border-emerald-50';
+                    title = 'Yêu cầu đã hoàn tất!';
+                    desc = `Phòng đã được bàn giao và giải quyết thành công.`;
+                    Icon = <Check className="w-6 h-6" />;
+                  } else if (detailCurrentStatus === 'PROCESSING' || detailCurrentStatus === 'IN_PROGRESS') {
+                    bg = 'from-purple-50/80 to-white border-purple-100';
+                    iconBg = 'bg-white text-purple-500 shadow-sm border border-purple-50';
+                    title = 'Đang trong tiến trình';
+                    desc = 'Hệ thống đang thực hiện công việc.';
+                    Icon = <Clock className="w-6 h-6" />;
+                  } else if (detailCurrentStatus === 'REJECTED' || detailCurrentStatus === 'CANCELED') {
+                    bg = 'from-rose-50/80 to-white border-rose-100';
+                    iconBg = 'bg-white text-rose-500 shadow-sm border border-rose-50';
+                    title = detailCurrentStatus === 'REJECTED' ? 'Đã bị từ chối!' : 'Đã bị huỷ!';
+                    desc = 'Yêu cầu này không thể tiếp tục thực hiện.';
+                    Icon = <X className="w-6 h-6" />;
+                  } else if (detailCurrentStatus === 'ESCALATED') {
+                    bg = 'from-amber-50/80 to-white border-amber-100';
+                    iconBg = 'bg-white text-amber-500 shadow-sm border border-amber-50';
+                    title = 'Đã chuyển cấp';
+                    desc = 'Yêu cầu đang chờ quản lý cấp cao xem xét.';
+                    Icon = <AlertCircle className="w-6 h-6" />;
+                  } else {
+                    bg = 'from-blue-50/80 to-white border-blue-100';
+                    iconBg = 'bg-white text-blue-500 shadow-sm border border-blue-50';
+                    title = 'Chờ tiếp nhận';
+                    desc = 'Yêu cầu đang chờ quản lý bắt đầu xử lý.';
+                    Icon = <Clock className="w-6 h-6" />;
+                  }
+
+                  return (
+                    <div className={`rounded-2xl p-6 flex flex-col items-center text-center bg-gradient-to-b border shadow-sm ${bg}`}>
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${iconBg}`}>
+                        {Icon}
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-900 mb-1">{title}</h3>
+                      <p className="text-sm text-gray-600">{desc}</p>
+                    </div>
+                  )
+                })()}
+
+                {/* Controls & Actions */}
+                {!shouldHideManagerActions && (
+                  <div className="space-y-6">
+
+                    {isMaintenanceRequest(detailRequest.type) && !isCompletedReq && !isCompletedBooking && (
+                      <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
+                        <label className="block text-sm font-bold text-gray-900 mb-3 uppercase tracking-wide">Mức độ bảo trì</label>
+                        <select
+                          value={detailSeverity}
+                          onChange={(event) => setSelectedSeverityByRequest((prev) => ({ ...prev, [detailRequest.id]: event.target.value as SupportMaintenanceSeverity }))}
+                          className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-white font-medium shadow-sm transition-shadow appearance-none cursor-pointer"
+                        >
+                          {SUPPORT_MAINTENANCE_SEVERITIES.map((severity) => (
+                            <option key={severity} value={severity}>{translateSeverity(severity)}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wide">Thao tác nhanh</h3>
+                      <div className="flex flex-col gap-3">
+                        {detailCanAccept && (
+                          <button
+                            type="button"
+                            onClick={() => handleStartMaintenanceProcessing(detailRequest)}
+                            disabled={updatingSupportId === detailRequest.id}
+                            className="w-full px-4 py-3 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 shadow-sm disabled:opacity-60 transition"
+                          >
+                            Tiếp nhận yêu cầu
+                          </button>
+                        )}
+
+                        {detailCanStartWork && (
+                          <button
+                            type="button"
+                            onClick={() => handleStartWork(detailRequest)}
+                            disabled={updatingSupportId === detailRequest.id}
+                            className="w-full px-4 py-3 rounded-xl bg-purple-600 text-white font-medium hover:bg-purple-700 shadow-sm disabled:opacity-60 transition"
+                          >
+                            Bắt đầu xử lý
+                          </button>
+                        )}
+
+                        {detailCanResolve && (
+                          <div className="flex flex-col gap-2">
+                            {!isCompletedBooking ? (
                               <button
                                 type="button"
                                 onClick={() => openStatusTransitionModal(detailRequest, 'RESOLVED')}
@@ -1397,134 +1380,146 @@ export const SupportManagement = () => {
                               >
                                 <Check className="w-4 h-4" /> Đánh dấu hoàn thành
                               </button>
-                            )}
-
-                            <div className="flex gap-3">
-                              {detailCanReject && (
-                                <button
-                                  type="button"
-                                  onClick={() => openStatusTransitionModal(detailRequest, 'REJECTED')}
-                                  disabled={updatingSupportId === detailRequest.id}
-                                  className="flex-1 px-4 py-3 rounded-xl bg-white border-2 border-rose-100 text-rose-600 font-medium hover:bg-rose-50 shadow-sm disabled:opacity-60 transition"
-                                >
-                                  Từ chối
-                                </button>
-                              )}
-
-                              {detailCanEscalate && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleEscalateMaintenance(detailRequest)}
-                                  disabled={updatingSupportId === detailRequest.id}
-                                  className="flex-1 px-4 py-3 rounded-xl bg-amber-500 text-white font-medium hover:bg-amber-600 shadow-sm disabled:opacity-60 transition flex items-center justify-center gap-2"
-                                >
-                                  <AlertCircle className="w-4 h-4" /> Chuyển cấp
-                                </button>
-                              )}
-                            </div>
-                          </div>
-
-                          {detailCanResolve && !detailCanResolveByTasks && (
-                            <p className="text-xs text-rose-600 mt-3 text-center bg-rose-50 p-2 rounded-lg border border-rose-100">Không thể hoàn tất: một số tác vụ liên quan chưa được xử lý xong.</p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Room Change Section */}
-                    {detailSupportsRoomChange && !shouldHideManagerActions && (
-                      <div className="border-t border-gray-100 pt-8 mt-2">
-                        <div className="flex items-center gap-2 mb-4">
-                          <ArrowRightLeft className="w-5 h-5 text-emerald-600" />
-                          <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Đổi phòng khẩn cấp</h3>
-                        </div>
-
-                        <div className="space-y-5">
-                          {detailBookingId && loadingBookingId === detailBookingId && !detailBooking && (
-                            <div className="animate-pulse flex space-x-4"><div className="h-4 bg-gray-200 rounded w-3/4"></div></div>
-                          )}
-
-                          {loadingRoomChangeRequestId === detailRequest.id && (
-                            <div className="animate-pulse flex space-x-4"><div className="h-4 bg-gray-200 rounded w-1/2"></div></div>
-                          )}
-
-                          <div className="p-4 rounded-xl bg-blue-50/50 border border-blue-100 text-sm">
-                            <div className="flex justify-between items-center mb-2">
-                              <span className="text-blue-600 font-medium">Hiện tại:</span>
-                              <span className="font-bold text-blue-900">{detailCurrentPod?.code || detailRequest.pod?.code || detailCurrentPodId || '—'} {detailCurrentPod?.cluster?.name ? `(${detailCurrentPod.cluster.name})` : ''}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-blue-600 font-medium">Đơn đặt:</span>
-                              <span className="font-mono text-xs px-2 py-1 bg-white rounded text-blue-700 font-bold border border-blue-100">{detailBooking?.status || detailRequest.booking?.status || '—'}</span>
-                            </div>
-                          </div>
-
-                          {!detailCanExecuteRoomChange && (
-                            <p className="text-sm text-rose-600 bg-rose-50 p-3 rounded-xl border border-rose-100">Trạng thái đơn đặt phải là <span className="font-bold">ĐANG SỬ DỤNG</span> để thực hiện đổi phòng.</p>
-                          )}
-
-                          {detailCurrentStatus !== 'IN_PROGRESS' ? (
-                            <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 text-center">
-                              <AlertCircle className="w-6 h-6 text-amber-500 mx-auto mb-2" />
-                              <p className="text-sm text-amber-800 font-medium">Bắt đầu tiến trình làm việc</p>
-                              <p className="text-xs text-amber-600 mt-1">Vui lòng click <b className="font-bold">Bắt đầu xử lý</b> bên trên để mở khóa danh sách phòng trống và thực hiện đổi phòng.</p>
-                            </div>
-                          ) : (
-                            <>
-                              <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">Chọn phòng thay thế</label>
-                                <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 max-h-[360px] overflow-y-auto custom-scrollbar">
-                                  <PodGridSelector
-                                    pods={candidatesForGrid}
-                                    selectedPodId={selectedCandidatePodId}
-                                    onSelect={(id) => setSelectedNewPodByRequest((prev) => ({ ...prev, [detailRequest.id]: id }))}
-                                  />
-                                </div>
-                                {filteredCandidates.length === 0 && (
-                                  <p className="text-xs text-amber-700 mt-2 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Không có phòng trống khả dụng.</p>
-                                )}
-                              </div>
-
-                              {showTierWarning && (
-                                <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-100">Cảnh báo: Phòng đã chọn có loại thấp hơn phòng hiện tại.</p>
-                              )}
-
-                              {selectedCandidate && hasTimeConflictWarning(selectedCandidate) && (
-                                <p className="text-xs text-rose-600 bg-rose-50 p-2 rounded-lg border border-rose-100">Cảnh báo xung đột: Phòng đã chọn sắp có đơn đặt tiếp theo.</p>
-                              )}
-
-                              <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">Ghi chú xử lý <span className="text-gray-400 font-normal">(Tùy chọn)</span></label>
-                                <textarea
-                                  rows={2}
-                                  value={roomChangeResolutionByRequest[detailRequest.id] || ''}
-                                  onChange={(event) => setRoomChangeResolutionByRequest((prev) => ({ ...prev, [detailRequest.id]: event.target.value }))}
-                                  placeholder="Ghi chú chi tiết nguyên nhân/cách giải quyết..."
-                                  className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm shadow-sm transition"
-                                />
-                              </div>
-
+                            ) : (
                               <button
                                 type="button"
-                                onClick={() => handleChangePodFromRequest(detailRequest)}
-                                disabled={!detailCanExecuteRoomChange || !selectedCandidatePodId || isChangingPodRequestId === detailRequest.id}
-                                className={`w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl text-white font-bold transition shadow-sm ${!selectedCandidatePodId ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 hover:shadow'}`}
+                                onClick={() => handleUpdateSupportStatus(detailRequest.id, {
+                                  status: 'EXPIRED',
+                                  resolution_note: 'Hệ thống tự động đóng hoặc Manager xác nhận hết hạn do khách đã trả phòng.'
+                                })}
+                                disabled={updatingSupportId === detailRequest.id}
+                                className="w-full px-4 py-3 rounded-xl bg-amber-500 text-white font-bold hover:bg-amber-600 shadow-sm transition flex items-center justify-center gap-2"
                               >
-                                <ArrowRightLeft className="w-5 h-5" />
-                                {isChangingPodRequestId === detailRequest.id ? 'Đang xử lý...' : 'Xác nhận & Chuyển phòng'}
+                                <Clock className="w-5 h-5" /> Đánh dấu hết hạn
                               </button>
-                            </>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="flex gap-3">
+                          {detailCanReject && !isCompletedBooking && (
+                            <button
+                              type="button"
+                              onClick={() => openStatusTransitionModal(detailRequest, 'REJECTED')}
+                              disabled={updatingSupportId === detailRequest.id}
+                              className="flex-1 px-4 py-3 rounded-xl bg-white border-2 border-rose-100 text-rose-600 font-medium hover:bg-rose-50 shadow-sm disabled:opacity-60 transition"
+                            >
+                              Từ chối
+                            </button>
+                          )}
+
+                          {detailCanEscalate && !isCompletedBooking && (
+                            <button
+                              type="button"
+                              onClick={() => handleEscalateMaintenance(detailRequest)}
+                              disabled={updatingSupportId === detailRequest.id}
+                              className="flex-1 px-4 py-3 rounded-xl bg-amber-500 text-white font-medium hover:bg-amber-600 shadow-sm disabled:opacity-60 transition flex items-center justify-center gap-2"
+                            >
+                              <AlertCircle className="w-4 h-4" /> Chuyển cấp
+                            </button>
                           )}
                         </div>
                       </div>
-                    )}
+
+                      {detailCanResolve && !detailCanResolveByTasks && (
+                        <p className="text-xs text-rose-600 mt-3 text-center bg-rose-50 p-2 rounded-lg border border-rose-100">Không thể hoàn tất: một số tác vụ liên quan chưa được xử lý xong.</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+
+                {/* Room Change Section */}
+                {detailSupportsRoomChange && !shouldHideManagerActions && (
+                  <div className="border-t border-gray-100 pt-8 mt-2">
+                    <div className="flex items-center gap-2 mb-4">
+                      <ArrowRightLeft className="w-5 h-5 text-emerald-600" />
+                      <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Đổi phòng khẩn cấp</h3>
+                    </div>
+
+                    <div className="space-y-5">
+                      {detailBookingId && loadingBookingId === detailBookingId && !detailBooking && (
+                        <div className="animate-pulse flex space-x-4"><div className="h-4 bg-gray-200 rounded w-3/4"></div></div>
+                      )}
+
+                      {loadingRoomChangeRequestId === detailRequest.id && (
+                        <div className="animate-pulse flex space-x-4"><div className="h-4 bg-gray-200 rounded w-1/2"></div></div>
+                      )}
+
+                      <div className="p-4 rounded-xl bg-blue-50/50 border border-blue-100 text-sm">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-blue-600 font-medium">Hiện tại:</span>
+                          <span className="font-bold text-blue-900">{detailCurrentPod?.code || detailRequest.pod?.code || detailCurrentPodId || '—'} {detailCurrentPod?.cluster?.name ? `(${detailCurrentPod.cluster.name})` : ''}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-blue-600 font-medium">Đơn đặt:</span>
+                          <span className="font-mono text-xs px-2 py-1 bg-white rounded text-blue-700 font-bold border border-blue-100">{detailBooking?.status || detailRequest.booking?.status || '—'}</span>
+                        </div>
+                      </div>
+
+                      {!detailCanExecuteRoomChange && (
+                        <p className="text-sm text-rose-600 bg-rose-50 p-3 rounded-xl border border-rose-100">Trạng thái đơn đặt phải là <span className="font-bold">ĐANG SỬ DỤNG</span> để thực hiện đổi phòng.</p>
+                      )}
+
+                      {detailCurrentStatus !== 'IN_PROGRESS' ? (
+                        <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 text-center">
+                          <AlertCircle className="w-6 h-6 text-amber-500 mx-auto mb-2" />
+                          <p className="text-sm text-amber-800 font-medium">Bắt đầu tiến trình làm việc</p>
+                          <p className="text-xs text-amber-600 mt-1">Vui lòng click <b className="font-bold">Bắt đầu xử lý</b> bên trên để mở khóa danh sách phòng trống và thực hiện đổi phòng.</p>
+                        </div>
+                      ) : (
+                        <>
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Chọn phòng thay thế</label>
+                            <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 max-h-[360px] overflow-y-auto custom-scrollbar">
+                              <PodGridSelector
+                                pods={candidatesForGrid}
+                                selectedPodId={selectedCandidatePodId}
+                                onSelect={(id) => setSelectedNewPodByRequest((prev) => ({ ...prev, [detailRequest.id]: id }))}
+                              />
+                            </div>
+                            {filteredCandidates.length === 0 && (
+                              <p className="text-xs text-amber-700 mt-2 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Không có phòng trống khả dụng.</p>
+                            )}
+                          </div>
+
+                          {showTierWarning && (
+                            <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-100">Cảnh báo: Phòng đã chọn có loại thấp hơn phòng hiện tại.</p>
+                          )}
+
+                          {selectedCandidate && hasTimeConflictWarning(selectedCandidate) && (
+                            <p className="text-xs text-rose-600 bg-rose-50 p-2 rounded-lg border border-rose-100">Cảnh báo xung đột: Phòng đã chọn sắp có đơn đặt tiếp theo.</p>
+                          )}
+
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Ghi chú xử lý <span className="text-gray-400 font-normal">(Tùy chọn)</span></label>
+                            <textarea
+                              rows={2}
+                              value={roomChangeResolutionByRequest[detailRequest.id] || ''}
+                              onChange={(event) => setRoomChangeResolutionByRequest((prev) => ({ ...prev, [detailRequest.id]: event.target.value }))}
+                              placeholder="Ghi chú chi tiết nguyên nhân/cách giải quyết..."
+                              className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm shadow-sm transition"
+                            />
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleChangePodFromRequest(detailRequest)}
+                            disabled={!detailCanExecuteRoomChange || !selectedCandidatePodId || isChangingPodRequestId === detailRequest.id}
+                            className={`w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl text-white font-bold transition shadow-sm ${!selectedCandidatePodId ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 hover:shadow'}`}
+                          >
+                            <ArrowRightLeft className="w-5 h-5" />
+                            {isChangingPodRequestId === detailRequest.id ? 'Đang xử lý...' : 'Xác nhận & Chuyển phòng'}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
-      </div>
+      </Modal>
 
       <Modal
         isOpen={statusModal.isOpen}
@@ -1567,13 +1562,15 @@ export const SupportManagement = () => {
           ) : (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                {statusModal.targetStatus === 'REJECTED' ? 'Lý do từ chối' : 'Ghi chú giải quyết'}
+                {statusModal.targetStatus === 'REJECTED' ? 'Lý do từ chối' :
+                  statusModal.targetStatus === 'EXPIRED' ? 'Ghi chú hết hạn' : 'Ghi chú giải quyết'}
               </label>
               <textarea
                 rows={4}
                 value={statusModal.resolutionNote}
                 onChange={(event) => setStatusModal((prev) => ({ ...prev, resolutionNote: event.target.value }))}
-                placeholder={statusModal.targetStatus === 'REJECTED' ? 'Nhập lý do từ chối (ít nhất 10 ký tự)' : 'Cung cấp chi tiết cách giải quyết để lưu lịch sử'}
+                placeholder={statusModal.targetStatus === 'REJECTED' ? 'Nhập lý do từ chối (ít nhất 10 ký tự)' :
+                  statusModal.targetStatus === 'EXPIRED' ? 'Ghi chú vì sao yêu cầu này hết hạn (vd: Khách đã checkout)' : 'Cung cấp chi tiết cách giải quyết để lưu lịch sử'}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -1623,7 +1620,6 @@ export const SupportManagement = () => {
           </div>
 
           <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-center">
-            <p className="text-sm font-semibold text-blue-800 mb-2">Đã mở cửa từ xa</p>
             <p className="text-xs text-blue-700">Khách hàng đã nhận được thông báo về phòng mới trên ứng dụng.</p>
           </div>
 

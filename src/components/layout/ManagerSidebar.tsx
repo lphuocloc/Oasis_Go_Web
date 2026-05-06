@@ -29,12 +29,7 @@ const ManagerSidebar: React.FC<{ userName?: string; userRole?: string }> = ({
       icon: <Calendar className="w-6 h-6" />
     },
     {
-      label: 'Vệ sinh & Bảo trì',
-      path: '/manager/maintenance',
-      icon: <CheckCircle className="w-6 h-6" />
-    },
-    {
-      label: 'Nhiệm vụ vệ sinh',
+      label: 'Giám sát Vệ sinh',
       path: '/manager/cleaning-tasks',
       icon: <Sparkles className="w-6 h-6" />
     },

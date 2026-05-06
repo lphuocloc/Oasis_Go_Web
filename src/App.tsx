@@ -24,7 +24,6 @@ import { ClusterManagement } from './pages/manager/ClusterManagement'
 import { PodManagement } from './pages/manager/PodManagement'
 import { BookingManagement } from './pages/manager/BookingManagement'
 import { CleaningTaskManagement as ManagerCleaningTaskManagement } from './pages/manager/CleaningTaskManagement'
-import { CleaningManagement } from './pages/manager/CleaningManagement'
 import { IncidentManagement } from './pages/manager/IncidentManagement'
 import { ManagerShiftManagement } from './pages/manager/ShiftManagement'
 import { LostAndFoundManagement } from './pages/manager/LostAndFoundManagement'
@@ -148,10 +147,6 @@ export const router = createBrowserRouter([
           {
             path: "bookings",
             element: <BookingManagement />
-          },
-          {
-            path: "maintenance",
-            element: <CleaningManagement />
           },
           {
             path: "cleaning-tasks",

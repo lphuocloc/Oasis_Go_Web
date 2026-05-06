@@ -1,436 +1,457 @@
-﻿import { Fragment, useEffect, useState } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { useEffect, useMemo, useState, Fragment } from 'react'
+import { Search, RefreshCw, Eye, Sparkles, X, ChevronDown, ChevronUp, Image as ImageIcon, Video, Clock, AlertCircle, Calendar, Hash } from 'lucide-react'
 import { toast } from 'react-toastify'
-import { useAppDispatch, useAppSelector } from '../../store/hooks'
+import dayjs from 'dayjs'
+import Modal from '../../components/common/Modal'
 import {
-    clearManagerCleaningTasks,
-    clearManagerCleaningTaskDetail
-} from '../../store/slices/managerCleaningTasksSlice'
-import {
-    fetchManagerCleaningTasks,
-    fetchManagerCleaningTaskDetail
-} from '../../store/thunks/managerCleaningTasksThunks'
-import { fetchBookings } from '../../store/thunks/bookingsThunks'
-import { cn } from '../../lib/utils'
-import { Button } from '../../components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle
-} from '../../components/ui/dialog'
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow
-} from '../../components/ui/table'
+  cleaningTaskApi,
+  type CleaningTaskItem,
+  type CleaningTaskStatus,
+  type CleaningTaskWithMediaPayload,
+  type CleaningTaskManagerBookingItem
+} from '../../api/lib/cleaningTaskApi'
+import { bookingApi, type BookingItem, type BookingPagination } from '../../api/lib/bookingApi'
+import { useManagerScope } from '../../contexts/ManagerScopeContext'
+import { initUserSocket } from '../../lib/socket'
 
-const formatDateTime = (value?: string | null) => {
-    if (!value) return '—'
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) return '—'
-    return date.toLocaleString('vi-VN')
+const bookingStatusBadgeClass = (status: string) => {
+  switch (status) {
+    case 'BOOKED': return 'bg-blue-50 text-blue-700 border border-blue-200'
+    case 'IN_USE': return 'bg-amber-50 text-amber-700 border border-amber-200'
+    case 'COMPLETED': return 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+    case 'CANCELLED': return 'bg-rose-50 text-rose-700 border border-rose-200'
+    default: return 'bg-gray-100 text-gray-700'
+  }
 }
 
-const bookingStatusLabel: Record<string, string> = {
-    BOOKED: 'Đã đặt',
-    IN_USE: 'Đang dọn dẹp',
-    COMPLETED: 'Hoàn Tất',
-    CANCELLED: 'Đã hủy'
+const taskStatusBadgeClass = (status: string) => {
+  switch (status) {
+    case 'DONE': return 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+    case 'IN_PROGRESS':
+    case 'ARRIVED': return 'bg-amber-50 text-amber-700 border border-amber-100'
+    case 'CANCELLED':
+    case 'MISSED': return 'bg-rose-50 text-rose-700 border border-rose-100'
+    default: return 'bg-blue-50 text-blue-700 border border-blue-100'
+  }
+}
+
+const translateBookingStatus = (status: string) => {
+  switch (status) {
+    case 'BOOKED': return 'Đã đặt'
+    case 'IN_USE': return 'Đang sử dụng'
+    case 'COMPLETED': return 'Hoàn tất'
+    case 'CANCELLED': return 'Đã hủy'
+    default: return status
+  }
+}
+
+const translateTaskStatus = (status: string) => {
+  switch (status) {
+    case 'ASSIGNED': return 'Đã gán'
+    case 'NOTIFIED': return 'Đã thông báo'
+    case 'ACCEPTED': return 'Đã chấp nhận'
+    case 'ARRIVED': return 'Đã đến'
+    case 'IN_PROGRESS': return 'Đang làm'
+    case 'DONE': return 'Xong'
+    case 'CANCELLED': return 'Hủy'
+    case 'MISSED': return 'Lỡ'
+    default: return status
+  }
 }
 
 export const CleaningTaskManagement = () => {
-    const dispatch = useAppDispatch()
-    const {
-        items: bookings,
-        pagination: bookingsPagination,
-        isLoading: isBookingsLoading,
-    } = useAppSelector((state) => state.bookings)
-    const {
-        tasks,
-        isTasksLoading,
-        detailData,
-        detailLoading
-    } = useAppSelector((state) => state.managerCleaningTasks)
+  const { clusters, refreshScope } = useManagerScope()
+  const [bookings, setBookings] = useState<BookingItem[]>([])
+  const [pagination, setPagination] = useState<BookingPagination | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [isLoading, setIsLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null)
+  const [bookingTasks, setBookingTasks] = useState<CleaningTaskManagerBookingItem[]>([])
+  const [isTasksLoading, setIsTasksLoading] = useState(false)
+  
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
+  const [detailData, setDetailData] = useState<CleaningTaskWithMediaPayload | null>(null)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
-    const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null)
-    const [detailOpen, setDetailOpen] = useState(false)
-
-    // Pagination states
-    const [currentPage, setCurrentPage] = useState(1)
-    const itemsPerPage = 20
-
-    const fetchBookingsData = async (page = currentPage) => {
-        try {
-            await dispatch(fetchBookings({ page, limit: itemsPerPage })).unwrap()
-        } catch (error: unknown) {
-            toast.error(error as string)
-        }
+  const fetchBookings = async (page = currentPage) => {
+    try {
+      setIsLoading(true)
+      const res = await bookingApi.getAll({ 
+        page, 
+        limit: 10,
+        pod_id: search.trim() ? search.trim() : undefined
+      })
+      
+      setBookings(res.bookings || [])
+      setPagination(res.pagination || null)
+    } catch (err: any) {
+      toast.error('Không thể tải danh sách đặt chỗ')
+    } finally {
+      setIsLoading(false)
     }
+  }
 
-    const fetchTasks = async () => {
-        if (!selectedBookingId) return
-        try {
-            await dispatch(fetchManagerCleaningTasks({
-                booking_id: selectedBookingId,
-                // status: statusFilter === 'all' ? undefined : (statusFilter as any),
-                // request_source: sourceFilter === 'all' ? undefined : (sourceFilter as any),
-                // due_from: dueFrom || undefined,
-                // due_to: dueTo || undefined
-            })).unwrap()
-        } catch (error: unknown) {
-            toast.error(error as string)
-        }
+  const fetchTasksForBooking = async (bookingId: string) => {
+    try {
+      setIsTasksLoading(true)
+      const res = await cleaningTaskApi.getManagerCleanerBooking({ booking_id: bookingId })
+      setBookingTasks(res.data || [])
+    } catch (err: any) {
+      toast.error('Không thể tải danh sách nhiệm vụ của đặt chỗ này')
+    } finally {
+      setIsTasksLoading(false)
     }
+  }
 
-    // Fetch when `currentPage` changes (includes initial mount)
-    useEffect(() => {
-        fetchBookingsData(currentPage)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentPage])
+  useEffect(() => {
+    fetchBookings(currentPage)
+  }, [clusters, currentPage, refreshTrigger])
 
-    // Sync current page from server pagination when it changes
-    useEffect(() => {
-        if (bookingsPagination?.current_page && bookingsPagination.current_page !== currentPage) {
-            setCurrentPage(bookingsPagination.current_page)
-        }
-        // only run when server pagination updates
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [bookingsPagination?.current_page])
-
-    useEffect(() => {
-        if (selectedBookingId) {
-            fetchTasks()
-        } else {
-            dispatch(clearManagerCleaningTasks())
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedBookingId])
-
-    const totalPages = Math.max(1, bookingsPagination?.total_pages ?? 1)
-    const totalItems = bookingsPagination?.total_items ?? bookings.length
-    const pageSize = bookingsPagination?.items_per_page ?? itemsPerPage
-    const pageStart = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1
-    const pageEnd = Math.min(currentPage * pageSize, totalItems)
-
-    const openTaskDetail = async (taskId: string) => {
-        try {
-            setDetailOpen(true)
-            await dispatch(fetchManagerCleaningTaskDetail(taskId)).unwrap()
-        } catch (error: unknown) {
-            toast.error(error as string)
-        }
+  useEffect(() => {
+    if (expandedBookingId) {
+      fetchTasksForBooking(expandedBookingId)
+    } else {
+      setBookingTasks([])
     }
+  }, [expandedBookingId])
 
-    const handleCloseDetail = (open: boolean) => {
-        if (!open) {
-            setDetailOpen(false)
-            dispatch(clearManagerCleaningTaskDetail())
-        }
+  useEffect(() => {
+    const socket = initUserSocket()
+    if (!socket) return
+    const handleRefresh = () => setRefreshTrigger(prev => prev + 1)
+    socket.on('cleaning-task:update', handleRefresh)
+    socket.on('dashboard:refresh', handleRefresh)
+    return () => {
+      socket.off('cleaning-task:update', handleRefresh)
+      socket.off('dashboard:refresh', handleRefresh)
     }
+  }, [])
 
+  const openDetail = async (taskId: string) => {
+    try {
+      setIsDetailLoading(true)
+      setIsDetailOpen(true)
+      const res = await cleaningTaskApi.getWithMedia(taskId)
+      setDetailData(res.data)
+    } catch (err: any) {
+      toast.error('Không thể tải minh chứng của nhiệm vụ')
+      setIsDetailOpen(false)
+    } finally {
+      setIsDetailLoading(false)
+    }
+  }
 
-    return (
-        <div className="space-y-6">
-            <div className="flex flex-col gap-1">
-                <h1 className="text-2xl font-bold text-slate-800">Danh Sách Lịch Đặt(Booking)</h1>
-                <p className="text-sm text-slate-500">
-                    Quản lý nhiệm vụ vệ sinh theo từng booking.
-                </p>
+  const toggleExpand = (id: string) => {
+    setExpandedBookingId(prev => prev === id ? null : id)
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-8">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+            <Sparkles className="text-purple-600 h-8 w-8" />
+            Nhiệm vụ Vệ sinh theo Booking
+          </h1>
+          <p className="text-gray-500 mt-1">Giám sát các đầu việc dọn dẹp tương ứng với từng mã đặt chỗ.</p>
+        </div>
+
+        <div className="flex gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Tìm mã phòng (Pod ID)..."
+              className="pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl w-64 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all shadow-sm"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && fetchBookings(1)}
+            />
+          </div>
+          <button
+            onClick={() => { refreshScope(); setRefreshTrigger(p => p + 1) }}
+            className="p-2.5 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-all shadow-sm"
+          >
+            <RefreshCw className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Bookings Table */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <table className="w-full text-left">
+          <thead className="bg-gray-50/50 border-b border-gray-100">
+            <tr>
+              <th className="px-6 py-4 font-bold text-gray-600 text-sm">Mã Booking</th>
+              <th className="px-6 py-4 font-bold text-gray-600 text-sm">Pod / Cluster</th>
+              <th className="px-6 py-4 font-bold text-gray-600 text-sm text-center">Thời gian sử dụng</th>
+              <th className="px-6 py-4 font-bold text-gray-600 text-sm text-center">Trạng thái</th>
+              <th className="px-6 py-4 font-bold text-gray-600 text-sm text-right">Chi tiết</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {isLoading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i} className="animate-pulse">
+                  <td colSpan={5} className="px-6 py-8"><div className="h-4 bg-gray-100 rounded w-full" /></td>
+                </tr>
+              ))
+            ) : bookings.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-6 py-20 text-center text-gray-400">
+                  <Calendar className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                  Không tìm thấy booking nào trong khu vực của bạn
+                </td>
+              </tr>
+            ) : (
+              bookings.map((booking) => (
+                <Fragment key={booking.id}>
+                  <tr className={`group transition-all ${expandedBookingId === booking.id ? 'bg-purple-50/30' : 'hover:bg-gray-50/50'}`}>
+                    <td className="px-6 py-5">
+                      <div className="flex items-center gap-2">
+                        <Hash className="h-4 w-4 text-gray-300" />
+                        <span className="font-mono font-bold text-gray-900 tracking-tight">{booking.id}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <p className="font-bold text-gray-900">{booking.pod?.name || booking.pod?.code || booking.pod_id}</p>
+                      <p className="text-[10px] text-gray-400 uppercase tracking-wider">{clusters.find(c => c.id === booking.pod?.cluster_id)?.name || '—'}</p>
+                    </td>
+                    <td className="px-6 py-5 text-center">
+                      <p className="text-xs font-medium text-gray-700">{dayjs(booking.start_time).format('DD/MM HH:mm')}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">đến {dayjs(booking.end_time).format('DD/MM HH:mm')}</p>
+                    </td>
+                    <td className="px-6 py-5 text-center">
+                      <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-bold ${bookingStatusBadgeClass(booking.status)}`}>
+                        {translateBookingStatus(booking.status)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-5 text-right">
+                      <button
+                        onClick={() => toggleExpand(booking.id)}
+                        className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                          expandedBookingId === booking.id
+                            ? 'bg-purple-600 text-white shadow-lg shadow-purple-100'
+                            : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        {expandedBookingId === booking.id ? (
+                          <>Đóng <ChevronUp className="h-4 w-4" /></>
+                        ) : (
+                          <>Nhiệm vụ <ChevronDown className="h-4 w-4" /></>
+                        )}
+                      </button>
+                    </td>
+                  </tr>
+
+                  {/* Expanded Content: Tasks */}
+                  {expandedBookingId === booking.id && (
+                    <tr className="bg-purple-50/20 border-b border-purple-50">
+                      <td colSpan={5} className="px-12 py-6">
+                        <div className="bg-white rounded-xl border border-purple-100 shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+                          <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/30 flex items-center justify-between">
+                            <h4 className="text-[11px] font-bold text-purple-600 uppercase tracking-widest italic flex items-center gap-2">
+                              <Sparkles className="h-3.5 w-3.5" />
+                              Các tác vụ dọn dẹp cho Booking #{booking.id}
+                            </h4>
+                            <span className="text-[10px] text-gray-400 font-medium">Tìm thấy {bookingTasks.length} nhiệm vụ</span>
+                          </div>
+
+                          <div className="divide-y divide-gray-50">
+                            {isTasksLoading ? (
+                              <div className="p-10 text-center text-gray-400 flex flex-col items-center gap-2">
+                                <RefreshCw className="h-6 w-6 animate-spin text-purple-400" />
+                                <p className="text-xs font-medium italic">Đang tải danh sách tác vụ...</p>
+                              </div>
+                            ) : bookingTasks.length === 0 ? (
+                              <div className="p-8 text-center text-gray-400 italic text-xs">
+                                Chưa có nhiệm vụ vệ sinh nào được tạo cho booking này
+                              </div>
+                            ) : (
+                              bookingTasks.map((task) => (
+                                <div key={task.id} className="flex items-center justify-between p-4 hover:bg-gray-50/50 transition-colors group">
+                                  <div className="flex items-center gap-4">
+                                    <div className={`w-2 h-2 rounded-full ${task.status === 'DONE' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-gray-300'}`} />
+                                    <div>
+                                      <p className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                                        #{task.id.slice(-6).toUpperCase()}
+                                        <span className="text-[10px] font-medium text-gray-400 font-mono">({task.id})</span>
+                                      </p>
+                                      <div className="flex items-center gap-3 mt-0.5">
+                                        <p className="text-[11px] text-gray-500 flex items-center gap-1">
+                                          <Clock className="h-3 w-3" />
+                                          Hạn: {task.due_at ? dayjs(task.due_at).format('HH:mm DD/MM') : '-'}
+                                        </p>
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-bold uppercase tracking-tighter">
+                                          Nguồn: {task.request_source === 'USER_REQUEST' ? 'Khách' : 'Hệ thống'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-4">
+                                    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-bold ${taskStatusBadgeClass(task.status)}`}>
+                                      {translateTaskStatus(task.status)}
+                                    </span>
+                                    <button
+                                      onClick={() => openDetail(task.id)}
+                                      className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all"
+                                      title="Xem minh chứng"
+                                    >
+                                      <Eye className="h-4.5 w-4.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              ))
+            )}
+          </tbody>
+        </table>
+
+        {/* Pagination */}
+        {pagination && pagination.total_pages > 1 && (
+          <div className="px-6 py-4 bg-gray-50/50 border-t border-gray-100 flex items-center justify-between">
+            <p className="text-xs text-gray-500">
+              Hiển thị <span className="font-bold text-gray-900">{(currentPage - 1) * 10 + 1}</span> - <span className="font-bold text-gray-900">{Math.min(currentPage * 10, pagination.total_items)}</span> trên <span className="font-bold text-gray-900">{pagination.total_items}</span> booking
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(p => p - 1)}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-all"
+              >
+                Trước
+              </button>
+              <span className="text-xs font-bold text-gray-900 px-3">{currentPage} / {pagination.total_pages}</span>
+              <button
+                disabled={currentPage === pagination.total_pages}
+                onClick={() => setCurrentPage(p => p + 1)}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-all"
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Media Detail Modal */}
+      <Modal
+        isOpen={isDetailOpen}
+        onClose={() => setIsDetailOpen(false)}
+        title="Minh chứng Nhiệm vụ Vệ sinh"
+        size="lg"
+      >
+        {isDetailLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <RefreshCw className="h-10 w-10 animate-spin text-purple-500" />
+            <p className="text-gray-500 font-medium animate-pulse italic">Đang tải minh chứng từ hệ thống...</p>
+          </div>
+        ) : detailData ? (
+          <div className="space-y-8">
+             {/* Task Status Summary */}
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Trạng thái</p>
+                <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${taskStatusBadgeClass(detailData.task.status)}`}>
+                  {translateTaskStatus(detailData.task.status)}
+                </span>
+              </div>
+              <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Bắt đầu lúc</p>
+                <p className="text-sm font-bold text-gray-900">{detailData.task.actual_start_time ? dayjs(detailData.task.actual_start_time).format('HH:mm DD/MM') : '-'}</p>
+              </div>
+              <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Hoàn tất lúc</p>
+                <p className="text-sm font-bold text-gray-900">{detailData.task.actual_end_time ? dayjs(detailData.task.actual_end_time).format('HH:mm DD/MM') : '-'}</p>
+              </div>
+              <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Tên Pod</p>
+                <p className="text-sm font-bold text-gray-900">{detailData.task.pod_name || detailData.task.pod_id}</p>
+              </div>
             </div>
 
-            <Card className="shadow-sm border-slate-200 overflow-hidden">
-                <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b bg-slate-50/50 py-4 px-6">
-                    <div>
-                        <CardTitle className="text-md font-bold text-slate-700 uppercase tracking-tight">Lịch đặt chỗ</CardTitle>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        {/* <div className="relative">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                            <Input
-                                value={bookingSearch}
-                                onChange={(event) => setBookingSearch(event.target.value)}
-                                placeholder="Tìm kiếm booking..."
-                                className="pl-9 h-9 w-64 border-slate-200"
-                            />
-                        </div> */}
-                        <Button variant="outline" size="sm" onClick={() => fetchBookingsData(1)} disabled={isBookingsLoading} className="h-9">
-                            <RefreshCw className={`mr-2 h-4 w-4 ${isBookingsLoading ? 'animate-spin' : ''}`} />
-                            Tải lại
-                        </Button>
-                    </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                    <Table>
-                        <TableHeader className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
-                            <TableRow>
-                                <TableHead className="px-6 py-3">Mã Booking</TableHead>
-                                <TableHead className="px-6 py-3">Pod</TableHead>
-                                <TableHead className="px-6 py-3 text-center">Trạng thái</TableHead>
-                                <TableHead className="px-6 py-3">Bắt đầu</TableHead>
-                                <TableHead className="px-6 py-3">Kết thúc</TableHead>
-                                <TableHead className="px-6 py-3 text-right">Hình ảnh</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isBookingsLoading ? (
-                                Array.from({ length: 4 }).map((_, index) => (
-                                    <TableRow key={`booking-skeleton-${index}`} className="animate-pulse">
-                                        <TableCell colSpan={6} className="px-6 py-4">
-                                            <div className="h-4 w-full rounded bg-slate-200" />
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            ) : bookings.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="px-6 py-8 text-center text-slate-400">
-                                        Không tìm thấy booking nào
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                bookings.map((booking) => {
-                                    const isSelected = booking.id === selectedBookingId
-                                    const statusLabel = bookingStatusLabel[booking.status] ?? booking.status
-                                    const statusClass = booking.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
-                                        booking.status === 'CANCELLED' ? 'bg-rose-100 text-rose-700' :
-                                            booking.status === 'IN_USE' ? 'bg-blue-100 text-blue-700 tracking-tight italic' :
-                                                'bg-slate-100 text-slate-500'
-
-                                    return (
-                                        <Fragment key={booking.id}>
-                                            <TableRow className={isSelected ? 'bg-indigo-50/30 border-b border-indigo-100' : 'border-b border-slate-100'}>
-                                                <TableCell className="px-6 py-4 font-mono font-semibold text-indigo-600">#{booking.id}</TableCell>
-                                                <TableCell className="px-6 py-4 font-medium">
-                                                    {booking.pod?.name || booking.pod?.code || booking.pod_id || '—'}
-                                                </TableCell>
-                                                <TableCell className="px-6 py-4 text-center">
-                                                    <span className={`px-2 py-1 rounded-full text-[11px] font-bold uppercase ${statusClass}`}>
-                                                        {statusLabel}
-                                                    </span>
-                                                </TableCell>
-                                                <TableCell className="px-6 py-4 text-slate-500 text-xs">{formatDateTime(booking.start_time)}</TableCell>
-                                                <TableCell className="px-6 py-4 text-slate-500 text-xs">{formatDateTime(booking.end_time)}</TableCell>
-                                                <TableCell className="px-6 py-4 text-right">
-                                                    <Button
-                                                        size="sm"
-                                                        variant={isSelected ? 'default' : 'ghost'}
-                                                        className={isSelected ? 'bg-indigo-600' : 'text-slate-400 hover:text-slate-600 font-medium uppercase text-[10px]'}
-                                                        onClick={() => {
-                                                            setSelectedBookingId(isSelected ? null : booking.id)
-                                                        }}
-                                                    >
-                                                        {isSelected ? (
-                                                            <>Đóng Task</>
-                                                        ) : (
-                                                            <>Chi tiết</>
-                                                        )}
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
-
-                                            {/* Expanded Row for Tasks */}
-                                            {isSelected && (
-                                                <TableRow className="bg-white">
-                                                    <TableCell colSpan={6} className="px-12 py-4 border-b border-slate-200">
-                                                        <div className="border-l-4 border-indigo-500 pl-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                                            <div className="flex items-center justify-between">
-                                                                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest italic">
-                                                                    Các tác vụ Cleaning cho  #{booking.id}
-                                                                </h4>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="sm"
-                                                                    onClick={fetchTasks}
-                                                                    disabled={isTasksLoading}
-                                                                    className="h-8 px-2 text-indigo-600 text-[10px] uppercase font-bold"
-                                                                >
-                                                                    <RefreshCw className={`mr-1 h-3 w-3 ${isTasksLoading ? 'animate-spin' : ''}`} />
-                                                                    Làm mới
-                                                                </Button>
-                                                            </div>
-
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                                {isTasksLoading ? (
-                                                                    Array.from({ length: 3 }).map((_, idx) => (
-                                                                        <div key={`task-sk-${idx}`} className="h-16 bg-slate-50 animate-pulse rounded border border-slate-100" />
-                                                                    ))
-                                                                ) : tasks.length === 0 ? (
-                                                                    <div className="col-span-3 py-4 text-center text-slate-400 italic text-xs">
-                                                                        Không có nhiệm vụ vệ sinh nào
-                                                                    </div>
-                                                                ) : (
-                                                                    tasks.map((task) => (
-                                                                        <div
-                                                                            key={task.id}
-                                                                            className={cn(
-                                                                                "flex items-center gap-3 p-3 border rounded transition-all",
-                                                                                task.status === 'DONE' ? "border-slate-100 bg-slate-50/50" :
-                                                                                    task.status === 'IN_PROGRESS' ? "border-indigo-200 bg-white ring-1 ring-indigo-100 shadow-sm" :
-                                                                                        "border-slate-100 bg-slate-50/50 opacity-100"
-                                                                            )}
-                                                                        >
-                                                                            <div className={cn(
-                                                                                "w-2 h-2 rounded-full",
-                                                                                task.status === 'DONE' ? "bg-green-500" :
-                                                                                    task.status === 'IN_PROGRESS' ? "bg-blue-500 animate-pulse" :
-                                                                                        "bg-slate-300"
-                                                                            )}></div>
-                                                                            <div className="flex-1">
-                                                                                <div className={cn(
-                                                                                    "text-xs font-bold",
-                                                                                    task.status === 'ASSIGNED' ? "text-slate-400 uppercase" : "text-indigo-600 font-mono"
-                                                                                )}>
-                                                                                    {task.id}
-                                                                                </div>
-                                                                                <div className="text-[10px] text-slate-500">Hạn: {formatDateTime(task.due_at)}</div>
-                                                                            </div>
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="sm"
-                                                                                onClick={() => openTaskDetail(task.id)}
-                                                                                className="h-6 px-1 text-[9px] font-bold text-indigo-600 uppercase"
-                                                                            >
-                                                                                Xem
-                                                                            </Button>
-                                                                            <span className={cn(
-                                                                                "text-[9px] font-bold uppercase",
-                                                                                task.status === 'DONE' ? "text-green-600" :
-                                                                                    task.status === 'IN_PROGRESS' ? "text-blue-600" :
-                                                                                        "text-slate-400"
-                                                                            )}>
-                                                                                {task.status === 'DONE' ? 'XONG' :
-                                                                                    task.status === 'IN_PROGRESS' ? 'ĐANG LÀM' : 'Chờ'}
-                                                                            </span>
-                                                                        </div>
-                                                                    ))
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </TableCell>
-                                                </TableRow>
-                                            )}
-                                        </Fragment>
-                                    )
-                                })
-                            )}
-                        </TableBody>
-                    </Table>
-
-                    {/* Pagination Controls */}
-                    {totalPages > 1 && (
-                        <div className="flex items-center justify-between border-t border-slate-200 px-6 py-3">
-                            <div className="text-xs text-slate-500">
-                                Hiển thị <span className="font-semibold text-slate-700">{pageStart}</span> đến <span className="font-semibold text-slate-700">{pageEnd}</span> trong <span className="font-semibold text-slate-700">{totalItems}</span> booking
-                            </div>
-                            <div className="flex items-center gap-1">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                    disabled={currentPage === 1 || isBookingsLoading}
-                                    className="h-8 px-3 text-xs"
-                                >
-                                    Trước
-                                </Button>
-                                <div className="flex items-center justify-center min-w-[2rem] text-xs font-medium text-slate-700">
-                                    {currentPage} / {totalPages}
-                                </div>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                    disabled={currentPage === totalPages || isBookingsLoading}
-                                    className="h-8 px-3 text-xs"
-                                >
-                                    Sau
-                                </Button>
-                            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Before */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2 mb-4">
+                  <div className="w-1.5 h-4 bg-amber-400 rounded-full" />
+                  Ảnh/Video TRƯỚC khi dọn
+                </h3>
+                {detailData.media.before.length === 0 ? (
+                  <div className="aspect-video rounded-2xl bg-gray-50 border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400">
+                    <AlertCircle className="h-8 w-8 mb-2 opacity-20" />
+                    <p className="text-xs">Không có dữ liệu minh chứng</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    {detailData.media.before.map(m => (
+                      <div key={m.id} className="group relative aspect-square rounded-xl overflow-hidden border border-gray-200 shadow-sm bg-black">
+                        {m.file_type === 'VIDEO' ? (
+                          <video src={m.media.url} className="w-full h-full object-contain" controls />
+                        ) : (
+                          <img src={m.media.url} alt="Before" className="w-full h-full object-cover transition-transform group-hover:scale-105" referrerPolicy="no-referrer" />
+                        )}
+                        <div className="absolute top-2 right-2 p-1 bg-black/50 backdrop-blur-md rounded-lg">
+                          {m.file_type === 'VIDEO' ? <Video className="h-3 w-3 text-white" /> : <ImageIcon className="h-3 w-3 text-white" />}
                         </div>
-                    )}
-                </CardContent>
-            </Card>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-            <Dialog open={detailOpen} onOpenChange={handleCloseDetail}>
-                <DialogContent className="max-h-[85vh] max-w-2xl overflow-hidden p-0 border-none shadow-2xl rounded-xl">
-                    <DialogHeader className="bg-slate-900 text-white p-6 rounded-t-xl">
-                        <DialogTitle className="text-lg font-bold uppercase tracking-tight italic">Chi tiết nhiệm vụ vệ sinh</DialogTitle>
-                    </DialogHeader>
-
-                    {detailLoading ? (
-                        <div className="flex h-56 items-center justify-center text-slate-400 bg-white">
-                            <RefreshCw className="h-8 w-8 animate-spin text-indigo-500" />
+              {/* After */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2 mb-4">
+                  <div className="w-1.5 h-4 bg-emerald-400 rounded-full" />
+                  Ảnh/Video SAU khi hoàn tất
+                </h3>
+                {detailData.media.after.length === 0 ? (
+                  <div className="aspect-video rounded-2xl bg-gray-50 border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400">
+                    <AlertCircle className="h-8 w-8 mb-2 opacity-20" />
+                    <p className="text-xs">Không có dữ liệu minh chứng</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    {detailData.media.after.map(m => (
+                      <div key={m.id} className="group relative aspect-square rounded-xl overflow-hidden border border-gray-200 shadow-sm bg-black">
+                        {m.file_type === 'VIDEO' ? (
+                          <video src={m.media.url} className="w-full h-full object-contain" controls />
+                        ) : (
+                          <img src={m.media.url} alt="After" className="w-full h-full object-cover transition-transform group-hover:scale-105" referrerPolicy="no-referrer" />
+                        )}
+                        <div className="absolute top-2 right-2 p-1 bg-black/50 backdrop-blur-md rounded-lg">
+                          {m.file_type === 'VIDEO' ? <Video className="h-3 w-3 text-white" /> : <ImageIcon className="h-3 w-3 text-white" />}
                         </div>
-                    ) : !detailData ? (
-                        <div className="py-12 text-center text-slate-400 bg-white">Không có dữ liệu chi tiết</div>
-                    ) : (
-                        <div className="bg-white p-6 space-y-8 overflow-y-auto max-h-[calc(85vh-80px)]">
-                            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
-                                {[
-                                    { label: 'Mã Nhiệm vụ', value: detailData.task.id, mono: true },
-                                    { label: 'Trạng thái', value: detailData.task.status, highlight: true },
-                                    { label: 'Pod', value: detailData.task.pod_name ?? detailData.task.pod_id },
-                                    { label: 'Địa điểm', value: detailData.task.location_name ?? '—' },
-                                    { label: 'Dự kiến', value: formatDateTime(detailData.task.estimated_start_time) },
-                                    { label: 'Hạn chót', value: formatDateTime(detailData.task.due_at) },
-                                    { label: 'Bắt đầu', value: formatDateTime(detailData.task.actual_start_time) },
-                                    { label: 'Kết thúc', value: formatDateTime(detailData.task.actual_end_time) },
-                                ].map((item, idx) => (
-                                    <div key={idx} className="bg-slate-50 border border-slate-100 p-3 rounded">
-                                        <p className="text-[9px] font-bold uppercase text-slate-400 mb-1">{item.label}</p>
-                                        <p className={cn(
-                                            "text-xs font-semibold",
-                                            item.mono ? "font-mono text-indigo-600" : "text-slate-800",
-                                            item.highlight && "text-blue-600 italic"
-                                        )}>{item.value || '—'}</p>
-                                    </div>
-                                ))}
-                            </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
 
-                            <div className="space-y-6">
-                                <div className="space-y-3">
-                                    <h3 className="text-[10px] font-bold uppercase text-slate-400 tracking-widest border-b pb-1">Ảnh trước khi dọn dẹp</h3>
-                                    {detailData.media.before.length === 0 ? (
-                                        <div className="bg-slate-50 border border-dashed text-slate-400 py-8 rounded text-center text-xs">Không có dữ liệu ảnh trước</div>
-                                    ) : (
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                            {detailData.media.before.map((item) => (
-                                                <div key={item.id} className="aspect-square rounded overflow-hidden border border-slate-200">
-                                                    <img src={item.media.url} alt="Before" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="space-y-3">
-                                    <h3 className="text-[10px] font-bold uppercase text-slate-400 tracking-widest border-b pb-1">Ảnh sau khi hoàn tất</h3>
-                                    {detailData.media.after.length === 0 ? (
-                                        <div className="bg-slate-50 border border-dashed text-slate-400 py-8 rounded text-center text-xs">Khôngh có dữ liệu ảnh sau</div>
-                                    ) : (
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                            {detailData.media.after.map((item) => (
-                                                <div key={item.id} className="aspect-square rounded overflow-hidden border border-slate-200">
-                                                    <img src={item.media.url} alt="After" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </DialogContent>
-            </Dialog>
-        </div>
-    )
-
+            <div className="flex justify-end pt-4">
+              <button
+                onClick={() => setIsDetailOpen(false)}
+                className="px-8 py-3 bg-gray-900 text-white font-bold rounded-2xl hover:bg-gray-800 transition-all shadow-xl shadow-gray-200"
+              >
+                Đóng chi tiết
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+    </div>
+  )
 }
-
-
-
-
-

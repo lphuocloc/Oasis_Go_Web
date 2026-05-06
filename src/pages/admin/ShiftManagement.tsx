@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Clock, MapPin, CalendarDays, Plus, Trash2, RefreshCw, LogIn, LogOut, Boxes } from 'lucide-react'
+import { useEffect, useState, useMemo } from 'react'
+import { Clock, MapPin, CalendarDays, Plus, Trash2, RefreshCw, LogIn, LogOut } from 'lucide-react'
 import dayjs from 'dayjs'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
@@ -11,9 +11,9 @@ import { staffAttendanceLogApi, type StaffAttendanceLogItem } from '../../api/li
 import { userApi, type UserListItem } from '../../api/lib/userApi'
 import { locationApi, type LocationItem } from '../../api/lib/locationApi'
 import { initUserSocket } from '../../lib/socket'
-import { podClusterApi, type PodClusterItem } from '../../api/lib/podClusterApi'
 
-type TabType = 'STAFF_SHIFTS' | 'LOCATION_SHIFTS' | 'MANAGER_ROSTERS' | 'CLEANER_ROSTERS' | 'ATTENDANCE'
+
+type TabType = 'STAFF_SHIFTS' | 'LOCATION_SHIFTS' | 'MANAGER_ROSTERS' | 'ATTENDANCE'
 
 const getShiftColor = (name: string) => {
   const n = name.toUpperCase()
@@ -42,10 +42,10 @@ const SectionHeader = ({ title, description, onRefresh, isLoading, rightAction }
 
 // ========== TAB 1: STAFF SHIFTS (CRUD) ==========
 const FIXED_SHIFTS = {
-  'CA SÁNG':  { start_time: '06:00', end_time: '12:00' },
+  'CA SÁNG': { start_time: '06:00', end_time: '12:00' },
   'CA CHIỀU': { start_time: '12:00', end_time: '18:00' },
-  'CA TỐI':   { start_time: '18:00', end_time: '00:00' },
-  'CA ĐÊM':   { start_time: '00:00', end_time: '06:00' },
+  'CA TỐI': { start_time: '18:00', end_time: '00:00' },
+  'CA ĐÊM': { start_time: '00:00', end_time: '06:00' },
 } as const
 
 const StaffShiftsTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
@@ -85,11 +85,11 @@ const StaffShiftsTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
         }
       />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {(Object.entries(FIXED_SHIFTS) as [keyof typeof FIXED_SHIFTS, {start_time:string,end_time:string}][]).map(([name, times]) => {
+        {(Object.entries(FIXED_SHIFTS) as [keyof typeof FIXED_SHIFTS, { start_time: string, end_time: string }][]).map(([name, times]) => {
           const existing = shifts.find(s => s.shift_name === name)
           const c = getShiftColor(name)
           return (
-            <div key={name} className={`p-5 rounded-xl border ${existing ? c.border+' '+c.bg : 'border-dashed border-gray-200 bg-white opacity-60'}`}>
+            <div key={name} className={`p-5 rounded-xl border ${existing ? c.border + ' ' + c.bg : 'border-dashed border-gray-200 bg-white opacity-60'}`}>
               <div className="flex justify-between items-start mb-3">
                 <span className={`text-xs font-semibold uppercase tracking-wider ${existing ? c.text : 'text-gray-400'}`}>{existing ? 'Đã tạo' : 'Chưa tạo'}</span>
                 {existing && <button onClick={() => handleDelete(existing.id)} className="p-1 text-gray-300 hover:text-red-500 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>}
@@ -303,7 +303,7 @@ const LocationShiftsTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
               <div className="flex flex-col">
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">2. Chọn Ca Trực ({shifts.length})</label>
                 <div className="space-y-3">
-                  {shifts.sort((a,b) => a.start_time.localeCompare(b.start_time)).map(s => {
+                  {shifts.sort((a, b) => a.start_time.localeCompare(b.start_time)).map(s => {
                     const c = getShiftColor(s.shift_name)
                     const isSelected = bulkShiftIds.includes(s.id)
                     return (
@@ -355,7 +355,7 @@ const ManagerRostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
     try {
       setIsLoading(true)
       const [rR, mR, cR, lR, lsR, sR] = await Promise.all([
-        staffWorkRosterApi.getAll(), 
+        staffWorkRosterApi.getAll(),
         userApi.getActiveUsers('manager'),
         userApi.getActiveUsers('cleaner'),
         locationApi.getAll({ isActive: 'true' }), locationShiftApi.getAll(), staffShiftApi.getAll()
@@ -394,7 +394,7 @@ const ManagerRostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
     <div>
       <SectionHeader title="Roster Manager" description="Gán Manager vào Location con + Ca trực (kế thừa từ Location cha)." onRefresh={fetchData} isLoading={isLoading}
         rightAction={
-          <button onClick={() => { setFormData({ staff_id: '', location_id: '', shift_id: '' }); setIsModalOpen(true) }} 
+          <button onClick={() => { setFormData({ staff_id: '', location_id: '', shift_id: '' }); setIsModalOpen(true) }}
             className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors">
             <Plus className="w-4 h-4" /> Thêm Roster
           </button>
@@ -447,21 +447,21 @@ const ManagerRostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
             <div className="space-y-4 mb-6">
               <div className="space-y-1">
                 <label className="text-sm font-medium text-gray-700">Manager</label>
-                <select value={formData.staff_id} onChange={e => setFormData({...formData, staff_id: e.target.value})} className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm">
+                <select value={formData.staff_id} onChange={e => setFormData({ ...formData, staff_id: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm">
                   <option value="">-- Chọn --</option>
                   {managers.map(m => <option key={m.id || m._id} value={m.id || m._id}>{m.name}</option>)}
                 </select>
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium text-gray-700">Location Con</label>
-                <select value={formData.location_id} onChange={e => setFormData({...formData, location_id: e.target.value, shift_id: ''})} className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm">
+                <select value={formData.location_id} onChange={e => setFormData({ ...formData, location_id: e.target.value, shift_id: '' })} className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm">
                   <option value="">-- Chọn --</option>
                   {childLocations.map(l => <option key={l.id} value={l.id}>{l.name} ({l.type})</option>)}
                 </select>
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium text-gray-700">Ca Trực {formData.location_id && `(${getAvailableShifts().length} ca từ Location cha)`}</label>
-                <select disabled={!formData.location_id} value={formData.shift_id} onChange={e => setFormData({...formData, shift_id: e.target.value})} className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm disabled:opacity-50">
+                <select disabled={!formData.location_id} value={formData.shift_id} onChange={e => setFormData({ ...formData, shift_id: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm disabled:opacity-50">
                   <option value="">-- Chọn --</option>
                   {getAvailableShifts().map(s => <option key={s.id} value={s.id}>{s.shift_name} ({s.start_time}-{s.end_time})</option>)}
                 </select>
@@ -478,221 +478,261 @@ const ManagerRostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
   )
 }
 
-// ========== TAB: CLEANER ROSTERS ==========
-const CleanerRostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
-  const [rosters, setRosters] = useState<StaffWorkRosterItem[]>([])
-  const [cleaners, setCleaners] = useState<UserListItem[]>([])
-  const [locations, setLocations] = useState<LocationItem[]>([])
-  const [clusters, setClusters] = useState<PodClusterItem[]>([])
-  const [shifts, setShifts] = useState<StaffShiftItem[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [formData, setFormData] = useState({ staff_id: '', location_id: '', cluster_id: '', shift_id: '' })
-
-  const fetchData = async () => {
-    try {
-      setIsLoading(true)
-      const [rR, cR, lR, clR, sR] = await Promise.all([
-        staffWorkRosterApi.getAll().catch(() => ({ data: [] })),
-        userApi.getActiveUsers('cleaner').catch(() => ({ data: [] })),
-        locationApi.getAll({ isActive: 'true' }).catch(() => ({ data: [] })),
-        podClusterApi.getAll().catch(() => ({ data: [] })),
-        staffShiftApi.getAll().catch(() => ({ data: [] }))
-      ])
-      
-      const allClusters = clR.data || []
-      const clusterIds = allClusters.map((x: any) => x.id)
-      
-      setRosters((rR.data || []).filter((r: any) => clusterIds.includes(r.cluster_id || '') || r.cluster_id))
-      setCleaners(cR.data || [])
-      setLocations(lR.data || [])
-      setClusters(allClusters)
-      setShifts(sR.data || [])
-    } catch { toast.error('Lỗi tải dữ liệu') } finally { setIsLoading(false) }
-  }
-  
-  useEffect(() => { fetchData() }, [refreshTrigger])
-
-  const childLocations = locations.filter(l => l.parent_id)
-  const availableClusters = clusters.filter(cl => cl.location_id === formData.location_id)
-  const handleDelete = async (id: string) => {
-    if (!confirm('Xóa roster của cleaner này?')) return
-    try {
-      await staffWorkRosterApi.delete(id)
-      toast.success('Đã xóa roster')
-      fetchData()
-    } catch { toast.error('Xóa thất bại') }
-  }
-
-  const handleSubmit = async () => {
-    if (!formData.staff_id || !formData.cluster_id || !formData.shift_id) return toast.error('Vui lòng điền đủ thông tin')
-
-    try {
-      await staffWorkRosterApi.create({
-        ...formData
-      })
-      toast.success('Đã gán roster thành công')
-      setIsModalOpen(false)
-      fetchData()
-    } catch (err: any) { toast.error(err.response?.data?.message || 'Lỗi tạo roster') }
-  }
-
-  return (
-    <div>
-      <SectionHeader title="Roster Cleaner" description="Gán nhân viên dọn dẹp vào cụm Pod (Cluster) cố định trên toàn hệ thống." onRefresh={fetchData} isLoading={isLoading}
-        rightAction={
-          <button onClick={() => { setFormData({ staff_id: '', location_id: '', cluster_id: '', shift_id: '' }); setIsModalOpen(true) }} className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-100">
-            <Plus className="w-4 h-4" /> Thêm Roster
-          </button>
-        }
-      />
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <table className="w-full text-sm text-left">
-          <thead className="bg-gray-50 border-b border-gray-100">
-            <tr>
-              <th className="px-6 py-4 font-bold text-gray-700">Cleaner</th>
-              <th className="px-6 py-4 font-bold text-gray-700">Khu Vực</th>
-              <th className="px-6 py-4 font-bold text-gray-700">Cluster</th>
-              <th className="px-6 py-4 font-bold text-gray-700">Ca Trực</th>
-              <th className="px-6 py-4 font-bold text-gray-700 text-right">Thao Tác</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {rosters.map(r => {
-              const c = cleaners.find(x => x.id === r.staff_id || x._id === r.staff_id)
-              const cl = clusters.find(x => x.id === r.cluster_id)
-              const loc = locations.find(x => x.id === cl?.location_id)
-              const s = shifts.find(x => x.id === r.shift_id)
-              const colors = getShiftColor(s?.shift_name || '')
-              return (
-                <tr key={r.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-gray-900">{c?.name || r.staff_id}</div>
-                    <div className="text-xs text-gray-500 font-mono">{c?.id}</div>
-                  </td>
-                  <td className="px-6 py-4 font-medium text-gray-700">{loc?.name || 'N/A'}</td>
-                  <td className="px-6 py-4 font-medium text-gray-700">{cl?.name || 'N/A'}</td>
-                  <td className="px-6 py-4">
-                    {s ? <span className={`px-3 py-1 rounded-full text-xs font-bold border ${colors.bg} ${colors.text} ${colors.border}`}>{s.shift_name} ({s.start_time}-{s.end_time})</span> : 'N/A'}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button onClick={() => handleDelete(r.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"><Trash2 className="w-4 h-4" /></button>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Gán Roster Cleaner" size="md">
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Nhân Viên Dọn Dẹp</label>
-            <select value={formData.staff_id} onChange={e => setFormData({ ...formData, staff_id: e.target.value })} className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500">
-              <option value="">-- Chọn Cleaner --</option>
-              {cleaners.map(c => <option key={c.id || c._id} value={c.id || c._id}>{c.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Khu Vực (Location)</label>
-            <select value={formData.location_id} onChange={e => setFormData({ ...formData, location_id: e.target.value, cluster_id: '', shift_id: '' })} className="w-full px-4 py-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-blue-500">
-              <option value="">-- Chọn Khu Vực --</option>
-              {childLocations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Cluster</label>
-            <select disabled={!formData.location_id} value={formData.cluster_id} onChange={e => setFormData({ ...formData, cluster_id: e.target.value })} className="w-full px-4 py-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50">
-              <option value="">-- Chọn Cluster --</option>
-              {availableClusters.map(cl => <option key={cl.id} value={cl.id}>{cl.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Ca Trực</label>
-            <select value={formData.shift_id} onChange={e => setFormData({ ...formData, shift_id: e.target.value })} className="w-full px-4 py-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-blue-500">
-              <option value="">-- Chọn Ca Trực --</option>
-              {shifts.map(s => <option key={s.id} value={s.id}>{s.shift_name} ({s.start_time}-{s.end_time})</option>)}
-            </select>
-          </div>
-          <div className="pt-6 flex justify-end gap-3">
-            <button onClick={() => setIsModalOpen(false)} className="px-6 py-3 font-bold text-gray-500 hover:bg-gray-100 rounded-xl transition-all">Hủy</button>
-            <button onClick={handleSubmit} className="px-8 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all">Gán Roster</button>
-          </div>
-        </div>
-      </Modal>
-    </div>
-  )
-}
 
 
 // ========== TAB 4: ATTENDANCE (Live Logs) ==========
 const AttendanceTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
   const [logs, setLogs] = useState<StaffAttendanceLogItem[]>([])
+  const [rosters, setRosters] = useState<StaffWorkRosterItem[]>([])
+  const [locations, setLocations] = useState<LocationItem[]>([])
+  const [shifts, setShifts] = useState<StaffShiftItem[]>([])
+  const [staffs, setStaffs] = useState<UserListItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'))
+  const [parentLocId, setParentLocId] = useState<string>('')
+  const [childLocId, setChildLocId] = useState<string>('')
+  const [roleFilter, setRoleFilter] = useState<'all' | 'manager' | 'cleaner'>('manager')
 
-  const fetchLogs = async () => {
+  const fetchData = async () => {
     try {
       setIsLoading(true)
-      const res = await staffAttendanceLogApi.getAll({ date: selectedDate, limit: 100 })
-      setLogs(res.data || [])
+      const filters: any = { date: selectedDate, limit: 200 }
+      if (childLocId) filters.location_id = childLocId
+      else if (parentLocId) filters.location_id = parentLocId
+
+      const [logRes, rosterRes, locRes, shiftRes, managerRes, cleanerRes] = await Promise.all([
+        staffAttendanceLogApi.getAll(filters),
+        staffWorkRosterApi.getAll().catch(() => ({ data: [] })),
+        locationApi.getAll({ isActive: 'true' }).catch(() => ({ data: [] })),
+        staffShiftApi.getAll().catch(() => ({ data: [] })),
+        userApi.getActiveUsers('manager').catch(() => ({ data: [] })),
+        userApi.getActiveUsers('cleaner').catch(() => ({ data: [] }))
+      ])
+
+      setLogs(logRes.data || [])
+      setRosters(rosterRes.data || [])
+      setLocations(locRes.data || [])
+      setShifts(shiftRes.data || [])
+      setStaffs([...(managerRes.data || []), ...(cleanerRes.data || [])])
     } catch { toast.error('Lỗi tải nhật ký điểm danh') } finally { setIsLoading(false) }
   }
 
-  useEffect(() => { fetchLogs() }, [selectedDate, refreshTrigger])
+  useEffect(() => { fetchData() }, [selectedDate, parentLocId, childLocId, refreshTrigger])
 
-  const groupedLogs = logs.reduce((acc: any, log) => {
-    const key = log.staff_id
-    if (!acc[key]) acc[key] = { staff: log.staff, checkin: null, checkout: null, area: '' }
-    if (log.action === 'CHECKIN') acc[key].checkin = log
-    if (log.action === 'CHECKOUT') acc[key].checkout = log
-    acc[key].area = log.location?.name || log.cluster?.name || 'N/A'
-    return acc
-  }, {})
+  const parentLocs = locations.filter(l => !l.parent_id)
+  const childLocs = locations.filter(l => l.parent_id === parentLocId)
+
+  // Combined logic: Roster + Logs
+  const displayData = useMemo(() => {
+    const results: any[] = []
+    const processedKeys = new Set<string>()
+
+    // 1. Process from Roster (Primary source)
+    rosters.forEach(r => {
+      // Basic validation: must have staff, location, and shift
+      if (!r.staff_id || !r.location_id || !r.shift_id) return
+
+      const staff = staffs.find(s => s.id === r.staff_id || (s as any)._id === r.staff_id)
+      if (!staff) return
+      if (roleFilter !== 'all' && staff.role !== roleFilter) return
+
+      const loc = locations.find(l => l.id === r.location_id)
+      if (!loc) return // Skip if location details not found
+
+      // Filter by location selection
+      if (childLocId && r.location_id !== childLocId) return
+      if (!childLocId && parentLocId) {
+        if (loc.id !== parentLocId && loc.parent_id !== parentLocId) return
+      }
+
+      const shift = shifts.find(s => s.id === r.shift_id)
+      if (!shift) return // Skip if shift details not found
+
+      const key = `${r.staff_id}_${r.shift_id}_${r.location_id}`
+      processedKeys.add(key)
+
+      // Find matching logs for THIS SPECIFIC roster (Staff + Shift + Location)
+      const staffLogs = logs.filter(l =>
+        l.staff_id === r.staff_id &&
+        l.shift_id === r.shift_id &&
+        l.location_id === r.location_id
+      )
+      const checkin = staffLogs.find(l => l.action === 'CHECKIN')
+      const checkout = staffLogs.find(l => l.action === 'CHECKOUT')
+
+      // Determine Status
+      let status = 'UPCOMING'
+      let statusText = 'Chưa vào ca'
+      let statusColor = 'bg-gray-100 text-gray-500 border-gray-200'
+
+      if (checkin) {
+        if (checkout) {
+          status = 'COMPLETED'
+          statusText = 'Hoàn thành'
+          statusColor = 'bg-blue-50 text-blue-700 border-blue-100'
+        } else {
+          status = 'WORKING'
+          statusText = 'Đang trực'
+          statusColor = 'bg-green-50 text-green-700 border-green-100'
+        }
+      } else {
+        const now = dayjs()
+        const isToday = dayjs(selectedDate).isSame(now, 'day')
+        const isPastDay = dayjs(selectedDate).isBefore(now, 'day')
+
+        const [sh, sm] = shift.start_time.split(':').map(Number)
+        const [eh, em] = shift.end_time.split(':').map(Number)
+        let start = dayjs(selectedDate).hour(sh).minute(sm).second(0)
+        let end = dayjs(selectedDate).hour(eh).minute(em).second(0)
+        if (end.isBefore(start)) end = end.add(1, 'day')
+
+        if (isPastDay || (isToday && now.isAfter(end))) {
+          status = 'ABSENT'
+          statusText = 'Vắng mặt'
+          statusColor = 'bg-rose-50 text-rose-700 border-rose-100'
+        } else if (isToday && now.isAfter(start)) {
+          status = 'LATE'
+          statusText = 'Chưa vào ca (Muộn)'
+          statusColor = 'bg-orange-50 text-orange-700 border-orange-100'
+        }
+      }
+
+      results.push({ staff, loc, shift, checkin, checkout, status, statusText, statusColor, isRoster: true })
+    })
+
+    // 2. Add extra logs (people not in roster or different location/shift)
+    logs.filter(l => l.action === 'CHECKIN').forEach(l => {
+      const key = `${l.staff_id}_${l.shift_id}_${l.location_id}`
+      if (processedKeys.has(key)) return
+
+      const staff = staffs.find(s => s.id === l.staff_id || (s as any)._id === l.staff_id)
+      if (!staff) return
+      if (roleFilter !== 'all' && staff.role !== roleFilter) return
+
+      const loc = locations.find(loc => loc.id === l.location_id)
+      const shift = shifts.find(s => s.id === l.shift_id)
+
+      const checkout = logs.find(lx =>
+        lx.staff_id === l.staff_id &&
+        lx.shift_id === l.shift_id &&
+        lx.location_id === l.location_id &&
+        lx.action === 'CHECKOUT'
+      )
+
+      results.push({
+        staff, loc, shift, checkin: l, checkout,
+        status: checkout ? 'COMPLETED' : 'WORKING',
+        statusText: checkout ? 'Hoàn thành' : 'Đang trực',
+        statusColor: checkout ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-green-50 text-green-700 border-green-100',
+        isRoster: false
+      })
+    })
+
+    return results
+  }, [logs, rosters, staffs, locations, shifts, selectedDate, parentLocId, childLocId, roleFilter])
 
   return (
     <div>
-      <SectionHeader title="Nhật Ký Điểm Danh" description="Theo dõi trạng thái check-in/out của nhân viên trong ngày." onRefresh={fetchLogs} isLoading={isLoading}
+      <SectionHeader title="Điểm Danh Hệ Thống" description="Theo dõi sự hiện diện, vắng mặt và trạng thái làm việc của nhân viên." onRefresh={fetchData} isLoading={isLoading}
         rightAction={
-          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200">
-            <CalendarDays className="w-4 h-4 text-gray-400" />
-            <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="bg-transparent border-none text-sm font-medium text-gray-700 focus:ring-0 p-0" />
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200">
+              <MapPin className="w-3.5 h-3.5 text-gray-400" />
+              <select value={parentLocId} onChange={e => { setParentLocId(e.target.value); setChildLocId('') }} className="bg-transparent border-none text-xs font-bold text-gray-700 focus:ring-0 p-0 pr-6">
+                <option value="">-- Tất cả Location --</option>
+                {parentLocs.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
+            </div>
+
+            {parentLocId && childLocs.length > 0 && (
+              <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 animate-in fade-in zoom-in duration-200">
+                <select value={childLocId} onChange={e => setChildLocId(e.target.value)} className="bg-transparent border-none text-xs font-bold text-gray-700 focus:ring-0 p-0 pr-6">
+                  <option value="">-- Khu vực cụ thể --</option>
+                  {childLocs.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200">
+              <select value={roleFilter} onChange={e => setRoleFilter(e.target.value as any)} className="bg-transparent border-none text-xs font-bold text-gray-700 focus:ring-0 p-0 pr-6">
+                <option value="manager">Chỉ Manager</option>
+                <option value="cleaner">Chỉ Cleaner</option>
+                <option value="all">Tất cả Vai Trò</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200">
+              <CalendarDays className="w-4 h-4 text-gray-400" />
+              <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="bg-transparent border-none text-sm font-medium text-gray-700 focus:ring-0 p-0" />
+            </div>
           </div>
         }
       />
+
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <table className="w-full text-sm text-left">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr>
               <th className="px-6 py-4 font-bold text-gray-700">Nhân Viên</th>
-              <th className="px-6 py-4 font-bold text-gray-700">Khu Vực / Cluster</th>
+              <th className="px-6 py-4 font-bold text-gray-700">Vị Trí / Ca Trực</th>
               <th className="px-6 py-4 font-bold text-gray-700 text-center">Check-in</th>
               <th className="px-6 py-4 font-bold text-gray-700 text-center">Check-out</th>
+              <th className="px-6 py-4 font-bold text-gray-700 text-center">Trạng Thái</th>
               <th className="px-6 py-4 font-bold text-gray-700 text-right">Tổng Giờ</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {Object.values(groupedLogs).map((entry: any, idx: number) => {
+            {displayData.map((entry: any, idx: number) => {
               const duration = entry.checkin && entry.checkout ? dayjs(entry.checkout.created_at).diff(dayjs(entry.checkin.created_at), 'hour', true).toFixed(1) : '-'
               return (
                 <tr key={idx} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4">
                     <div className="font-bold text-gray-900">{entry.staff?.name || 'N/A'}</div>
-                    <div className="text-xs text-gray-400 uppercase font-bold">{entry.staff?.role}</div>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${entry.staff.role === 'manager' ? 'bg-indigo-100 text-indigo-700' : 'bg-orange-100 text-orange-700'}`}>
+                        {entry.staff.role}
+                      </span>
+                      {!entry.isRoster && <span className="text-[9px] text-rose-500 font-bold border border-rose-200 px-1 rounded">Ngoài Roster</span>}
+                    </div>
                   </td>
-                  <td className="px-6 py-4 font-medium text-gray-600">{entry.area}</td>
-                  <td className="px-6 py-4 text-center">
-                    {entry.checkin ? <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-50 text-green-700 rounded-lg font-bold border border-green-100 text-xs"><LogIn className="w-3 h-3" /> {dayjs(entry.checkin.created_at).format('HH:mm')}</span> : <span className="text-gray-300">-</span>}
+                  <td className="px-6 py-4">
+                    <div className="font-medium text-gray-700">{entry.loc?.name || 'N/A'}</div>
+                    <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> {entry.shift?.shift_name || 'N/A'} ({entry.shift?.start_time} - {entry.shift?.end_time})
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-center">
-                    {entry.checkout ? <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-50 text-rose-700 rounded-lg font-bold border border-rose-100 text-xs"><LogOut className="w-3 h-3" /> {dayjs(entry.checkout.created_at).format('HH:mm')}</span> : <span className="text-gray-300">-</span>}
+                    {entry.checkin ? (
+                      <div className="flex flex-col items-center">
+                        <span className="text-xs font-bold text-gray-900">{dayjs(entry.checkin.created_at).format('HH:mm')}</span>
+                        <span className="text-[10px] text-gray-400 uppercase font-bold">{dayjs(entry.checkin.created_at).format('DD/MM')}</span>
+                      </div>
+                    ) : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    {entry.checkout ? (
+                      <div className="flex flex-col items-center">
+                        <span className="text-xs font-bold text-gray-900">{dayjs(entry.checkout.created_at).format('HH:mm')}</span>
+                        <span className="text-[10px] text-gray-400 uppercase font-bold">{dayjs(entry.checkout.created_at).format('DD/MM')}</span>
+                      </div>
+                    ) : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${entry.statusColor}`}>
+                      {entry.statusText}
+                    </span>
                   </td>
                   <td className="px-6 py-4 text-right font-mono font-bold text-indigo-600">{duration !== '-' ? `${duration}h` : '-'}</td>
                 </tr>
               )
             })}
-            {Object.keys(groupedLogs).length === 0 && !isLoading && <tr><td colSpan={5} className="p-12 text-center text-gray-400">Không có dữ liệu điểm danh ngày {selectedDate}</td></tr>}
+            {displayData.length === 0 && !isLoading && (
+              <tr>
+                <td colSpan={6} className="p-12 text-center text-gray-400 italic">
+                  Không tìm thấy dữ liệu điểm danh phù hợp.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -716,7 +756,6 @@ export const AdminShiftManagement = () => {
     { id: 'STAFF_SHIFTS', label: 'Mẫu Ca', icon: <Clock className="w-4 h-4" /> },
     { id: 'LOCATION_SHIFTS', label: 'Khu Vực', icon: <MapPin className="w-4 h-4" /> },
     { id: 'MANAGER_ROSTERS', label: 'Roster Manager', icon: <CalendarDays className="w-4 h-4" /> },
-    { id: 'CLEANER_ROSTERS', label: 'Roster Cleaner', icon: <Boxes className="w-4 h-4" /> },
     { id: 'ATTENDANCE', label: 'Điểm Danh', icon: <LogIn className="w-4 h-4" /> },
   ]
 
@@ -741,7 +780,6 @@ export const AdminShiftManagement = () => {
           {activeTab === 'STAFF_SHIFTS' && <StaffShiftsTab refreshTrigger={refreshTrigger} />}
           {activeTab === 'LOCATION_SHIFTS' && <LocationShiftsTab refreshTrigger={refreshTrigger} />}
           {activeTab === 'MANAGER_ROSTERS' && <ManagerRostersTab refreshTrigger={refreshTrigger} />}
-          {activeTab === 'CLEANER_ROSTERS' && <CleanerRostersTab refreshTrigger={refreshTrigger} />}
           {activeTab === 'ATTENDANCE' && <AttendanceTab refreshTrigger={refreshTrigger} />}
         </div>
       </div>

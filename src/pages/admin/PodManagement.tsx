@@ -122,7 +122,7 @@ export const AdminPodManagement = () => {
       })
       setPods(response.data)
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to load pods')
+      toast.error(error?.response?.data?.message || 'Không thể tải danh sách Pod')
     } finally {
       setIsLoading(false)
     }
@@ -133,7 +133,7 @@ export const AdminPodManagement = () => {
       try {
         await Promise.all([fetchClusters(), fetchPods()])
       } catch (error: any) {
-        toast.error(error?.response?.data?.message || 'Failed to initialize pod data')
+        toast.error(error?.response?.data?.message || 'Không thể khởi tạo dữ liệu Pod')
       }
     }
 
@@ -231,19 +231,19 @@ export const AdminPodManagement = () => {
     const duration = Number(form.max_session_duration)
 
     if (Number.isNaN(soundproof) || soundproof < 1 || soundproof > 5) {
-      toast.error('Soundproof level must be between 1 and 5')
+      toast.error('Mức độ cách âm phải từ 1 đến 5')
       return false
     }
     if (Number.isNaN(ventilation) || ventilation < 1 || ventilation > 5) {
-      toast.error('Ventilation level must be between 1 and 5')
+      toast.error('Mức độ thông gió phải từ 1 đến 5')
       return false
     }
     if (Number.isNaN(outlets) || outlets < 0) {
-      toast.error('Power outlets must be 0 or greater')
+      toast.error('Số lượng ổ cắm phải từ 0 trở lên')
       return false
     }
     if (Number.isNaN(duration) || duration < 60) {
-      toast.error('Max session duration must be at least 60 minutes')
+      toast.error('Thời gian sử dụng tối đa phải ít nhất 60 phút')
       return false
     }
 
@@ -254,7 +254,7 @@ export const AdminPodManagement = () => {
     event.preventDefault()
 
     if (!createForm.cluster_id) {
-      toast.error('Cluster is required')
+      toast.error('Vui lòng chọn Cụm Pod')
       return
     }
 
@@ -264,11 +264,11 @@ export const AdminPodManagement = () => {
 
     if (createMode === 'single') {
       if (!createForm.code.trim()) {
-        toast.error('Pod code is required for single mode')
+        toast.error('Vui lòng nhập mã Pod')
         return
       }
       if (!createForm.name.trim()) {
-        toast.error('Pod name is required for single mode')
+        toast.error('Vui lòng nhập tên Pod')
         return
       }
 
@@ -289,11 +289,11 @@ export const AdminPodManagement = () => {
       const numCols = Number(createForm.numCols)
 
       if (Number.isNaN(numRows) || numRows < 1 || numRows > 10) {
-        toast.error('Rows must be between 1 and 10')
+        toast.error('Số hàng phải từ 1 đến 10')
         return
       }
       if (Number.isNaN(numCols) || numCols < 1 || numCols > 20) {
-        toast.error('Columns must be between 1 and 20')
+        toast.error('Số cột phải từ 1 đến 20')
         return
       }
 
@@ -315,11 +315,11 @@ export const AdminPodManagement = () => {
     try {
       setIsCreating(true)
       const response = await podApi.createPods(payload)
-      toast.success(response.message || `Created ${response.count} pod(s)`) 
+      toast.success(response.message || `Đã tạo ${response.count} Pod`) 
       closeCreateModal()
       await fetchPods()
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to create pod(s)')
+      toast.error(error?.response?.data?.message || 'Không thể tạo Pod')
     } finally {
       setIsCreating(false)
     }
@@ -341,12 +341,12 @@ export const AdminPodManagement = () => {
     if (!editingPod || !editForm) return
 
     if (!editForm.name.trim()) {
-      toast.error('Pod name is required')
+      toast.error('Vui lòng nhập tên Pod')
       return
     }
 
     if (editForm.status === 'MAINTENANCE' && !editForm.maintenance_status.trim()) {
-      toast.error('Maintenance reason is required when status is MAINTENANCE')
+      toast.error('Vui lòng nhập lý do bảo trì khi trạng thái là BẢO TRÌ')
       return
     }
 
@@ -368,36 +368,36 @@ export const AdminPodManagement = () => {
     try {
       setIsEditing(true)
       await podApi.update(editingPod.id, payload)
-      toast.success('Pod updated successfully')
+      toast.success('Cập nhật Pod thành công')
       closeEditModal()
       await fetchPods()
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to update pod')
+      toast.error(error?.response?.data?.message || 'Không thể cập nhật Pod')
     } finally {
       setIsEditing(false)
     }
   }
 
   const handleDelete = async (pod: PodItem) => {
-    const confirmed = window.confirm(`Delete pod ${pod.code}?`)
+    const confirmed = window.confirm(`Bạn có chắc chắn muốn xóa Pod ${pod.code}?`)
     if (!confirmed) return
 
     try {
       await podApi.delete(pod.id)
-      toast.success('Pod deleted successfully')
+      toast.success('Xóa Pod thành công')
       await fetchPods()
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to delete pod')
+      toast.error(error?.response?.data?.message || 'Không thể xóa Pod')
     }
   }
 
   const handleCompleteCleaning = async (pod: PodItem) => {
     try {
       await podApi.completeCleaning(pod.id)
-      toast.success(`Pod ${pod.code} is now AVAILABLE`) 
+      toast.success(`Pod ${pod.code} hiện đã SẴN SÀNG`) 
       await fetchPods()
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to complete cleaning')
+      toast.error(error?.response?.data?.message || 'Không thể hoàn tất vệ sinh')
     }
   }
 
@@ -405,8 +405,8 @@ export const AdminPodManagement = () => {
     <div className="p-8 bg-gray-50 min-h-screen">
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Pod Management</h1>
-          <p className="text-gray-500 mt-1">Create pods in grid or single mode and manage pod lifecycle status.</p>
+          <h1 className="text-3xl font-bold text-gray-900">Quản lý Pod</h1>
+          <p className="text-gray-500 mt-1">Tạo Pod theo lưới hoặc đơn lẻ và quản lý trạng thái vòng đời của Pod.</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -416,21 +416,21 @@ export const AdminPodManagement = () => {
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
+            Tải lại
           </button>
           <button
             onClick={openCreateModal}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            Create Pod(s)
+            Tạo Pod
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <p className="text-xs font-medium text-gray-500">Total Pods</p>
+          <p className="text-xs font-medium text-gray-500">Tổng số Pod</p>
           <p className="text-2xl font-bold text-gray-900 mt-2">{pods.length}</p>
         </div>
         {POD_STATUSES.map((status) => (
@@ -449,7 +449,7 @@ export const AdminPodManagement = () => {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by code, name, id or cluster..."
+              placeholder="Tìm kiếm theo mã, tên, ID hoặc cụm..."
               className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -459,7 +459,7 @@ export const AdminPodManagement = () => {
             onChange={(e) => setClusterFilter(e.target.value)}
             className="px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
           >
-            <option value="all">All clusters</option>
+            <option value="all">Tất cả cụm</option>
             {clusters.map((cluster) => (
               <option key={cluster.id} value={cluster.id}>{cluster.name}</option>
             ))}
@@ -470,7 +470,7 @@ export const AdminPodManagement = () => {
             onChange={(e) => setStatusFilter(e.target.value as 'all' | PodStatus)}
             className="px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
           >
-            <option value="all">All statuses</option>
+            <option value="all">Tất cả trạng thái</option>
             {POD_STATUSES.map((status) => (
               <option key={status} value={status}>{status}</option>
             ))}
@@ -480,8 +480,8 @@ export const AdminPodManagement = () => {
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-900">Pods</h2>
-          <span className="text-sm text-gray-500">{filteredPods.length} item(s)</span>
+          <h2 className="text-base font-semibold text-gray-900">Danh sách Pod</h2>
+          <span className="text-sm text-gray-500">{filteredPods.length} kết quả</span>
         </div>
 
         <div className="overflow-x-auto">
@@ -489,21 +489,21 @@ export const AdminPodManagement = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pod</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cluster</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type / Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Specs</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Cleaned</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cụm</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại / Trạng thái</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thông số</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vệ sinh cuối</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {isLoading ? (
+               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-400">Loading pods...</td>
+                  <td colSpan={6} className="px-6 py-12 text-center text-gray-400">Đang tải danh sách Pod...</td>
                 </tr>
               ) : filteredPods.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-400">No pods found</td>
+                  <td colSpan={6} className="px-6 py-12 text-center text-gray-400">Không tìm thấy Pod nào</td>
                 </tr>
               ) : (
                 filteredPods.map((pod) => (
@@ -517,7 +517,7 @@ export const AdminPodManagement = () => {
                     <td className="px-6 py-4 align-top">
                       <div className="flex flex-col gap-2 items-start">
                         <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium border ${pod.type === 'SERVICE' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>
-                          {pod.type === 'SERVICE' ? 'Service Pod' : 'Standard Pod'}
+                          {pod.type === 'SERVICE' ? 'Pod Dịch vụ' : 'Pod Tiêu chuẩn'}
                         </span>
                         <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${statusBadgeClass(pod.status)}`}>
                           {pod.status}
@@ -528,11 +528,11 @@ export const AdminPodManagement = () => {
                       )}
                     </td>
                     <td className="px-6 py-4 align-top text-xs text-gray-600">
-                      <p>Soundproof: {pod.soundproof_level}/5</p>
-                      <p>Ventilation: {pod.ventilation_level}/5</p>
-                      <p>Outlets: {pod.power_outlets}</p>
-                      <p>Wi-Fi: {pod.wifi_available ? 'Yes' : 'No'}</p>
-                      <p>Max session: {pod.max_session_duration} mins</p>
+                      <p>Cách âm: {pod.soundproof_level}/5</p>
+                      <p>Thông gió: {pod.ventilation_level}/5</p>
+                      <p>Ổ cắm: {pod.power_outlets}</p>
+                      <p>Wi-Fi: {pod.wifi_available ? 'Có' : 'Không'}</p>
+                      <p>Thời gian tối đa: {pod.max_session_duration} phút</p>
                     </td>
                     <td className="px-6 py-4 align-top text-gray-600">
                       {pod.last_cleaned_at ? new Date(pod.last_cleaned_at).toLocaleString() : '—'}
@@ -545,7 +545,7 @@ export const AdminPodManagement = () => {
                             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors"
                           >
                             <CheckCircle2 className="w-4 h-4" />
-                            Complete
+                            Hoàn tất
                           </button>
                         )}
                         <button
@@ -553,21 +553,21 @@ export const AdminPodManagement = () => {
                           className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors"
                         >
                           <SlidersHorizontal className="w-4 h-4" />
-                          Modules
+                          Module
                         </button>
                         <button
                           onClick={() => openEditModal(pod)}
                           className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
                         >
                           <Edit2 className="w-4 h-4" />
-                          Edit
+                          Sửa
                         </button>
                         <button
                           onClick={() => handleDelete(pod)}
                           className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
-                          Delete
+                          Xóa
                         </button>
                       </div>
                     </td>
@@ -584,7 +584,7 @@ export const AdminPodManagement = () => {
       <Modal
         isOpen={isCreateModalOpen}
         onClose={closeCreateModal}
-        title="Create Pod(s)"
+        title="Tạo Pod"
         size="xl"
         footer={(
           <>
@@ -593,7 +593,7 @@ export const AdminPodManagement = () => {
               disabled={isCreating}
               className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
             >
-              Cancel
+              Hủy
             </button>
             <button
               type="submit"
@@ -601,7 +601,7 @@ export const AdminPodManagement = () => {
               disabled={isCreating}
               className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-60"
             >
-              {isCreating ? 'Creating...' : createMode === 'single' ? 'Create Pod' : 'Create Grid Pods'}
+              {isCreating ? 'Đang tạo...' : createMode === 'single' ? 'Tạo Pod' : 'Tạo Pod theo lưới'}
             </button>
           </>
         )}
@@ -613,26 +613,26 @@ export const AdminPodManagement = () => {
               onClick={() => setCreateMode('single')}
               className={`px-3 py-1.5 rounded-md text-sm ${createMode === 'single' ? 'bg-white shadow text-gray-900' : 'text-gray-600'}`}
             >
-              Single Mode
+              Chế độ đơn lẻ
             </button>
             <button
               type="button"
               onClick={() => setCreateMode('grid')}
               className={`px-3 py-1.5 rounded-md text-sm ${createMode === 'grid' ? 'bg-white shadow text-gray-900' : 'text-gray-600'}`}
             >
-              Grid Mode
+              Chế độ lưới
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Cluster</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Cụm Pod</label>
               <select
                 value={createForm.cluster_id}
                 onChange={(e) => updateCreateForm('cluster_id', e.target.value)}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
               >
-                <option value="">Select cluster</option>
+                <option value="">Chọn cụm</option>
                 {clusters.map((cluster) => (
                   <option key={cluster.id} value={cluster.id}>{cluster.name}</option>
                 ))}
@@ -640,21 +640,20 @@ export const AdminPodManagement = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Pod Type</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Loại Pod</label>
               <select
                 value={createForm.type}
                 onChange={(e) => updateCreateForm('type', e.target.value as 'STANDARD' | 'SERVICE')}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
               >
-                <option value="STANDARD">Standard Pod</option>
-                <option value="SERVICE">Service Pod (for staff/managers)</option>
+                <option value="STANDARD">Pod Tiêu chuẩn</option>
+                <option value="SERVICE">Pod Dịch vụ (cho nhân viên/quản lý)</option>
               </select>
             </div>
-
-            {createMode === 'single' ? (
+             {createMode === 'single' ? (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Pod Code</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Mã Pod</label>
                   <input
                     type="text"
                     value={createForm.code}
@@ -664,7 +663,7 @@ export const AdminPodManagement = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Pod Name</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Tên Pod</label>
                   <input
                     type="text"
                     value={createForm.name}
@@ -674,10 +673,11 @@ export const AdminPodManagement = () => {
                   />
                 </div>
               </>
+
             ) : (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Rows (A, B, C...)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Số hàng (A, B, C...)</label>
                   <input
                     type="number"
                     min="1"
@@ -688,7 +688,7 @@ export const AdminPodManagement = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Cols (01, 02...)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Số cột (01, 02...)</label>
                   <input
                     type="number"
                     min="1"
@@ -699,7 +699,7 @@ export const AdminPodManagement = () => {
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Base Name (optional)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Tên cơ sở (tùy chọn)</label>
                   <input
                     type="text"
                     value={createForm.name}
@@ -712,7 +712,7 @@ export const AdminPodManagement = () => {
             )}
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Mô tả</label>
               <textarea
                 value={createForm.description}
                 onChange={(e) => updateCreateForm('description', e.target.value)}
@@ -722,19 +722,19 @@ export const AdminPodManagement = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Soundproof (1-5)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Cách âm (1-5)</label>
               <input type="number" min="1" max="5" value={createForm.soundproof_level} onChange={(e) => updateCreateForm('soundproof_level', e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Ventilation (1-5)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Thông gió (1-5)</label>
               <input type="number" min="1" max="5" value={createForm.ventilation_level} onChange={(e) => updateCreateForm('ventilation_level', e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Power Outlets</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Ổ cắm điện</label>
               <input type="number" min="0" value={createForm.power_outlets} onChange={(e) => updateCreateForm('power_outlets', e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Max Session (minutes)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Thời gian tối đa (phút)</label>
               <input type="number" min="60" value={createForm.max_session_duration} onChange={(e) => updateCreateForm('max_session_duration', e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
             </div>
           </div>
@@ -746,7 +746,7 @@ export const AdminPodManagement = () => {
               onChange={(e) => updateCreateForm('wifi_available', e.target.checked)}
               className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
             />
-            Wi-Fi available
+            Có Wi-Fi
           </label>
         </form>
       </Modal>
@@ -754,7 +754,7 @@ export const AdminPodManagement = () => {
       <Modal
         isOpen={!!editingPod && !!editForm}
         onClose={closeEditModal}
-        title={editingPod ? `Edit Pod ${editingPod.code}` : 'Edit Pod'}
+        title={editingPod ? `Chỉnh sửa Pod ${editingPod.code}` : 'Chỉnh sửa Pod'}
         size="xl"
         footer={(
           <>
@@ -763,7 +763,7 @@ export const AdminPodManagement = () => {
               disabled={isEditing}
               className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
             >
-              Cancel
+              Hủy
             </button>
             <button
               type="submit"
@@ -771,7 +771,7 @@ export const AdminPodManagement = () => {
               disabled={isEditing}
               className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-60"
             >
-              {isEditing ? 'Saving...' : 'Save Changes'}
+              {isEditing ? 'Đang lưu...' : 'Lưu thay đổi'}
             </button>
           </>
         )}
@@ -780,7 +780,7 @@ export const AdminPodManagement = () => {
           <form id="pod-edit-form" onSubmit={handleUpdatePod} className="space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Pod Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Tên Pod</label>
                 <input
                   type="text"
                   value={editForm.name}
@@ -790,23 +790,23 @@ export const AdminPodManagement = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Pod Type</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Loại Pod</label>
                 <select
                   value={editForm.type}
                   onChange={(e) => updateEditForm('type', e.target.value as 'STANDARD' | 'SERVICE')}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                 >
-                  <option value="STANDARD">Standard Pod</option>
-                  <option value="SERVICE">Service Pod (for staff/managers)</option>
+                  <option value="STANDARD">Pod Tiêu chuẩn</option>
+                  <option value="SERVICE">Pod Dịch vụ (cho nhân viên/quản lý)</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Trạng thái</label>
                 <select
                   value={editForm.status}
                   onChange={(e) => updateEditForm('status', e.target.value as PodStatus)}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
                 >
                   {POD_STATUSES.map((status) => (
                     <option key={status} value={status}>{status}</option>
@@ -815,43 +815,43 @@ export const AdminPodManagement = () => {
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Mô tả</label>
                 <textarea
                   rows={3}
                   value={editForm.description}
                   onChange={(e) => updateEditForm('description', e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm"
                 />
               </div>
 
               {editForm.status === 'MAINTENANCE' && (
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Maintenance Status / Reason</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Lý do / Tình trạng bảo trì</label>
                   <input
                     type="text"
                     value={editForm.maintenance_status}
                     onChange={(e) => updateEditForm('maintenance_status', e.target.value)}
-                    placeholder="Example: Air ventilation issue"
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="VD: Lỗi hệ thống thông gió"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   />
                 </div>
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Soundproof (1-5)</label>
-                <input type="number" min="1" max="5" value={editForm.soundproof_level} onChange={(e) => updateEditForm('soundproof_level', e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                <label className="block text-sm font-medium text-gray-700 mb-2">Cách âm (1-5)</label>
+                <input type="number" min="1" max="5" value={editForm.soundproof_level} onChange={(e) => updateEditForm('soundproof_level', e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Ventilation (1-5)</label>
-                <input type="number" min="1" max="5" value={editForm.ventilation_level} onChange={(e) => updateEditForm('ventilation_level', e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                <label className="block text-sm font-medium text-gray-700 mb-2">Thông gió (1-5)</label>
+                <input type="number" min="1" max="5" value={editForm.ventilation_level} onChange={(e) => updateEditForm('ventilation_level', e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Power Outlets</label>
-                <input type="number" min="0" value={editForm.power_outlets} onChange={(e) => updateEditForm('power_outlets', e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                <label className="block text-sm font-medium text-gray-700 mb-2">Ổ cắm điện</label>
+                <input type="number" min="0" value={editForm.power_outlets} onChange={(e) => updateEditForm('power_outlets', e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Max Session (minutes)</label>
-                <input type="number" min="60" value={editForm.max_session_duration} onChange={(e) => updateEditForm('max_session_duration', e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                <label className="block text-sm font-medium text-gray-700 mb-2">Thời gian tối đa (phút)</label>
+                <input type="number" min="60" value={editForm.max_session_duration} onChange={(e) => updateEditForm('max_session_duration', e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm" />
               </div>
             </div>
 
@@ -862,7 +862,7 @@ export const AdminPodManagement = () => {
                 onChange={(e) => updateEditForm('wifi_available', e.target.checked)}
                 className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              Wi-Fi available
+              Có Wi-Fi
             </label>
           </form>
         )}

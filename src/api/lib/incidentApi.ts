@@ -65,6 +65,8 @@ export interface IncidentItem {
   estimated_service_fee?: number
   estimated_total_value?: number
   pricing_source?: string | null
+  resolution_note?: string | null
+  escalation_note?: string | null
   created_at: string
   updated_at: string
 }
@@ -129,6 +131,7 @@ export interface IncidentListFilters {
 
 export interface IncidentStatusUpdatePayload {
   status: IncidentStatus
+  severity?: IncidentSeverity
   resolution_note?: string
   escalation_note?: string
 }
@@ -171,4 +174,13 @@ export const incidentApi = {
 
   updateStatus: (id: string, payload: IncidentStatusUpdatePayload) =>
     api.patch<IncidentSingleResponse>(`/incidents/${id}/status`, payload).then((r) => r.data),
+
+  getAffectedBookings: (id: string) =>
+    api.get<{ success: boolean; data: any[] }>(`/incidents/${id}/affected-bookings`).then((r) => r.data),
+
+  getRoomChangeCandidates: (bookingId: string) =>
+    api.get<{ success: boolean; data: any[] }>(`/incidents/bookings/${bookingId}/room-change-candidates`).then((r) => r.data),
+
+  executeRoomChange: (bookingId: string, targetPodId: string) =>
+    api.post<{ success: boolean; data: any }>(`/incidents/bookings/${bookingId}/room-change`, { targetPodId }).then((r) => r.data),
 }

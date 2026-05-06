@@ -84,6 +84,8 @@ const ManagerAttendanceWidget = () => {
     latest_checkout_at: string | null
     has_handover: boolean
     shift_ids: string[]
+    is_past_end?: boolean
+    shift_end_at?: string | null
   } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isActing, setIsActing] = useState(false)
@@ -137,24 +139,26 @@ const ManagerAttendanceWidget = () => {
   if (isLoading) return <div className="h-16 bg-white rounded-2xl border border-gray-100 animate-pulse mb-6" />
   if (!status?.checked_in_today) return null // Gate handles the unchecked-in state
 
-  const isActive = status.checked_in_today && !status.checked_out_today
+    const isActive = status.checked_in_today && !status.checked_out_today
+  const isPastEnd = isActive && status.is_past_end
   const needsHandover = isActive && !status.has_handover
 
   return (
     <>
-      <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-5 py-4 rounded-2xl border-2 mb-6 ${isActive ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
+      <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-5 py-4 rounded-2xl border-2 mb-6 ${isPastEnd ? 'bg-rose-50 border-rose-200 animate-pulse' : (isActive ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200')
         }`}>
         <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isActive ? 'bg-green-100' : 'bg-gray-100'}`}>
-            {isActive ? <CheckCircle className="w-5 h-5 text-green-600" /> : <Clock className="w-5 h-5 text-gray-500" />}
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isPastEnd ? 'bg-rose-100' : (isActive ? 'bg-green-100' : 'bg-gray-100')}`}>
+            {isPastEnd ? <Clock className="w-5 h-5 text-rose-600" /> : (isActive ? <CheckCircle className="w-5 h-5 text-green-600" /> : <Clock className="w-5 h-5 text-gray-500" />)}
           </div>
           <div>
-            <div className={`text-sm font-bold ${isActive ? 'text-green-700' : 'text-gray-500'}`}>
-              {isActive ? '🟢 Đang làm việc' : '⚪ Đã kết thúc ca'}
+            <div className={`text-sm font-bold ${isPastEnd ? 'text-rose-700' : (isActive ? 'text-green-700' : 'text-gray-500')}`}>
+              {isPastEnd ? '🔴 Quá giờ / Chưa tan ca' : (isActive ? '🟢 Đang làm việc' : '⚪ Đã kết thúc ca')}
             </div>
             <div className="text-xs text-gray-400">
               Check-in: <strong>{dayjs(status.latest_checkin_at).format('HH:mm')}</strong>
               {status.latest_checkout_at && <> · Check-out: <strong>{dayjs(status.latest_checkout_at).format('HH:mm')}</strong></>}
+              {isPastEnd && status.shift_end_at && <span className="text-rose-500 ml-2">· Kết thúc lúc: <strong>{dayjs(status.shift_end_at).format('HH:mm')}</strong></span>}
             </div>
           </div>
         </div>
@@ -297,8 +301,7 @@ const LocationShiftsTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
         podClusterApi.getAll(locationId).catch(() => ({ data: [] })),
         staffAttendanceLogApi.getAll({
           location_id: locationId,
-          from_date: dayjs().startOf('day').toISOString(),
-          to_date: dayjs().endOf('day').toISOString()
+          date: dayjs().format('YYYY-MM-DD')
         }).catch(() => ({ data: [] }))
       ])
 
@@ -312,7 +315,7 @@ const LocationShiftsTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
       const parentId = currentLoc?.parent_id
 
       const filteredLocShifts = (lsRes.data || []).filter(ls => ls.location_id === locationId || (parentId && ls.location_id === parentId))
-      const rosterShifts = (rRes.data || []).filter(r => r.location_id === locationId)
+      const rosterShifts = (rRes.data || []).filter(r => r.is_active !== false && r.location_id === locationId)
 
       const allShiftIds = [...new Set([
         ...filteredLocShifts.map(ls => ls.shift_id),
@@ -337,7 +340,7 @@ const LocationShiftsTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
       const validDisplayShifts = displayShifts.filter(ls => finalShifts.some(s => s.id === ls.shift_id))
       setLocShifts(validDisplayShifts)
       setShifts(finalShifts)
-      setRosters(rRes.data || [])
+      setRosters((rRes.data || []).filter((r: any) => r.is_active !== false))
       setCleaners(allStaff)
       setClusters(clRes.data || [])
     } catch { toast.error('Lỗi tải dữ liệu') } finally { setIsLoading(false) }
@@ -481,7 +484,8 @@ const RostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
       ])
       const allRosters = rRes.data || []
       const clusterIds = (clRes.data || []).map(x => x.id)
-      setRosters(allRosters.filter(r => clusterIds.includes(r.cluster_id || '')))
+      // Only show active rosters in the management table
+      setRosters(allRosters.filter(r => r.is_active !== false && clusterIds.includes(r.cluster_id || '')))
 
       // Derive manager's own shifts from the full roster list
       const myShifts = allRosters.filter(r => r.staff_id === user?.id).map(r => r.shift_id)
@@ -496,7 +500,7 @@ const RostersTab = ({ refreshTrigger }: { refreshTrigger?: number }) => {
       const parentId = currentLoc?.parent_id
 
       const filteredLocShifts = (lsRes.data || []).filter(ls => ls.location_id === locationId || (parentId && ls.location_id === parentId))
-      const rosterShifts = (rRes.data || []).filter(r => r.location_id === locationId)
+      const rosterShifts = (rRes.data || []).filter(r => r.is_active !== false && r.location_id === locationId)
 
       const allShiftIds = [...new Set([
         ...filteredLocShifts.map(ls => ls.shift_id),

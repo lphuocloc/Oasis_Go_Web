@@ -32,10 +32,10 @@ import { initUserSocket } from '../../lib/socket'
 type InventoryTab = 'warehouseSetup' | 'items' | 'stocks' | 'checkoutLogs'
 
 const TABS: Array<{ key: InventoryTab; label: string }> = [
-  { key: 'warehouseSetup', label: 'Warehouse & Location Mapping' },
-  { key: 'items', label: 'Items' },
-  { key: 'stocks', label: 'Inventory Stocks' },
-  { key: 'checkoutLogs', label: 'Checkout Logs' }
+  { key: 'warehouseSetup', label: 'Liên kết Kho & Vị trí' },
+  { key: 'items', label: 'Vật tư' },
+  { key: 'stocks', label: 'Tồn kho' },
+  { key: 'checkoutLogs', label: 'Nhật ký Xuất kho' }
 ]
 
 const getItemName = (item: InventoryItem) => item.name || item.item_name || item.code || item.sku || item.id
@@ -148,11 +148,11 @@ export const InventoryWarehouseManagement: React.FC = () => {
 
   const formatStockLabel = (stockId: string) => {
     const stock = stockMap.get(stockId)
-    if (!stock) return `Unknown stock (${shortId(stockId)})`
+    if (!stock) return `Không xác định (${shortId(stockId)})`
 
     const warehouseName = warehouseMap.get(stock.warehouse_id)?.name || shortId(stock.warehouse_id)
     const itemName = getItemName(itemMap.get(stock.item_id) || { id: stock.item_id })
-    return `${warehouseName} - ${itemName} (Qty: ${stock.quantity_available})`
+    return `${warehouseName} - ${itemName} (SL: ${stock.quantity_available})`
   }
 
   const formatStaffLabel = (staffId?: string | null) => {
@@ -163,13 +163,13 @@ export const InventoryWarehouseManagement: React.FC = () => {
     }
 
     const id = shortId(staffId)
-    return id === staffId ? `Staff ${staffId}` : `Staff ${id} (${staffId})`
+    return id === staffId ? `Nhân viên ${staffId}` : `Nhân viên ${id} (${staffId})`
   }
 
   const formatTaskLabel = (taskId?: string | null, taskType?: 'Cleaning' | 'Maintenance') => {
     if (!taskId) return '—'
     const id = shortId(taskId)
-    const prefix = taskType || 'Task'
+    const prefix = taskType === 'Cleaning' ? 'Nhiệm vụ Vệ sinh' : taskType === 'Maintenance' ? 'Nhiệm vụ Bảo trì' : 'Nhiệm vụ'
     return id === taskId ? `${prefix} ${taskId}` : `${prefix} ${id} (${taskId})`
   }
 
@@ -222,7 +222,7 @@ export const InventoryWarehouseManagement: React.FC = () => {
       setStocks(stockRes.data)
       setDefaultCreateValues(warehouseRes.data, locationRes.data, itemRes.data || [])
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to load dependencies')
+      toast.error(error?.response?.data?.message || 'Không thể tải dữ liệu phụ thuộc')
     }
   }
 
@@ -233,7 +233,7 @@ export const InventoryWarehouseManagement: React.FC = () => {
       setWarehouses(response.data)
       setDefaultCreateValues(response.data)
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to load warehouses')
+      toast.error(error?.response?.data?.message || 'Không thể tải danh sách kho')
     } finally {
       setIsLoading(false)
     }
@@ -248,7 +248,7 @@ export const InventoryWarehouseManagement: React.FC = () => {
       })
       setLocationWarehouses(response.data)
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to load location-warehouse mappings')
+      toast.error(error?.response?.data?.message || 'Không thể tải danh sách liên kết Kho - Vị trí')
     } finally {
       setIsLoading(false)
     }
@@ -264,7 +264,7 @@ export const InventoryWarehouseManagement: React.FC = () => {
       setStocks(response.data)
       setDefaultCreateValues(undefined, undefined, undefined)
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to load inventory stocks')
+      toast.error(error?.response?.data?.message || 'Không thể tải danh sách tồn kho')
     } finally {
       setIsLoading(false)
     }
@@ -277,7 +277,7 @@ export const InventoryWarehouseManagement: React.FC = () => {
       setItems(response.data || [])
       setDefaultCreateValues(undefined, undefined, response.data || [])
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to load items')
+      toast.error(error?.response?.data?.message || 'Không thể tải danh sách vật tư')
     } finally {
       setIsLoading(false)
     }
@@ -295,7 +295,7 @@ export const InventoryWarehouseManagement: React.FC = () => {
       })
       setCheckoutLogs(response.data)
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to load inventory checkout logs')
+      toast.error(error?.response?.data?.message || 'Không thể tải nhật ký xuất kho')
     } finally {
       setIsLoading(false)
     }
@@ -372,10 +372,10 @@ export const InventoryWarehouseManagement: React.FC = () => {
       })
       setNewWarehouseName('')
       setNewWarehouseAddress('')
-      toast.success('Warehouse created successfully')
+      toast.success('Tạo kho thành công')
       await Promise.all([fetchWarehouses(), loadDependencies()])
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to create warehouse')
+      toast.error(error?.response?.data?.message || 'Không thể tạo kho')
     }
   }
 
@@ -405,24 +405,24 @@ export const InventoryWarehouseManagement: React.FC = () => {
         name: editWarehouseName.trim(),
         address: editWarehouseAddress.trim() || undefined
       })
-      toast.success('Warehouse updated successfully')
+      toast.success('Cập nhật kho thành công')
       closeEditWarehouseModal()
       await Promise.all([fetchWarehouses(), loadDependencies()])
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to update warehouse')
+      toast.error(error?.response?.data?.message || 'Không thể cập nhật kho')
     } finally {
       setIsSavingWarehouseEdit(false)
     }
   }
 
   const handleDeleteWarehouse = async (warehouse: WarehouseItem) => {
-    if (!window.confirm(`Delete warehouse "${warehouse.name}"?`)) return
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa kho "${warehouse.name}"?`)) return
     try {
       await warehouseApi.delete(warehouse.id)
-      toast.success('Warehouse deleted successfully')
+      toast.success('Xóa kho thành công')
       await Promise.all([fetchWarehouses(), loadDependencies()])
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to delete warehouse')
+      toast.error(error?.response?.data?.message || 'Không thể xóa kho')
     }
   }
 
@@ -436,10 +436,10 @@ export const InventoryWarehouseManagement: React.FC = () => {
         location_id: newMappingLocationId,
         warehouse_id: newMappingWarehouseId
       })
-      toast.success('Location-warehouse mapping created successfully')
+      toast.success('Tạo liên kết thành công')
       await fetchLocationWarehouses()
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to create mapping')
+      toast.error(error?.response?.data?.message || 'Không thể tạo liên kết')
     }
   }
 
@@ -469,24 +469,24 @@ export const InventoryWarehouseManagement: React.FC = () => {
         location_id: editMappingLocationId.trim(),
         warehouse_id: editMappingWarehouseId.trim()
       })
-      toast.success('Mapping updated successfully')
+      toast.success('Cập nhật liên kết thành công')
       closeEditMappingModal()
       await fetchLocationWarehouses()
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to update mapping')
+      toast.error(error?.response?.data?.message || 'Không thể cập nhật liên kết')
     } finally {
       setIsSavingMappingEdit(false)
     }
   }
 
   const handleDeleteMapping = async (mapping: LocationWarehouseItem) => {
-    if (!window.confirm('Delete this location-warehouse mapping?')) return
+    if (!window.confirm('Bạn có chắc chắn muốn xóa liên kết này?')) return
     try {
       await locationWarehouseApi.delete(mapping.id)
-      toast.success('Mapping deleted successfully')
+      toast.success('Xóa liên kết thành công')
       await fetchLocationWarehouses()
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to delete mapping')
+      toast.error(error?.response?.data?.message || 'Không thể xóa liên kết')
     }
   }
 
@@ -508,7 +508,7 @@ export const InventoryWarehouseManagement: React.FC = () => {
       }
       setIsEffectiveDebugMode(debug)
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to resolve effective location-warehouse mappings')
+      toast.error(error?.response?.data?.message || 'Không thể giải quyết liên kết hiệu dụng')
     } finally {
       setIsLoading(false)
     }
@@ -531,11 +531,11 @@ export const InventoryWarehouseManagement: React.FC = () => {
         item_id: newStockItemId,
         quantity_available: Math.floor(quantity)
       })
-      toast.success('Inventory stock created successfully')
+      toast.success('Tạo tồn kho thành công')
       setNewStockQuantity('0')
       await Promise.all([fetchStocks(), loadDependencies()])
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to create inventory stock')
+      toast.error(error?.response?.data?.message || 'Không thể tạo tồn kho')
     }
   }
 
@@ -571,18 +571,18 @@ export const InventoryWarehouseManagement: React.FC = () => {
       setNewItemName('')
       setNewItemType('CONSUMABLE')
       setNewItemUnitCost('0')
-      toast.success('Item created successfully')
+      toast.success('Tạo vật tư thành công')
     } catch (error: any) {
       const status = error?.response?.status
       const message = error?.response?.data?.message
       if (status === 404) {
-        toast.error('Item API route is missing on backend (POST /items or POST /item).')
+        toast.error('API vật tư không tồn tại.')
       } else if (status === 409) {
-        toast.error(message || 'Item already exists')
+        toast.error(message || 'Vật tư đã tồn tại')
       } else if (status === 400) {
-        toast.error(message || 'Invalid item data')
+        toast.error(message || 'Dữ liệu vật tư không hợp lệ')
       } else {
-        toast.error(message || 'Failed to create item')
+        toast.error(message || 'Không thể tạo vật tư')
       }
     } finally {
       setIsCreatingItem(false)
@@ -629,27 +629,27 @@ export const InventoryWarehouseManagement: React.FC = () => {
     try {
       setIsSavingItemEdit(true)
       await itemApi.update(editingItem.id, payload)
-      toast.success('Item updated successfully')
+      toast.success('Cập nhật vật tư thành công')
       closeEditItemModal()
       await Promise.all([fetchItems(), loadDependencies()])
     } catch (error: any) {
       const message = error?.response?.data?.message
-      toast.error(message || 'Failed to update item')
+      toast.error(message || 'Không thể cập nhật vật tư')
     } finally {
       setIsSavingItemEdit(false)
     }
   }
 
   const handleDeleteItem = async (item: InventoryItem) => {
-    if (!window.confirm(`Delete item "${getItemName(item)}"?`)) return
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa vật tư "${getItemName(item)}"?`)) return
 
     try {
       await itemApi.delete(item.id)
-      toast.success('Item deleted successfully')
+      toast.success('Xóa vật tư thành công')
       await Promise.all([fetchItems(), loadDependencies()])
     } catch (error: any) {
       const message = error?.response?.data?.message
-      toast.error(message || 'Failed to delete item')
+      toast.error(message || 'Không thể xóa vật tư')
     }
   }
 
@@ -675,24 +675,24 @@ export const InventoryWarehouseManagement: React.FC = () => {
     try {
       setIsSavingStockEdit(true)
       await inventoryStockApi.update(editingStock.id, { quantity_available: Math.floor(quantity) })
-      toast.success('Inventory stock updated successfully')
+      toast.success('Cập nhật tồn kho thành công')
       closeEditStockModal()
       await Promise.all([fetchStocks(), loadDependencies()])
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to update inventory stock')
+      toast.error(error?.response?.data?.message || 'Không thể cập nhật tồn kho')
     } finally {
       setIsSavingStockEdit(false)
     }
   }
 
   const handleDeleteStock = async (stock: InventoryStockItem) => {
-    if (!window.confirm('Delete this inventory stock?')) return
+    if (!window.confirm('Bạn có chắc chắn muốn xóa tồn kho này?')) return
     try {
       await inventoryStockApi.delete(stock.id)
-      toast.success('Inventory stock deleted successfully')
+      toast.success('Xóa tồn kho thành công')
       await Promise.all([fetchStocks(), loadDependencies()])
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to delete inventory stock')
+      toast.error(error?.response?.data?.message || 'Không thể xóa tồn kho')
     }
   }
 
@@ -727,11 +727,11 @@ export const InventoryWarehouseManagement: React.FC = () => {
         action_type: editLogActionType,
         reason: editLogReason.trim() || null
       })
-      toast.success('Checkout log updated successfully')
+      toast.success('Cập nhật nhật ký thành công')
       closeEditCheckoutLogModal()
       await Promise.all([fetchCheckoutLogs(), fetchStocks(), loadDependencies()])
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to update checkout log')
+      toast.error(error?.response?.data?.message || 'Không thể cập nhật nhật ký')
     } finally {
       setIsSavingCheckoutLogEdit(false)
     }
@@ -742,8 +742,8 @@ export const InventoryWarehouseManagement: React.FC = () => {
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Inventory & Warehouse Management</h1>
-            <p className="text-sm text-gray-500 mt-1">CRUD for warehouses, mappings, stocks and checkout logs.</p>
+            <h1 className="text-2xl font-bold text-gray-900">Quản lý Kho hàng & Vật tư</h1>
+            <p className="text-sm text-gray-500 mt-1">Quản lý kho, liên kết vị trí, tồn kho và nhật ký xuất kho.</p>
           </div>
           <button
             onClick={refreshActiveTab}
@@ -751,7 +751,7 @@ export const InventoryWarehouseManagement: React.FC = () => {
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-60"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
+            Tải lại
           </button>
         </div>
 
@@ -772,123 +772,143 @@ export const InventoryWarehouseManagement: React.FC = () => {
         {activeTab === 'warehouseSetup' && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <StatCard label="Total Warehouses" value={warehouses.length} />
-              <StatCard label="Total Mappings" value={locationWarehouses.length} />
-              <StatCard label="Filtered Name" value={warehouseNameFilter.trim() || 'All'} />
-              <StatCard label="Locations Loaded" value={locations.length} />
+              <StatCard label="Tổng số kho" value={warehouses.length} />
+              <StatCard label="Tổng liên kết" value={locationWarehouses.length} />
+              <StatCard label="Lọc theo tên" value={warehouseNameFilter.trim() || 'Tất cả'} />
+              <StatCard label="Vị trí đã tải" value={locations.length} />
             </div>
 
-            <SectionCard title="Create Warehouse" description="Create a new warehouse before linking it to locations or stocks.">
+            <SectionCard title="Tạo kho mới" description="Tạo kho mới trước khi liên kết với vị trí hoặc vật tư.">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Warehouse Name</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Tên kho</label>
                   <input
                     value={newWarehouseName}
                     onChange={(e) => setNewWarehouseName(e.target.value)}
-                    placeholder="e.g. Kho Tan Binh"
+                    placeholder="VD: Kho Tân Bình"
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Địa chỉ</label>
                   <input
                     value={newWarehouseAddress}
                     onChange={(e) => setNewWarehouseAddress(e.target.value)}
-                    placeholder="Warehouse address"
+                    placeholder="Địa chỉ kho"
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                   />
                 </div>
               </div>
-              <button onClick={handleCreateWarehouse} className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">
-                <Plus className="w-4 h-4" />
-                Create Warehouse
-              </button>
+              <div className="mt-3">
+                <button
+                  onClick={handleCreateWarehouse}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Tạo kho
+                </button>
+              </div>
             </SectionCard>
 
-            <SectionCard title="Warehouse List" description="Review, edit, or delete existing warehouses.">
-              <div className="mb-3">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Filter by Name</label>
+            <SectionCard title="Danh sách kho" description="Xem, sửa hoặc xóa các kho hiện có.">
+              <div className="mb-4">
                 <input
                   value={warehouseNameFilter}
                   onChange={(e) => setWarehouseNameFilter(e.target.value)}
-                  placeholder="Search warehouse name..."
-                  className="w-full md:max-w-md px-3 py-2 border border-gray-200 rounded-lg"
+                  placeholder="Tìm kiếm kho..."
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
                 />
               </div>
               <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left">Warehouse</th>
-                    <th className="px-4 py-3 text-left">Address</th>
-                    <th className="px-4 py-3 text-left">Created</th>
-                    <th className="px-4 py-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {warehouses.length === 0 ? (
-                    <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">No warehouses</td></tr>
-                  ) : warehouses.map((warehouse) => (
-                    <tr key={warehouse.id} className="border-t border-gray-100">
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-gray-800">{warehouse.name}</div>
-                        <div className="text-xs text-gray-500">{warehouse.id}</div>
-                      </td>
-                      <td className="px-4 py-3 text-gray-700">{warehouse.address || '—'}</td>
-                      <td className="px-4 py-3 text-gray-700">{warehouse.created_at ? new Date(warehouse.created_at).toLocaleString() : '—'}</td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="inline-flex gap-2">
-                          <button onClick={() => openEditWarehouseModal(warehouse)} className="px-2.5 py-1.5 border border-gray-200 rounded">Edit</button>
-                          <button onClick={() => handleDeleteWarehouse(warehouse)} className="px-2.5 py-1.5 border border-red-200 text-red-600 rounded">Delete</button>
-                        </div>
-                      </td>
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50/50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Kho</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Địa chỉ</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Ngày tạo</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Hành động</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {warehouses.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
+                          {isLoading ? 'Đang tải danh sách kho...' : 'Không tìm thấy kho nào.'}
+                        </td>
+                      </tr>
+                    ) : (
+                      warehouses.map((warehouse) => (
+                        <tr key={warehouse.id} className="hover:bg-gray-50 transition-colors text-xs">
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-gray-900">{warehouse.name}</div>
+                            <div className="text-[10px] text-gray-500">{warehouse.id}</div>
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">{warehouse.address || '—'}</td>
+                          <td className="px-4 py-3 text-gray-600">{warehouse.created_at ? new Date(warehouse.created_at).toLocaleString() : '—'}</td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="inline-flex gap-2">
+                              <button
+                                onClick={() => openEditWarehouseModal(warehouse)}
+                                className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50"
+                              >
+                                Sửa
+                              </button>
+                              <button
+                                onClick={() => handleDeleteWarehouse(warehouse)}
+                                className="px-2 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50"
+                              >
+                                Xóa
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </SectionCard>
-            <SectionCard title="Location-Warehouse Setup" description="Create and maintain mappings after warehouse creation.">
-              <p className="text-xs text-gray-500">Use this section right after creating warehouses to assign each location to the correct warehouse.</p>
+            <SectionCard title="Thiết lập Kho - Vị trí" description="Tạo và duy trì liên kết sau khi tạo kho.">
+              <p className="text-xs text-gray-500">Sử dụng phần này ngay sau khi tạo kho để gán mỗi vị trí vào đúng kho cung ứng.</p>
             </SectionCard>
 
-            <SectionCard title="Create Mapping" description="Link one location to one warehouse. Duplicate pairs will be rejected by backend.">
+            <SectionCard title="Tạo liên kết" description="Liên kết một vị trí với một kho. Các cặp trùng lặp sẽ bị hệ thống từ chối.">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Location</label>
-                  <select value={newMappingLocationId} onChange={(e) => setNewMappingLocationId(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white">
-                    <option value="">Select location</option>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Vị trí</label>
+                  <select value={newMappingLocationId} onChange={(e) => setNewMappingLocationId(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-xs">
+                    <option value="">Chọn vị trí</option>
                     {locations.map((location) => (
                       <option key={location.id} value={location.id}>{location.name}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Warehouse</label>
-                  <select value={newMappingWarehouseId} onChange={(e) => setNewMappingWarehouseId(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white">
-                    <option value="">Select warehouse</option>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Kho</label>
+                  <select value={newMappingWarehouseId} onChange={(e) => setNewMappingWarehouseId(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-xs">
+                    <option value="">Chọn kho</option>
                     {warehouses.map((warehouse) => (
                       <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
                     ))}
                   </select>
                 </div>
               </div>
-              <button onClick={handleCreateMapping} className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">
+              <button onClick={handleCreateMapping} className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-xs font-bold">
                 <Link2 className="w-4 h-4" />
-                Create Mapping
+                Tạo liên kết
               </button>
             </SectionCard>
 
-            <SectionCard title="Resolve Effective Warehouses" description="Resolve inherited warehouse mappings from location hierarchy (direct + inherited).">
+            <SectionCard title="Bộ giải quyết liên kết hiệu dụng" description="Kiểm tra kho nào cung ứng cho vị trí dựa trên phân cấp (trực tiếp + kế thừa).">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Requested Location</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Vị trí yêu cầu</label>
                   <select
                     value={effectiveLocationId}
                     onChange={(e) => setEffectiveLocationId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-xs"
                   >
-                    <option value="">Select location</option>
+                    <option value="">Chọn vị trí</option>
                     {locations.map((location) => (
                       <option key={location.id} value={location.id}>{location.name}</option>
                     ))}
@@ -897,15 +917,15 @@ export const InventoryWarehouseManagement: React.FC = () => {
                 <div className="md:col-span-2 flex items-end gap-2">
                   <button
                     onClick={() => handleResolveEffectiveMappings(false)}
-                    className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                    className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-xs font-bold"
                   >
-                    Resolve Effective
+                    Kiểm tra hiệu dụng
                   </button>
                   <button
                     onClick={() => handleResolveEffectiveMappings(true)}
-                    className="px-3 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+                    className="px-3 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 text-xs"
                   >
-                    Resolve + Debug Trace
+                    Kiểm tra + Gỡ lỗi (Trace)
                   </button>
                 </div>
               </div>
@@ -914,21 +934,21 @@ export const InventoryWarehouseManagement: React.FC = () => {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-3 py-2 text-left">Source Type</th>
-                      <th className="px-3 py-2 text-left">Requested Location</th>
-                      <th className="px-3 py-2 text-left">Source Location</th>
-                      <th className="px-3 py-2 text-left">Warehouse</th>
-                      <th className="px-3 py-2 text-left">Depth</th>
+                      <th className="px-3 py-2 text-left text-xs">Loại nguồn</th>
+                      <th className="px-3 py-2 text-left text-xs">Vị trí yêu cầu</th>
+                      <th className="px-3 py-2 text-left text-xs">Vị trí nguồn</th>
+                      <th className="px-3 py-2 text-left text-xs">Kho</th>
+                      <th className="px-3 py-2 text-left text-xs">Độ sâu</th>
                     </tr>
                   </thead>
                   <tbody>
                     {effectiveMappings.length === 0 ? (
-                      <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">No effective mappings resolved yet</td></tr>
+                      <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">Chưa có kết quả giải quyết liên kết</td></tr>
                     ) : effectiveMappings.map((mapping) => (
                       <tr key={`${mapping.id}-${mapping.source_location_id}`} className="border-t border-gray-100">
-                        <td className="px-3 py-2">
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${mapping.source_type === 'direct' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                            {mapping.source_type}
+                        <td className="px-3 py-2 text-xs">
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium ${mapping.source_type === 'direct' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {mapping.source_type === 'direct' ? 'Trực tiếp' : 'Kế thừa'}
                           </span>
                         </td>
                         <td className="px-3 py-2 text-gray-700">{locationMap.get(mapping.requested_location_id)?.name || mapping.requested_location_id}</td>
@@ -944,23 +964,23 @@ export const InventoryWarehouseManagement: React.FC = () => {
               {isEffectiveDebugMode && (
                 <div className="mt-4 overflow-x-auto border border-gray-100 rounded-lg">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-gray-50 text-xs">
                       <tr>
-                        <th className="px-3 py-2 text-left">Trace Location</th>
-                        <th className="px-3 py-2 text-left">Depth</th>
-                        <th className="px-3 py-2 text-left">Mapping Count</th>
-                        <th className="px-3 py-2 text-left">Matched</th>
+                        <th className="px-3 py-2 text-left">Vị trí Trace</th>
+                        <th className="px-3 py-2 text-left">Độ sâu</th>
+                        <th className="px-3 py-2 text-left">Số lượng liên kết</th>
+                        <th className="px-3 py-2 text-left">Khớp</th>
                       </tr>
                     </thead>
                     <tbody>
                       {effectiveTrace.length === 0 ? (
-                        <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-400">No trace data</td></tr>
+                        <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-400">Không có dữ liệu trace</td></tr>
                       ) : effectiveTrace.map((trace) => (
-                        <tr key={`${trace.location_id}-${trace.depth}`} className="border-t border-gray-100">
+                        <tr key={`${trace.location_id}-${trace.depth}`} className="border-t border-gray-100 text-xs">
                           <td className="px-3 py-2 text-gray-700">{locationMap.get(trace.location_id)?.name || trace.location_id}</td>
                           <td className="px-3 py-2 text-gray-700">{trace.depth}</td>
                           <td className="px-3 py-2 text-gray-700">{trace.mapping_count}</td>
-                          <td className="px-3 py-2 text-gray-700">{trace.matched ? 'Yes' : 'No'}</td>
+                          <td className="px-3 py-2 text-gray-700">{trace.matched ? 'Có' : 'Không'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -969,21 +989,21 @@ export const InventoryWarehouseManagement: React.FC = () => {
               )}
             </SectionCard>
 
-            <SectionCard title="Mapping List" description="Review current location-warehouse relations and update or remove them.">
+            <SectionCard title="Danh sách liên kết" description="Xem, cập nhật hoặc xóa các liên kết vị trí - kho hiện tại.">
               <div className="mb-3 grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Location Filter</label>
-                  <select value={mappingLocationFilter} onChange={(e) => setMappingLocationFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white">
-                    <option value="all">All locations</option>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Lọc theo Vị trí</label>
+                  <select value={mappingLocationFilter} onChange={(e) => setMappingLocationFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-xs">
+                    <option value="all">Tất cả vị trí</option>
                     {locations.map((location) => (
                       <option key={location.id} value={location.id}>{location.name}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Warehouse Filter</label>
-                  <select value={mappingWarehouseFilter} onChange={(e) => setMappingWarehouseFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white">
-                    <option value="all">All warehouses</option>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Lọc theo Kho</label>
+                  <select value={mappingWarehouseFilter} onChange={(e) => setMappingWarehouseFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-xs">
+                    <option value="all">Tất cả kho</option>
                     {warehouses.map((warehouse) => (
                       <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
                     ))}
@@ -992,17 +1012,17 @@ export const InventoryWarehouseManagement: React.FC = () => {
               </div>
               <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 text-xs">
                   <tr>
-                    <th className="px-4 py-3 text-left">Location</th>
-                    <th className="px-4 py-3 text-left">Warehouse</th>
-                    <th className="px-4 py-3 text-left">Created</th>
-                    <th className="px-4 py-3 text-right">Actions</th>
+                    <th className="px-4 py-3 text-left">Vị trí</th>
+                    <th className="px-4 py-3 text-left">Kho</th>
+                    <th className="px-4 py-3 text-left">Ngày tạo</th>
+                    <th className="px-4 py-3 text-right">Hành động</th>
                   </tr>
                 </thead>
                 <tbody>
                   {locationWarehouses.length === 0 ? (
-                    <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">No mappings</td></tr>
+                    <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">Không có liên kết nào</td></tr>
                   ) : locationWarehouses.map((mapping) => (
                     <tr key={mapping.id} className="border-t border-gray-100">
                       <td className="px-4 py-3">
@@ -1013,11 +1033,11 @@ export const InventoryWarehouseManagement: React.FC = () => {
                         <div className="text-gray-800">{warehouseMap.get(mapping.warehouse_id)?.name || mapping.warehouse_id}</div>
                         <div className="text-xs text-gray-500">{mapping.warehouse_id}</div>
                       </td>
-                      <td className="px-4 py-3 text-gray-700">{mapping.created_at ? new Date(mapping.created_at).toLocaleString() : '—'}</td>
+                      <td className="px-4 py-3 text-gray-700 text-xs">{mapping.created_at ? new Date(mapping.created_at).toLocaleString() : '—'}</td>
                       <td className="px-4 py-3 text-right">
                         <div className="inline-flex gap-2">
-                          <button onClick={() => openEditMappingModal(mapping)} className="px-2.5 py-1.5 border border-gray-200 rounded">Edit</button>
-                          <button onClick={() => handleDeleteMapping(mapping)} className="px-2.5 py-1.5 border border-red-200 text-red-600 rounded">Delete</button>
+                          <button onClick={() => openEditMappingModal(mapping)} className="px-2 py-1 border border-gray-200 rounded text-xs hover:bg-gray-50">Sửa</button>
+                          <button onClick={() => handleDeleteMapping(mapping)} className="px-2 py-1 border border-red-200 text-red-600 rounded text-xs hover:bg-red-50">Xóa</button>
                         </div>
                       </td>
                     </tr>
@@ -1032,57 +1052,57 @@ export const InventoryWarehouseManagement: React.FC = () => {
         {activeTab === 'stocks' && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <StatCard label="Stock Rows" value={stocks.length} />
-              <StatCard label="Warehouses with Stocks" value={new Set(stocks.map((stock) => stock.warehouse_id)).size} />
-              <StatCard label="Total Available Quantity" value={stocks.reduce((sum, stock) => sum + stock.quantity_available, 0)} />
+              <StatCard label="Dòng Tồn kho" value={stocks.length} />
+              <StatCard label="Kho có hàng" value={new Set(stocks.map((stock) => stock.warehouse_id)).size} />
+              <StatCard label="Tổng số lượng khả dụng" value={stocks.reduce((sum, stock) => sum + stock.quantity_available, 0)} />
             </div>
 
-            <SectionCard title="Create Inventory Stock" description="Create the first stock row for a warehouse-item pair. Duplicate pairs will be rejected.">
+            <SectionCard title="Tạo tồn kho" description="Tạo dòng tồn kho đầu tiên cho cặp Kho - Vật tư. Các cặp trùng lặp sẽ bị hệ thống từ chối.">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Warehouse</label>
-                  <select value={newStockWarehouseId} onChange={(e) => setNewStockWarehouseId(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white">
-                    <option value="">Select warehouse</option>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Kho</label>
+                  <select value={newStockWarehouseId} onChange={(e) => setNewStockWarehouseId(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-xs">
+                    <option value="">Chọn kho</option>
                     {warehouses.map((warehouse) => (
                       <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Item</label>
-                  <select value={newStockItemId} onChange={(e) => setNewStockItemId(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white">
-                    <option value="">Select item</option>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Vật tư</label>
+                  <select value={newStockItemId} onChange={(e) => setNewStockItemId(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-xs">
+                    <option value="">Chọn vật tư</option>
                     {items.map((item) => (
                       <option key={item.id} value={item.id}>{getItemName(item)}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Quantity Available</label>
-                  <input value={newStockQuantity} onChange={(e) => setNewStockQuantity(e.target.value)} type="number" min="0" placeholder="0" className="w-full px-3 py-2 border border-gray-200 rounded-lg" />
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Số lượng khả dụng</label>
+                  <input value={newStockQuantity} onChange={(e) => setNewStockQuantity(e.target.value)} type="number" min="0" placeholder="0" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs" />
                 </div>
               </div>
-              <button onClick={handleCreateStock} className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">
+              <button onClick={handleCreateStock} className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-xs font-bold">
                 <Package className="w-4 h-4" />
-                Create Stock
+                Tạo tồn kho
               </button>
             </SectionCard>
 
-            <SectionCard title="Inventory Stock List" description="Review stock availability per warehouse and item.">
+            <SectionCard title="Danh sách tồn kho" description="Xem số lượng tồn kho theo từng kho và vật tư.">
               <div className="mb-3 grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Warehouse Filter</label>
-                  <select value={stockWarehouseFilter} onChange={(e) => setStockWarehouseFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white">
-                    <option value="all">All warehouses</option>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Lọc theo Kho</label>
+                  <select value={stockWarehouseFilter} onChange={(e) => setStockWarehouseFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-xs">
+                    <option value="all">Tất cả kho</option>
                     {warehouses.map((warehouse) => (
                       <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Item Filter</label>
-                  <select value={stockItemFilter} onChange={(e) => setStockItemFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white">
-                    <option value="all">All items</option>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Lọc theo Vật tư</label>
+                  <select value={stockItemFilter} onChange={(e) => setStockItemFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-xs">
+                    <option value="all">Tất cả vật tư</option>
                     {items.map((item) => (
                       <option key={item.id} value={item.id}>{getItemName(item)}</option>
                     ))}
@@ -1091,18 +1111,18 @@ export const InventoryWarehouseManagement: React.FC = () => {
               </div>
               <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 text-xs">
                   <tr>
-                    <th className="px-4 py-3 text-left">Warehouse</th>
-                    <th className="px-4 py-3 text-left">Item</th>
-                    <th className="px-4 py-3 text-left">Quantity</th>
-                    <th className="px-4 py-3 text-left">Updated</th>
-                    <th className="px-4 py-3 text-right">Actions</th>
+                    <th className="px-4 py-3 text-left">Kho</th>
+                    <th className="px-4 py-3 text-left">Vật tư</th>
+                    <th className="px-4 py-3 text-left">Số lượng</th>
+                    <th className="px-4 py-3 text-left">Cập nhật</th>
+                    <th className="px-4 py-3 text-right">Hành động</th>
                   </tr>
                 </thead>
                 <tbody>
                   {stocks.length === 0 ? (
-                    <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No stocks</td></tr>
+                    <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Không có tồn kho nào</td></tr>
                   ) : stocks.map((stock) => (
                     <tr key={stock.id} className="border-t border-gray-100">
                       <td className="px-4 py-3">
@@ -1117,8 +1137,8 @@ export const InventoryWarehouseManagement: React.FC = () => {
                       <td className="px-4 py-3 text-gray-700">{stock.updated_at ? new Date(stock.updated_at).toLocaleString() : '—'}</td>
                       <td className="px-4 py-3 text-right">
                         <div className="inline-flex gap-2">
-                          <button onClick={() => openEditStockModal(stock)} className="px-2.5 py-1.5 border border-gray-200 rounded">Edit</button>
-                          <button onClick={() => handleDeleteStock(stock)} className="px-2.5 py-1.5 border border-red-200 text-red-600 rounded">Delete</button>
+                          <button onClick={() => openEditStockModal(stock)} className="px-2.5 py-1.5 border border-gray-200 rounded">Sửa</button>
+                          <button onClick={() => handleDeleteStock(stock)} className="px-2.5 py-1.5 border border-red-200 text-red-600 rounded">Xóa</button>
                         </div>
                       </td>
                     </tr>
@@ -1133,35 +1153,35 @@ export const InventoryWarehouseManagement: React.FC = () => {
         {activeTab === 'items' && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <StatCard label="Total Items" value={items.length} />
-              <StatCard label="Filtered Items" value={filteredItems.length} />
-              <StatCard label="Ready for Stock" value={items.length} />
+              <StatCard label="Tổng số Vật tư" value={items.length} />
+              <StatCard label="Vật tư đã lọc" value={filteredItems.length} />
+              <StatCard label="Sẵn sàng nhập kho" value={items.length} />
             </div>
 
-            <SectionCard title="Create Item" description="Create inventory item records used by Inventory Stock and Checkout Logs.">
+            <SectionCard title="Tạo vật tư" description="Tạo hồ sơ vật tư để sử dụng trong Tồn kho và Nhật ký xuất kho.">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Item Name</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Tên vật tư</label>
                   <input
                     value={newItemName}
                     onChange={(e) => setNewItemName(e.target.value)}
-                    placeholder="e.g. Tissue Box"
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                    placeholder="VD: Hộp khăn giấy"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Item Type</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Loại vật tư</label>
                   <select
                     value={newItemType}
                     onChange={(e) => setNewItemType(e.target.value as ItemType)}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-xs"
                   >
-                    <option value="CONSUMABLE">CONSUMABLE</option>
-                    <option value="REUSABLE">REUSABLE</option>
+                    <option value="CONSUMABLE">TIÊU HAO</option>
+                    <option value="REUSABLE">TÁI SỬ DỤNG</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Unit Cost</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Đơn giá</label>
                   <input
                     type="number"
                     min="0"
@@ -1169,43 +1189,43 @@ export const InventoryWarehouseManagement: React.FC = () => {
                     value={newItemUnitCost}
                     onChange={(e) => setNewItemUnitCost(e.target.value)}
                     placeholder="0"
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs"
                   />
                 </div>
               </div>
               <button
                 onClick={handleCreateItem}
                 disabled={isCreatingItem}
-                className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+                className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 text-xs font-bold"
               >
                 <Plus className="w-4 h-4" />
-                {isCreatingItem ? 'Creating...' : 'Create Item'}
+                {isCreatingItem ? 'Đang tạo...' : 'Tạo vật tư'}
               </button>
             </SectionCard>
 
-            <SectionCard title="Item List" description="View and search created items used for stock operations.">
+            <SectionCard title="Danh sách vật tư" description="Xem và tìm kiếm các vật tư đã tạo.">
               <div className="mb-3">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Search Items</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Tìm kiếm Vật tư</label>
                 <input
                   value={itemSearch}
                   onChange={(e) => setItemSearch(e.target.value)}
-                  placeholder="Search by name, code, sku, id..."
-                  className="w-full md:max-w-md px-3 py-2 border border-gray-200 rounded-lg"
+                  placeholder="Tìm theo tên, mã, sku, id..."
+                  className="w-full md:max-w-md px-3 py-2 border border-gray-200 rounded-lg text-xs"
                 />
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-3 text-left">Item</th>
-                      <th className="px-4 py-3 text-left">Item Type</th>
-                      <th className="px-4 py-3 text-left">Unit Cost</th>
-                      <th className="px-4 py-3 text-right">Actions</th>
+                      <th className="px-4 py-3 text-left">Vật tư</th>
+                      <th className="px-4 py-3 text-left">Loại vật tư</th>
+                      <th className="px-4 py-3 text-left">Đơn giá</th>
+                      <th className="px-4 py-3 text-right">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredItems.length === 0 ? (
-                      <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">No items found</td></tr>
+                      <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">Không tìm thấy vật tư nào</td></tr>
                     ) : filteredItems.map((item) => (
                       <tr key={item.id} className="border-t border-gray-100">
                         <td className="px-4 py-3">
@@ -1213,11 +1233,11 @@ export const InventoryWarehouseManagement: React.FC = () => {
                           <div className="text-xs text-gray-500">{item.id}</div>
                         </td>
                         <td className="px-4 py-3 text-gray-700">{getItemType(item) || '—'}</td>
-                        <td className="px-4 py-3 text-gray-700">{getItemUnitCost(item) == null ? 'N/A' : getItemUnitCost(item)}</td>
+                        <td className="px-4 py-3 text-gray-700 text-xs">{getItemUnitCost(item) == null ? 'N/A' : getItemUnitCost(item).toLocaleString()}</td>
                         <td className="px-4 py-3 text-right">
                           <div className="inline-flex gap-2">
-                            <button onClick={() => openEditItemModal(item)} className="px-2.5 py-1.5 border border-gray-200 rounded">Edit</button>
-                            <button onClick={() => handleDeleteItem(item)} className="px-2.5 py-1.5 border border-red-200 text-red-600 rounded">Delete</button>
+                            <button onClick={() => openEditItemModal(item)} className="px-2 py-1 border border-gray-200 rounded text-xs hover:bg-gray-50">Sửa</button>
+                            <button onClick={() => handleDeleteItem(item)} className="px-2 py-1 border border-red-200 text-red-600 rounded text-xs hover:bg-red-50">Xóa</button>
                           </div>
                         </td>
                       </tr>
@@ -1232,57 +1252,57 @@ export const InventoryWarehouseManagement: React.FC = () => {
         <Modal
           isOpen={Boolean(editingItem)}
           onClose={closeEditItemModal}
-          title="Edit Item"
+          title="Sửa Vật tư"
           size="sm"
           footer={(
             <>
               <button
                 onClick={closeEditItemModal}
                 disabled={isSavingItemEdit}
-                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60 text-xs"
               >
-                Cancel
+                Hủy
               </button>
               <button
                 onClick={handleEditItem}
                 disabled={isSavingItemEdit}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 text-xs font-bold"
               >
-                {isSavingItemEdit ? 'Saving...' : 'Save Changes'}
+                {isSavingItemEdit ? 'Đang lưu...' : 'Lưu thay đổi'}
               </button>
             </>
           )}
         >
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Item Name</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Tên vật tư</label>
               <input
                 value={editItemName}
                 onChange={(e) => setEditItemName(e.target.value)}
-                placeholder="Item name"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                placeholder="Tên vật tư"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Item Type</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Loại vật tư</label>
               <select
                 value={editItemType}
                 onChange={(e) => setEditItemType(e.target.value as ItemType)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-xs"
               >
-                <option value="CONSUMABLE">CONSUMABLE</option>
-                <option value="REUSABLE">REUSABLE</option>
+                <option value="CONSUMABLE">TIÊU HAO</option>
+                <option value="REUSABLE">TÁI SỬ DỤNG</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Unit Cost</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Đơn giá</label>
               <input
                 type="number"
                 min="0"
                 step="0.01"
                 value={editItemUnitCost}
                 onChange={(e) => setEditItemUnitCost(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs"
               />
             </div>
           </div>
@@ -1291,16 +1311,16 @@ export const InventoryWarehouseManagement: React.FC = () => {
         {activeTab === 'checkoutLogs' && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <StatCard label="Total Logs" value={checkoutLogs.length} />
-              <StatCard label="Checkouts" value={checkoutLogs.filter((log) => log.action_type === 'CHECKOUT').length} />
-              <StatCard label="Returns" value={checkoutLogs.filter((log) => log.action_type === 'RETURN').length} />
-              <StatCard label="Waste Logs" value={checkoutLogs.filter((log) => log.action_type === 'WASTE').length} />
+              <StatCard label="Tổng Nhật ký" value={checkoutLogs.length} />
+              <StatCard label="Xuất kho" value={checkoutLogs.filter((log) => log.action_type === 'CHECKOUT').length} />
+              <StatCard label="Hoàn trả" value={checkoutLogs.filter((log) => log.action_type === 'RETURN').length} />
+              <StatCard label="Hủy bỏ/Hao hụt" value={checkoutLogs.filter((log) => log.action_type === 'WASTE').length} />
             </div>
 
-            <SectionCard title="Checkout Log List" description="Audit stock movement history (edit/delete actions are temporarily hidden).">
+            <SectionCard title="Danh sách Nhật ký" description="Kiểm tra lịch sử biến động kho.">
               <div className="mb-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-                <select value={logStockFilter} onChange={(e) => setLogStockFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white">
-                  <option value="all">All stocks</option>
+                <select value={logStockFilter} onChange={(e) => setLogStockFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-xs">
+                  <option value="all">Tất cả tồn kho</option>
                   {stocks.map((stock) => (
                     <option key={stock.id} value={stock.id}>{formatStockLabel(stock.id)}</option>
                   ))}
@@ -1308,17 +1328,17 @@ export const InventoryWarehouseManagement: React.FC = () => {
                 <input
                   value={logStaffFilter}
                   onChange={(e) => setLogStaffFilter(e.target.value)}
-                  placeholder="Filter by staff"
+                  placeholder="Lọc theo nhân viên"
                   list="staff-filter-options"
-                  className="px-3 py-2 border border-gray-200 rounded-lg"
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-xs"
                 />
                 <datalist id="staff-filter-options">
                   {knownStaffIds.map((staffId) => (
                     <option key={staffId} value={staffId}>{formatStaffLabel(staffId)}</option>
                   ))}
                 </datalist>
-                <select value={logActionFilter} onChange={(e) => setLogActionFilter(e.target.value as 'all' | InventoryActionType)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white">
-                  <option value="all">All action types</option>
+                <select value={logActionFilter} onChange={(e) => setLogActionFilter(e.target.value as 'all' | InventoryActionType)} className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-xs">
+                  <option value="all">Tất cả hành động</option>
                   {INVENTORY_ACTION_TYPES.map((action) => (
                     <option key={action} value={action}>{action}</option>
                   ))}
@@ -1340,22 +1360,22 @@ export const InventoryWarehouseManagement: React.FC = () => {
               </div>
               <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 text-xs">
                   <tr>
-                    <th className="px-4 py-3 text-left">Action</th>
-                    <th className="px-4 py-3 text-left">Stock</th>
-                    <th className="px-4 py-3 text-left">Staff</th>
-                    <th className="px-4 py-3 text-left">Cleaning Task</th>
-                    <th className="px-4 py-3 text-left">Maintenance Task</th>
-                    <th className="px-4 py-3 text-left">Quantity</th>
-                    <th className="px-4 py-3 text-left">Reason</th>
-                    <th className="px-4 py-3 text-left">Created</th>
-                    <th className="px-4 py-3 text-right">Actions</th>
+                    <th className="px-4 py-3 text-left">Hành động</th>
+                    <th className="px-4 py-3 text-left">Tồn kho</th>
+                    <th className="px-4 py-3 text-left">Nhân viên</th>
+                    <th className="px-4 py-3 text-left">NV Vệ sinh</th>
+                    <th className="px-4 py-3 text-left">NV Bảo trì</th>
+                    <th className="px-4 py-3 text-left">Số lượng</th>
+                    <th className="px-4 py-3 text-left">Lý do</th>
+                    <th className="px-4 py-3 text-left">Ngày tạo</th>
+                    <th className="px-4 py-3 text-right">Hành động</th>
                   </tr>
                 </thead>
                 <tbody>
                   {checkoutLogs.length === 0 ? (
-                    <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">No checkout logs</td></tr>
+                    <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">Không có nhật ký nào</td></tr>
                   ) : checkoutLogs.map((log) => (
                     <tr key={log.id} className="border-t border-gray-100">
                       <td className="px-4 py-3">
@@ -1369,9 +1389,9 @@ export const InventoryWarehouseManagement: React.FC = () => {
                       <td className="px-4 py-3 text-gray-700">{formatTaskLabel(log.maintenance_task_id, 'Maintenance')}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">{log.quantity}</td>
                       <td className="px-4 py-3 text-gray-700">{log.reason || '—'}</td>
-                      <td className="px-4 py-3 text-gray-700">{log.created_at ? new Date(log.created_at).toLocaleString() : '—'}</td>
+                      <td className="px-4 py-3 text-gray-700 text-xs">{log.created_at ? new Date(log.created_at).toLocaleString() : '—'}</td>
                       <td className="px-4 py-3 text-right">
-                        <span className="text-xs text-gray-400">Temporarily hidden</span>
+                        <span className="text-[10px] text-gray-400 italic">Tạm ẩn</span>
                       </td>
                     </tr>
                   ))}
@@ -1385,44 +1405,44 @@ export const InventoryWarehouseManagement: React.FC = () => {
         <Modal
           isOpen={Boolean(editingWarehouse)}
           onClose={closeEditWarehouseModal}
-          title="Edit Warehouse"
+          title="Sửa Kho"
           size="md"
           footer={(
             <>
               <button
                 onClick={closeEditWarehouseModal}
                 disabled={isSavingWarehouseEdit}
-                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60 text-xs"
               >
-                Cancel
+                Hủy
               </button>
               <button
                 onClick={handleUpdateWarehouse}
                 disabled={isSavingWarehouseEdit}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 text-xs font-bold"
               >
-                {isSavingWarehouseEdit ? 'Saving...' : 'Save Changes'}
+                {isSavingWarehouseEdit ? 'Đang lưu...' : 'Lưu thay đổi'}
               </button>
             </>
           )}
         >
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Warehouse Name</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Tên kho</label>
               <input
                 value={editWarehouseName}
                 onChange={(e) => setEditWarehouseName(e.target.value)}
-                placeholder="Warehouse name"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                placeholder="Tên kho"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Địa chỉ</label>
               <input
                 value={editWarehouseAddress}
                 onChange={(e) => setEditWarehouseAddress(e.target.value)}
-                placeholder="Warehouse address"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                placeholder="Địa chỉ kho"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs"
               />
             </div>
           </div>
@@ -1431,49 +1451,49 @@ export const InventoryWarehouseManagement: React.FC = () => {
         <Modal
           isOpen={Boolean(editingMapping)}
           onClose={closeEditMappingModal}
-          title="Edit Location-Warehouse Mapping"
+          title="Sửa Liên kết Vị trí - Kho"
           size="md"
           footer={(
             <>
               <button
                 onClick={closeEditMappingModal}
                 disabled={isSavingMappingEdit}
-                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60 text-xs"
               >
-                Cancel
+                Hủy
               </button>
               <button
                 onClick={handleEditMapping}
                 disabled={isSavingMappingEdit}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 text-xs font-bold"
               >
-                {isSavingMappingEdit ? 'Saving...' : 'Save Changes'}
+                {isSavingMappingEdit ? 'Đang lưu...' : 'Lưu thay đổi'}
               </button>
             </>
           )}
         >
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Location</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Vị trí</label>
               <select
                 value={editMappingLocationId}
                 onChange={(e) => setEditMappingLocationId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-xs"
               >
-                <option value="">Select location</option>
+                <option value="">Chọn vị trí</option>
                 {locations.map((location) => (
                   <option key={location.id} value={location.id}>{location.name}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Warehouse</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Kho</label>
               <select
                 value={editMappingWarehouseId}
                 onChange={(e) => setEditMappingWarehouseId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-xs"
               >
-                <option value="">Select warehouse</option>
+                <option value="">Chọn kho</option>
                 {warehouses.map((warehouse) => (
                   <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
                 ))}
@@ -1485,36 +1505,36 @@ export const InventoryWarehouseManagement: React.FC = () => {
         <Modal
           isOpen={Boolean(editingCheckoutLog)}
           onClose={closeEditCheckoutLogModal}
-          title="Edit Checkout Log"
+          title="Sửa Nhật ký Xuất kho"
           size="md"
           footer={(
             <>
               <button
                 onClick={closeEditCheckoutLogModal}
                 disabled={isSavingCheckoutLogEdit}
-                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60 text-xs"
               >
-                Cancel
+                Hủy
               </button>
               <button
                 onClick={handleEditCheckoutLog}
                 disabled={isSavingCheckoutLogEdit}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 text-xs font-bold"
               >
-                {isSavingCheckoutLogEdit ? 'Saving...' : 'Save Changes'}
+                {isSavingCheckoutLogEdit ? 'Đang lưu...' : 'Lưu thay đổi'}
               </button>
             </>
           )}
         >
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Staff</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Nhân viên</label>
               <select
                 value={editLogStaffId}
                 onChange={(e) => setEditLogStaffId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-xs"
               >
-                <option value="">Select staff</option>
+                <option value="">Chọn nhân viên</option>
                 {knownStaffIds.map((staffId) => (
                   <option key={staffId} value={staffId}>{formatStaffLabel(staffId)}</option>
                 ))}
@@ -1522,21 +1542,21 @@ export const InventoryWarehouseManagement: React.FC = () => {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Quantity</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Số lượng</label>
                 <input
                   type="number"
                   min="1"
                   value={editLogQuantity}
                   onChange={(e) => setEditLogQuantity(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Action Type</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Loại hành động</label>
                 <select
                   value={editLogActionType}
                   onChange={(e) => setEditLogActionType(e.target.value as InventoryActionType)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-xs"
                 >
                   {INVENTORY_ACTION_TYPES.map((action) => (
                     <option key={action} value={action}>{action}</option>
@@ -1545,12 +1565,12 @@ export const InventoryWarehouseManagement: React.FC = () => {
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Reason</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Lý do</label>
               <input
                 value={editLogReason}
                 onChange={(e) => setEditLogReason(e.target.value)}
-                placeholder="Reason (optional)"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                placeholder="Lý do (tùy chọn)"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs"
               />
             </div>
           </div>
@@ -1559,23 +1579,23 @@ export const InventoryWarehouseManagement: React.FC = () => {
         <Modal
           isOpen={Boolean(editingStock)}
           onClose={closeEditStockModal}
-          title="Edit Inventory Stock"
+          title="Sửa Tồn kho"
           size="md"
           footer={(
             <>
               <button
                 onClick={closeEditStockModal}
                 disabled={isSavingStockEdit}
-                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60 text-xs"
               >
-                Cancel
+                Hủy
               </button>
               <button
                 onClick={handleEditStock}
                 disabled={isSavingStockEdit}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 text-xs font-bold"
               >
-                {isSavingStockEdit ? 'Saving...' : 'Save Changes'}
+                {isSavingStockEdit ? 'Đang lưu...' : 'Lưu thay đổi'}
               </button>
             </>
           )}
@@ -1583,26 +1603,26 @@ export const InventoryWarehouseManagement: React.FC = () => {
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Warehouse</label>
-                <div className="px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Kho</label>
+                <div className="px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-xs text-gray-700">
                   {editingStock ? (warehouseMap.get(editingStock.warehouse_id)?.name || editingStock.warehouse_id) : '—'}
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Item</label>
-                <div className="px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Vật tư</label>
+                <div className="px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-xs text-gray-700">
                   {editingStock ? getItemName(itemMap.get(editingStock.item_id) || { id: editingStock.item_id }) : '—'}
                 </div>
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Quantity Available</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Số lượng khả dụng</label>
               <input
                 type="number"
                 min="0"
                 value={editStockQuantity}
                 onChange={(e) => setEditStockQuantity(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs"
               />
             </div>
           </div>

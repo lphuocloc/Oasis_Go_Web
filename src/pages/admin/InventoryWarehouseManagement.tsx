@@ -36,10 +36,10 @@ const TABS: Array<{ key: InventoryTab; label: string }> = [
   { key: 'items', label: 'Vật tư' },
   { key: 'stocks', label: 'Tồn kho' },
   { key: 'checkoutLogs', label: 'Nhật ký Xuất kho' }
-  { key: 'warehouseSetup', label: 'Kho hàng & Liên kết địa điểm' },
-  { key: 'items', label: 'Vật tư' },
-  { key: 'stocks', label: 'Tồn kho' },
-  { key: 'checkoutLogs', label: 'Nhật ký xuất/nhập kho' }
+  // { key: 'warehouseSetup', label: 'Kho hàng & Liên kết địa điểm' },
+  // { key: 'items', label: 'Vật tư' },
+  // { key: 'stocks', label: 'Tồn kho' },
+  // { key: 'checkoutLogs', label: 'Nhật ký xuất/nhập kho' }
 ]
 
 const getItemName = (item: InventoryItem) => item.name || item.item_name || item.code || item.sku || item.id

@@ -210,7 +210,6 @@ export const InventoryWarehouseManagement: React.FC = () => {
   const formatTaskLabel = (taskId?: string | null, taskType?: 'Cleaning' | 'Maintenance') => {
     if (!taskId) return '—'
     const id = shortId(taskId)
-    const prefix = taskType === 'Cleaning' ? 'Nhiệm vụ Vệ sinh' : taskType === 'Maintenance' ? 'Nhiệm vụ Bảo trì' : 'Nhiệm vụ'
     const prefix = taskType === 'Cleaning' ? 'Vệ sinh' : taskType === 'Maintenance' ? 'Bảo trì' : 'Nhiệm vụ'
     return id === taskId ? `${prefix} ${taskId}` : `${prefix} ${id} (${taskId})`
   }

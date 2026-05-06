@@ -12,8 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   SlidersHorizontal,
-  Package,
-  AlertCircle
+  Package
 } from 'lucide-react'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'

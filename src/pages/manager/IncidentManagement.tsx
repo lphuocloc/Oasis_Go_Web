@@ -1,21 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   AlertCircle,
-  Boxes,
   Check,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   Eye,
-  History as HistoryIcon,
   Package,
   RefreshCw,
   Search,
   SlidersHorizontal,
   Store as StoreIcon,
-  X,
   XCircle,
-  Image as ImageIcon,
 } from 'lucide-react'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
@@ -142,7 +136,7 @@ export const IncidentManagement = () => {
   const [isLoading, setIsLoading] = useState(true)
 
   const [search, setSearch] = useState('')
-  const [activeTab, setActiveTab] = useState<'USER' | 'CLEANER'>('CLEANER')
+  const [activeTab] = useState<'USER' | 'CLEANER'>('CLEANER')
   const [filters, setFilters] = useState<IncidentListFilters>(defaultFilters)
   const [draftFilters, setDraftFilters] = useState<IncidentListFilters>(defaultFilters)
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false)
@@ -597,7 +591,6 @@ export const IncidentManagement = () => {
   const detailStatus = detailIncident?.status ?? detailReport?.status ?? 'PENDING'
   const detailSeverity = detailIncident?.severity ?? detailReport?.severity ?? 'MEDIUM'
   const detailDescription = detailIncident?.description ?? detailReport?.description ?? '-'
-  const detailPhotos = detailIncident?.photo_urls ?? detailReport?.photo_urls ?? []
   const detailLines = detailIncident?.details ?? detailReport?.details ?? []
 
   return (

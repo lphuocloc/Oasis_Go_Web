@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo } from 'react'
-import { Clock, MapPin, CalendarDays, Plus, Trash2, RefreshCw, LogIn, LogOut } from 'lucide-react'
+import { Clock, MapPin, CalendarDays, Plus, Trash2, RefreshCw, LogIn } from 'lucide-react'
 import dayjs from 'dayjs'
 import { toast } from 'react-toastify'
-import Modal from '../../components/common/Modal'
+
 
 import { staffShiftApi, type StaffShiftItem } from '../../api/lib/staffShiftApi'
 import { locationShiftApi, type LocationShiftItem } from '../../api/lib/locationShiftApi'

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Boxes, Edit2, Eye, RefreshCw, Search, SlidersHorizontal, Check, CheckCircle, Clock, AlertCircle, X, Wrench, LayoutTemplate, Wind, Volume2, Zap, Wifi, Timer, History, MapPin } from 'lucide-react'
+import { Boxes, RefreshCw, Search, SlidersHorizontal, Check, Clock, Wrench, LayoutTemplate, Wind, Volume2, Zap, Wifi, Timer, History, MapPin } from 'lucide-react'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
 import {
@@ -9,8 +9,7 @@ import {
   type PodStatus,
   type UpdatePodStatusPayload
 } from '../../api/lib/podApi'
-import { userApi, type UserListItem } from '../../api/lib/userApi'
-import { cleaningTaskApi } from '../../api/lib/cleaningTaskApi'
+
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
 import { initUserSocket } from '../../lib/socket'
 
@@ -78,7 +77,7 @@ export const PodManagement = () => {
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [detailPod, setDetailPod] = useState<PodItem | null>(null)
-  const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null)
+
 
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false)
   const [isStatusSaving, setIsStatusSaving] = useState(false)
@@ -86,11 +85,7 @@ export const PodManagement = () => {
   const [nextStatus, setNextStatus] = useState<PodStatus>('AVAILABLE')
   const [maintenanceReason, setMaintenanceReason] = useState('')
 
-  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false)
-  const [assignPod, setAssignPod] = useState<PodItem | null>(null)
-  const [cleaners, setCleaners] = useState<UserListItem[]>([])
-  const [selectedCleaner, setSelectedCleaner] = useState('')
-  const [isAssigning, setIsAssigning] = useState(false)
+
 
   const fetchPods = async () => {
     try {
@@ -178,13 +173,13 @@ export const PodManagement = () => {
     setIsDetailOpen(false)
     setIsDetailLoading(false)
     setDetailPod(null)
-    setDetailLoadingId(null)
+
   }
 
   const openDetailModal = async (podId: string) => {
     setIsDetailOpen(true)
     setIsDetailLoading(true)
-    setDetailLoadingId(podId)
+
 
     try {
       const response = await podApi.getById(podId)
@@ -194,7 +189,7 @@ export const PodManagement = () => {
       closeDetailModal()
     } finally {
       setIsDetailLoading(false)
-      setDetailLoadingId(null)
+
     }
   }
 
@@ -206,12 +201,7 @@ export const PodManagement = () => {
     setMaintenanceReason('')
   }
 
-  const openStatusModal = (pod: PodItem) => {
-    setStatusPod(pod)
-    setNextStatus(pod.status)
-    setMaintenanceReason(pod.maintenance_status ?? '')
-    setIsStatusModalOpen(true)
-  }
+
 
   const handleUpdateStatus = async () => {
     if (!statusPod) return
@@ -244,47 +234,9 @@ export const PodManagement = () => {
     }
   }
 
-  const openAssignModal = async (pod: PodItem) => {
-    setAssignPod(pod)
-    setIsAssignModalOpen(true)
-    if (cleaners.length === 0) {
-      try {
-        const res = await userApi.getActiveUsers('cleaner')
-        setCleaners(res.data)
-      } catch (error: any) {
-        toast.error(error?.response?.data?.message || 'Không thể tải danh sách nhân viên dọn dẹp')
-      }
-    }
-  }
 
-  const closeAssignModal = () => {
-    if (isAssigning) return
-    setIsAssignModalOpen(false)
-    setAssignPod(null)
-    setSelectedCleaner('')
-  }
 
-  const handleAssignCleaner = async () => {
-    if (!assignPod || !selectedCleaner) {
-      toast.error('Vui lòng chọn nhân viên dọn dẹp')
-      return
-    }
-    try {
-      setIsAssigning(true)
-      await cleaningTaskApi.create({
-        pod_id: assignPod.id,
-        cleaner_id: selectedCleaner,
-        request_source: 'USER_REQUEST'
-      })
-      toast.success('Đã gán nhân viên dọn dẹp thành công')
-      closeAssignModal()
-      fetchPods()
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Không thể gán nhân viên dọn dẹp')
-    } finally {
-      setIsAssigning(false)
-    }
-  }
+
 
   const applyFilters = () => {
     setClusterFilter(draftFilters.cluster_id)
@@ -825,49 +777,7 @@ export const PodManagement = () => {
         </div>
       </Modal>
 
-      <Modal
-        isOpen={isAssignModalOpen}
-        onClose={closeAssignModal}
-        title={assignPod ? `Gán nhân viên dọn dẹp - ${assignPod.code}` : 'Gán nhân viên dọn dẹp'}
-        size="md"
-        footer={(
-          <>
-            <button
-              onClick={closeAssignModal}
-              disabled={isAssigning}
-              className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
-            >
-              Hủy
-            </button>
-            <button
-              onClick={handleAssignCleaner}
-              disabled={isAssigning || !selectedCleaner}
-              className="px-4 py-2 rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {isAssigning ? 'Đang gán...' : 'Gán nhiệm vụ'}
-            </button>
-          </>
-        )}
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-600">
-            Chọn nhân viên để tạo nhiệm vụ dọn dẹp cho Pod <strong>{assignPod?.name}</strong>.
-          </p>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Nhân viên dọn dẹp</label>
-            <select
-              value={selectedCleaner}
-              onChange={(e) => setSelectedCleaner(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white"
-            >
-              <option value="" disabled>-- Chọn nhân viên --</option>
-              {cleaners.map((c) => (
-                <option key={c.id || c._id} value={c.id || c._id}>{c.name} ({c.email})</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </Modal>
+
     </div>
   )
 }

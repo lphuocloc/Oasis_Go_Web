@@ -12,7 +12,7 @@ import {
   Check,
   CheckCircle,
   Clock,
-  X,
+
   CreditCard,
   Ban,
   Boxes

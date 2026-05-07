@@ -70,7 +70,7 @@ export const incidentsApi = createApi({
           }
         }
       },
-      providesTags: (result, error, id) => [{ type: 'IncidentDetail', id }],
+      providesTags: (_result, _error, id) => [{ type: 'IncidentDetail', id }],
     }),
 
     updateIncidentStatus: builder.mutation<
@@ -87,7 +87,7 @@ export const incidentsApi = createApi({
           }
         }
       },
-      invalidatesTags: (result, error, { id }) => ['Incidents', { type: 'IncidentDetail', id }, 'OrderIncidents'],
+      invalidatesTags: (_result, _error, { id }) => ['Incidents', { type: 'IncidentDetail', id }, 'OrderIncidents'],
     }),
 
     getAffectedBookings: builder.query<AffectedBookingsResult, string>({
@@ -101,7 +101,7 @@ export const incidentsApi = createApi({
           }
         }
       },
-      providesTags: (result, error, id) => [{ type: 'AffectedBookings', id }],
+      providesTags: (_result, _error, id) => [{ type: 'AffectedBookings', id }],
     }),
 
     getRoomChangeCandidates: builder.query<RoomChangeCandidatesResult, string>({
@@ -161,7 +161,7 @@ export const incidentsApi = createApi({
           }
         }
       },
-      providesTags: (result, error, id) => [{ type: 'OrderIncidents', id }],
+      providesTags: (_result, _error, id) => [{ type: 'OrderIncidents', id }],
     }),
 
     createOrderDamageBill: builder.mutation<void, string>({
@@ -175,7 +175,7 @@ export const incidentsApi = createApi({
           }
         }
       },
-      invalidatesTags: (result, error, orderId) => [{ type: 'OrderIncidents', id: orderId }],
+      invalidatesTags: (_result, _error, orderId) => [{ type: 'OrderIncidents', id: orderId }],
     }),
   }),
 })

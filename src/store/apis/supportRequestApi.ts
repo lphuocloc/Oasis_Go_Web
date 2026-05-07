@@ -79,7 +79,7 @@ export const supportRequestsApi = createApi({
           }
         }
       },
-      providesTags: (result, error, id) => [{ type: 'RoomChangeCandidates', id }],
+      providesTags: (_result, _error, id) => [{ type: 'RoomChangeCandidates', id }],
     }),
 
     executeRoomChange: builder.mutation<

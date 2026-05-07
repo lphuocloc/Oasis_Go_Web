@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Boxes, RefreshCw, Search, SlidersHorizontal, Check, Clock, Wrench, LayoutTemplate, Wind, Volume2, Zap, Wifi, Timer, History, MapPin } from 'lucide-react'
+import { Boxes, RefreshCw, Search, SlidersHorizontal, Check, Clock, Wrench, LayoutTemplate, Wind, Volume2, Zap, Wifi, Timer, History, MapPin, Settings2 } from 'lucide-react'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
 import {
@@ -199,6 +199,13 @@ export const PodManagement = () => {
     setStatusPod(null)
     setNextStatus('AVAILABLE')
     setMaintenanceReason('')
+  }
+
+  const openStatusModal = (pod: PodItem) => {
+    setStatusPod(pod)
+    setNextStatus(pod.status)
+    setMaintenanceReason(pod.maintenance_status ?? '')
+    setIsStatusModalOpen(true)
   }
 
 
@@ -406,6 +413,13 @@ export const PodManagement = () => {
                                     <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-white border border-gray-100 rounded-full flex items-center justify-center shadow-sm">
                                       <span className="text-[8px] font-bold text-gray-400">U</span>
                                     </div>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); openStatusModal(pod) }}
+                                      title="Cập nhật trạng thái"
+                                      className="absolute -bottom-1.5 -left-1.5 w-5 h-5 bg-white border border-gray-200 rounded-full items-center justify-center shadow-sm hidden group-hover:flex hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                                    >
+                                      <Settings2 className="w-2.5 h-2.5 text-gray-500" />
+                                    </button>
                                   </div>
                                 ))}
                               </div>
@@ -425,6 +439,13 @@ export const PodManagement = () => {
                                     <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-white border border-gray-100 rounded-full flex items-center justify-center shadow-sm">
                                       <span className="text-[8px] font-bold text-gray-400">L</span>
                                     </div>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); openStatusModal(pod) }}
+                                      title="Cập nhật trạng thái"
+                                      className="absolute -top-1.5 -left-1.5 w-5 h-5 bg-white border border-gray-200 rounded-full items-center justify-center shadow-sm hidden group-hover:flex hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                                    >
+                                      <Settings2 className="w-2.5 h-2.5 text-gray-500" />
+                                    </button>
                                   </div>
                                 ))}
                               </div>
@@ -437,10 +458,17 @@ export const PodManagement = () => {
                                   <div
                                     key={pod.id}
                                     onClick={() => openDetailModal(pod.id)}
-                                    className={`w-24 h-16 rounded-xl border-2 shadow-sm flex flex-col items-center justify-center transition-all hover:scale-105 cursor-pointer ${getPodStatusBorderColor(pod.status)}`}
+                                    className={`w-24 h-16 rounded-xl border-2 shadow-sm flex flex-col items-center justify-center transition-all hover:scale-105 group relative cursor-pointer ${getPodStatusBorderColor(pod.status)}`}
                                   >
                                     <span className="text-xs font-bold">{pod.code}</span>
                                     <span className="text-[8px] font-bold opacity-60 mt-0.5 truncate px-1 w-full text-center">{pod.status}</span>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); openStatusModal(pod) }}
+                                      title="Cập nhật trạng thái"
+                                      className="absolute -top-1.5 -left-1.5 w-5 h-5 bg-white border border-gray-200 rounded-full items-center justify-center shadow-sm hidden group-hover:flex hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                                    >
+                                      <Settings2 className="w-2.5 h-2.5 text-gray-500" />
+                                    </button>
                                   </div>
                                 ))}
                               </div>
@@ -712,7 +740,14 @@ export const PodManagement = () => {
               </div>
             )}
 
-            <div className="flex justify-end pt-4 border-t border-gray-100">
+            <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+              <button
+                onClick={() => { closeDetailModal(); openStatusModal(detailPod) }}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
+              >
+                <Settings2 className="w-4 h-4" />
+                Cập nhật trạng thái
+              </button>
               <button
                 onClick={closeDetailModal}
                 className="px-6 py-2.5 bg-gray-900 text-white font-bold rounded-xl hover:bg-gray-800 transition-all shadow-lg shadow-gray-200"

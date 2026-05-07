@@ -5,7 +5,6 @@ import 'react-datepicker/dist/react-datepicker.css'
 import { toast } from 'react-toastify'
 import Modal from '../../components/common/Modal'
 import {
-  supportRequestApi,
   SUPPORT_MAINTENANCE_SEVERITIES,
   SUPPORT_REQUEST_STATUSES,
   type RoomChangeCandidatePod,
@@ -14,6 +13,12 @@ import {
   type SupportRequestStatus,
   type RoomChangeResultPayload
 } from '../../api/lib/supportRequestApi'
+import {
+  useGetSupportRequestsQuery,
+  useUpdateSupportRequestStatusMutation,
+  useGetRoomChangeCandidatesQuery,
+  useExecuteRoomChangeMutation
+} from '../../store/apis/supportRequestApi'
 import { bookingApi, type BookingItem } from '../../api/lib/bookingApi'
 import { podApi, type PodItem } from '../../api/lib/podApi'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
@@ -197,8 +202,6 @@ export const SupportManagement = () => {
   const [pods, setPods] = useState<PodItem[]>([])
   const [isPodsLoading, setIsPodsLoading] = useState(false)
 
-  const [supportRequests, setSupportRequests] = useState<SupportRequestItem[]>([])
-  const [isSupportLoading, setIsSupportLoading] = useState(true)
   const [supportSearch, setSupportSearch] = useState('')
   const [updatingSupportId, setUpdatingSupportId] = useState<string | null>(null)
 
@@ -210,8 +213,6 @@ export const SupportManagement = () => {
   const [sortDirection, setSortDirection] = useState<SupportSortDirection>('desc')
   const [selectedNewPodByRequest, setSelectedNewPodByRequest] = useState<Record<string, string>>({})
   const [isChangingPodRequestId, setIsChangingPodRequestId] = useState<string | null>(null)
-  const [roomChangeCandidatesByRequest, setRoomChangeCandidatesByRequest] = useState<Record<string, RoomChangeCandidatePod[]>>({})
-  const [loadingRoomChangeRequestId, setLoadingRoomChangeRequestId] = useState<string | null>(null)
   const [selectedSeverityByRequest, setSelectedSeverityByRequest] = useState<Record<string, SupportMaintenanceSeverity>>({})
   const [roomChangeResolutionByRequest, setRoomChangeResolutionByRequest] = useState<Record<string, string>>({})
   const [roomChangeResult, setRoomChangeResult] = useState<RoomChangeResultPayload | null>(null)
@@ -226,6 +227,23 @@ export const SupportManagement = () => {
   const [bookingDetailsById, setBookingDetailsById] = useState<Record<string, BookingItem>>({})
   const [loadingBookingId, setLoadingBookingId] = useState<string | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+
+  const {
+    data: supportRequestsData,
+    isLoading: isSupportLoading,
+    refetch: refetchSupportRequests
+  } = useGetSupportRequestsQuery({
+    status: filters.statuses.length === 1 ? filters.statuses[0] : undefined,
+    limit: 200
+  }, {
+    skip: isScopeLoading,
+    pollingInterval: 4000
+  })
+
+  const supportRequests = useMemo(() => supportRequestsData?.supportRequests ?? [], [supportRequestsData])
+
+  const [updateSupportStatus] = useUpdateSupportRequestStatusMutation()
+  const [executeRoomChangeMutation] = useExecuteRoomChangeMutation()
 
   const podMap = useMemo(() => new Map(pods.map((pod) => [pod.id, pod])), [pods])
 
@@ -374,18 +392,9 @@ export const SupportManagement = () => {
 
   const fetchSupportRequests = async () => {
     try {
-      setIsSupportLoading(true)
-      const response = await supportRequestApi.getAll({
-        status: filters.statuses.length === 1 ? filters.statuses[0] : undefined,
-        limit: 200
-      })
-      setSupportRequests(response.supportRequests)
+      await refetchSupportRequests()
     } catch (error: unknown) {
-      const apiError = error as { response?: { data?: { message?: string } } }
-      toast.error(apiError?.response?.data?.message || 'Lỗi: Không thể tải danh sách yêu cầu hỗ trợ')
-      setSupportRequests([])
-    } finally {
-      setIsSupportLoading(false)
+      toast.error('Lỗi: Không thể tải danh sách yêu cầu hỗ trợ')
     }
   }
 
@@ -395,16 +404,12 @@ export const SupportManagement = () => {
   }, [isScopeLoading, clusters, refreshTrigger])
 
   useEffect(() => {
-    if (isScopeLoading) return
-    fetchSupportRequests()
-  }, [isScopeLoading, JSON.stringify(filters.statuses), clusters, refreshTrigger])
-
-  useEffect(() => {
     const socket = initUserSocket()
     if (!socket) return
 
     const handleNewData = () => {
       setRefreshTrigger(prev => prev + 1)
+      refetchSupportRequests()
     }
 
     socket.on('user:notification', handleNewData)
@@ -450,38 +455,11 @@ export const SupportManagement = () => {
     loadBooking()
   }, [detailRequest, bookingDetailsById])
 
-  useEffect(() => {
-    if (!detailRequest) return
-    const currentSeverity = selectedSeverityByRequest[detailRequest.id] || normalizeSeverity(detailRequest.severity)
-    const supportsRoomChange = isChangePodRequest(detailRequest.type) || (isMaintenanceRequest(detailRequest.type) && (currentSeverity === 'HIGH' || currentSeverity === 'CRITICAL'))
-    if (!supportsRoomChange) return
+  const { data: candidatesData, isLoading: isCandidatesLoading } = useGetRoomChangeCandidatesQuery(detailRequest?.id ?? '', {
+    skip: !detailRequest || !((isChangePodRequest(detailRequest.type) || (isMaintenanceRequest(detailRequest.type) && (selectedSeverityByRequest[detailRequest.id] || normalizeSeverity(detailRequest.severity)) === 'HIGH' || (selectedSeverityByRequest[detailRequest.id] || normalizeSeverity(detailRequest.severity)) === 'CRITICAL')))
+  })
 
-    // Do not fetch pod candidates for finished requests or completed bookings to prevent API errors
-    const currentStatus = normalizeStatus(detailRequest.status)
-    const bookingStatus = String(detailRequest.booking?.status || bookingDetailsById[getBookingIdFromRequest(detailRequest)]?.status || '').toUpperCase()
-    if (!['PROCESSING', 'IN_PROGRESS', 'ESCALATED'].includes(currentStatus)) return
-    if (bookingStatus === 'COMPLETED') return
-
-    if (roomChangeCandidatesByRequest[detailRequest.id]) return
-
-    const loadCandidates = async () => {
-      try {
-        setLoadingRoomChangeRequestId(detailRequest.id)
-        const result = await supportRequestApi.getRoomChangeCandidates(detailRequest.id)
-        setRoomChangeCandidatesByRequest((prev) => ({ ...prev, [detailRequest.id]: result.candidates }))
-      } catch (error: unknown) {
-        const apiError = error as { response?: { data?: { message?: string } } }
-        const errorMessage = apiError?.response?.data?.message || 'Lỗi: Không tải được danh sách phòng thay thế'
-        if (!errorMessage.includes('Đổi phòng chỉ được thực hiện khi đơn đặt phòng đang trong quá trình sử dụng')) {
-          toast.error(errorMessage)
-        }
-      } finally {
-        setLoadingRoomChangeRequestId(null)
-      }
-    }
-
-    loadCandidates()
-  }, [detailRequest, roomChangeCandidatesByRequest, selectedSeverityByRequest])
+  const loadingRoomChangeRequestId = isCandidatesLoading ? detailRequest?.id : null
 
   const handleRefresh = async () => {
     try {
@@ -504,12 +482,11 @@ export const SupportManagement = () => {
   ) => {
     try {
       setUpdatingSupportId(id)
-      const updated = await supportRequestApi.updateStatus(id, payload)
-      setSupportRequests((prev) => prev.map((item) => (item.id === id ? updated : item)))
+      await updateSupportStatus({ id, payload }).unwrap()
       toast.success('Đã cập nhật trạng thái yêu cầu hỗ trợ')
     } catch (error: unknown) {
-      const apiError = error as { response?: { data?: { message?: string } } }
-      toast.error(apiError?.response?.data?.message || 'Lỗi: Không thể cập nhật trạng thái')
+      const errorMessage = (error as any)?.error || 'Lỗi: Không thể cập nhật trạng thái'
+      toast.error(errorMessage)
     } finally {
       setUpdatingSupportId(null)
     }
@@ -558,14 +535,12 @@ export const SupportManagement = () => {
 
   const setStatusWithFallback = async (id: string, nextStatus: SupportRequestStatus) => {
     try {
-      const updated = await supportRequestApi.updateStatus(id, { status: nextStatus })
-      setSupportRequests((prev) => prev.map((item) => (item.id === id ? updated : item)))
+      const updated = await updateSupportStatus({ id, payload: { status: nextStatus } }).unwrap()
       return updated
     } catch (error: unknown) {
-      const statusCode = (error as { response?: { status?: number } })?.response?.status
-      if (nextStatus === 'PROCESSING' && (statusCode === 400 || statusCode === 422)) {
-        const fallback = await supportRequestApi.updateStatus(id, { status: 'IN_PROGRESS' })
-        setSupportRequests((prev) => prev.map((item) => (item.id === id ? fallback : item)))
+      const statusCode = (error as any)?.status
+      if (nextStatus === 'PROCESSING' && (statusCode === 400 || statusCode === 422 || statusCode === 'CUSTOM_ERROR')) {
+        const fallback = await updateSupportStatus({ id, payload: { status: 'IN_PROGRESS' } }).unwrap()
         return fallback
       }
       throw error
@@ -662,8 +637,7 @@ export const SupportManagement = () => {
   const handleStartWork = async (request: SupportRequestItem) => {
     try {
       setUpdatingSupportId(request.id)
-      const updated = await supportRequestApi.updateStatus(request.id, { status: 'IN_PROGRESS' })
-      setSupportRequests((prev) => prev.map((item) => (item.id === request.id ? updated : item)))
+      const updated = await updateSupportStatus({ id: request.id, payload: { status: 'IN_PROGRESS' } }).unwrap()
       const serverStatus = normalizeStatus(updated.status)
       if (serverStatus === 'PROCESSING') {
         toast.info('Ghi nhận hệ thống hiển thị: ĐANG CHỜ GIẢI QUYẾT do config riêng.')
@@ -671,8 +645,8 @@ export const SupportManagement = () => {
         toast.success(`Đã nhận việc! Cập nhật trạng thái thành: ${serverStatus}.`)
       }
     } catch (error: unknown) {
-      const apiError = error as { response?: { data?: { message?: string } } }
-      toast.error(apiError?.response?.data?.message || 'Lỗi: Không thể triển khai công việc.')
+      const errorMessage = (error as any)?.error || 'Lỗi: Không thể triển khai công việc.'
+      toast.error(errorMessage)
     } finally {
       setUpdatingSupportId(null)
     }
@@ -701,21 +675,24 @@ export const SupportManagement = () => {
 
     try {
       setIsChangingPodRequestId(request.id)
-      const result = await supportRequestApi.executeRoomChange(request.id, {
-        target_pod_id: selectedNewPodId,
-        old_pod_next_status: oldPodNextStatus,
-        old_pod_reason: maintenanceMode ? (request.description || undefined) : undefined,
-        resolution_note: resolutionNote || undefined,
-        ...(maintenanceMode ? { severity: selectedSeverityByRequest[request.id] || normalizeSeverity(request.severity) } : {})
-      })
+      const result = await executeRoomChangeMutation({
+        id: request.id,
+        payload: {
+          target_pod_id: selectedNewPodId,
+          old_pod_next_status: oldPodNextStatus,
+          old_pod_reason: maintenanceMode ? (request.description || undefined) : undefined,
+          resolution_note: resolutionNote || undefined,
+          ...(maintenanceMode ? { severity: selectedSeverityByRequest[request.id] || normalizeSeverity(request.severity) } : {})
+        }
+      }).unwrap()
       setSelectedNewPodByRequest((prev) => ({ ...prev, [request.id]: '' }))
       setRoomChangeResolutionByRequest((prev) => ({ ...prev, [request.id]: '' }))
       toast.success('Đã cấu hình đổi phòng khẩn cấp thành công!')
       setRoomChangeResult(result)
-      await Promise.all([fetchSupportRequests(), fetchPods()])
+      await fetchPods()
     } catch (error: unknown) {
-      const apiError = error as { response?: { data?: { message?: string } } }
-      toast.error(apiError?.response?.data?.message || 'Lỗi: Không thể thực hiện đổi phòng.')
+      const errorMessage = (error as any)?.error || 'Lỗi: Không thể thực hiện đổi phòng.'
+      toast.error(errorMessage)
     } finally {
       setIsChangingPodRequestId(null)
     }
@@ -742,7 +719,7 @@ export const SupportManagement = () => {
     : false
   const detailCanResolveByTasks = detailRequest ? areRelatedTasksDone(detailRequest) : false
 
-  const rawCandidates = detailRequest ? (roomChangeCandidatesByRequest[detailRequest.id] ?? []) : []
+  const rawCandidates = candidatesData?.candidates ?? []
   const filteredCandidates = rawCandidates.filter((candidate) => {
 
     const scopeLevel = String((candidate as any).scope_level || '').trim().toUpperCase()

@@ -11,6 +11,9 @@ import bookingsReducer from './slices/bookingsSlice'
 import managerCleaningTasksReducer from './slices/managerCleaningTasksSlice'
 import { withdrawalsApi } from './apis/withdrawalsApi'
 import { ledgerApiSlice } from './apis/ledgerApi'
+import { supportRequestsApi } from './apis/supportRequestApi'
+import { incidentsApi } from './apis/incidentApi'
+import { lostFoundRtkApi } from './apis/lostFoundApi'
 
 export const store = configureStore({
     reducer: {
@@ -26,9 +29,18 @@ export const store = configureStore({
         managerCleaningTasks: managerCleaningTasksReducer,
         [withdrawalsApi.reducerPath]: withdrawalsApi.reducer,
         [ledgerApiSlice.reducerPath]: ledgerApiSlice.reducer,
+        [supportRequestsApi.reducerPath]: supportRequestsApi.reducer,
+        [incidentsApi.reducerPath]: incidentsApi.reducer,
+        [lostFoundRtkApi.reducerPath]: lostFoundRtkApi.reducer,
     },
     middleware: (getDefaultMiddleware) =>
-        getDefaultMiddleware().concat(withdrawalsApi.middleware, ledgerApiSlice.middleware),
+        getDefaultMiddleware().concat(
+            withdrawalsApi.middleware,
+            ledgerApiSlice.middleware,
+            supportRequestsApi.middleware,
+            incidentsApi.middleware,
+            lostFoundRtkApi.middleware
+        ),
 })
 
 export type RootState = ReturnType<typeof store.getState>

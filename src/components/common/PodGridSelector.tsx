@@ -23,6 +23,7 @@ const getPodStatusColor = (status?: string) => {
   switch (status) {
     case 'AVAILABLE': return 'border-emerald-500 bg-emerald-50 text-emerald-700'
     case 'OCCUPIED': return 'border-blue-500 bg-blue-50 text-blue-700'
+    case 'BOOKED': return 'border-indigo-400 bg-indigo-50 text-indigo-600'
     case 'NEEDS_CLEANING': return 'border-amber-500 bg-amber-50 text-amber-700'
     case 'CLEANING': return 'border-violet-500 bg-violet-50 text-violet-700'
     case 'MAINTENANCE': return 'border-rose-500 bg-rose-50 text-rose-700'

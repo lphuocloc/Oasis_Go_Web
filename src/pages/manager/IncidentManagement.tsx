@@ -17,15 +17,23 @@ import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import {
   INCIDENT_STATUSES,
-  incidentApi,
   type DamageReportItem,
   type IncidentItem,
   type IncidentSeverity,
   type IncidentStatus,
 } from '../../api/lib/incidentApi'
+import {
+  useGetDamageReportsQuery,
+  useLazyGetIncidentByIdQuery,
+  useUpdateIncidentStatusMutation,
+  useLazyGetAffectedBookingsQuery,
+  useLazyGetRoomChangeCandidatesQuery,
+  useExecuteRoomChangeMutation,
+  useLazyGetOrderDetailQuery,
+  useCreateOrderDamageBillMutation,
+} from '../../store/apis/incidentApi'
 import { podApi, type PodItem } from '../../api/lib/podApi'
-import { bookingApi } from '../../api/lib/bookingApi'
-import { bookingOrderApi, type OrderIncidentItem, type BookingOrderDetail } from '../../api/lib/bookingOrderApi'
+import { type OrderIncidentItem, type BookingOrderDetail } from '../../api/lib/bookingOrderApi'
 import { cleaningTaskApi, type CleaningTaskMediaItem } from '../../api/lib/cleaningTaskApi'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
 import { useCheckinContext } from '../../components/common/ManagerCheckinGate'
@@ -131,16 +139,14 @@ export const IncidentManagement = () => {
   const { clusters, refreshScope } = useManagerScope()
   const { isReadOnly } = useCheckinContext()
 
-  const [reports, setReports] = useState<DamageReportItem[]>([])
   const [pods, setPods] = useState<PodItem[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isPodsLoading, setIsPodsLoading] = useState(false)
 
   const [search, setSearch] = useState('')
   const [activeTab] = useState<'USER' | 'CLEANER'>('CLEANER')
   const [filters, setFilters] = useState<IncidentListFilters>(defaultFilters)
   const [draftFilters, setDraftFilters] = useState<IncidentListFilters>(defaultFilters)
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false)
-  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
@@ -175,36 +181,46 @@ export const IncidentManagement = () => {
   const [cleaningMedia, setCleaningMedia] = useState<CleaningTaskMediaItem[]>([])
   const [isMediaLoading, setIsMediaLoading] = useState(false)
 
-  const fetchPrimaryData = async () => {
+  const {
+    data: damageReportsData,
+    isLoading: isReportsLoading,
+    refetch: refetchDamageReports
+  } = useGetDamageReportsQuery(undefined, { pollingInterval: 4000 })
+
+  const reports = useMemo(() => damageReportsData?.data ?? [], [damageReportsData])
+  const isLoading = isReportsLoading || isPodsLoading
+
+  const [triggerGetIncidentById] = useLazyGetIncidentByIdQuery()
+  const [triggerGetOrderDetail] = useLazyGetOrderDetailQuery()
+  const [triggerGetAffectedBookings] = useLazyGetAffectedBookingsQuery()
+  const [triggerGetRoomChangeCandidates] = useLazyGetRoomChangeCandidatesQuery()
+  const [updateIncidentStatus] = useUpdateIncidentStatusMutation()
+  const [executeRoomChangeMutation] = useExecuteRoomChangeMutation()
+  const [createOrderDamageBillMutation] = useCreateOrderDamageBillMutation()
+
+  const fetchPods = async () => {
     try {
-      setIsLoading(true)
-
+      setIsPodsLoading(true)
       const podsResponse = await podApi.getAll()
-
-      const reportsResponse = await incidentApi.getDamageReports()
-
       setPods(podsResponse.data)
-      setReports(reportsResponse.data)
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } }
-      toast.error(error?.response?.data?.message || 'Không thể tải báo cáo hư hại')
-      setReports([])
+      console.error('Failed to fetch pods', err)
     } finally {
-      setIsLoading(false)
+      setIsPodsLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchPrimaryData()
+    fetchPods()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clusters, refreshTrigger])
+  }, [clusters])
 
   useEffect(() => {
     const socket = initUserSocket()
     if (!socket) return
 
     const handleNewData = () => {
-      setRefreshTrigger(prev => prev + 1)
+      refetchDamageReports()
     }
 
     socket.on('user:notification', handleNewData)
@@ -376,54 +392,27 @@ export const IncidentManagement = () => {
     try {
       if (group.type === 'ORDER' && group.orderId) {
         setIsOrderIncidentsLoading(true)
-
-        let actualOrderId = group.orderId
-        let incidentsData: OrderIncidentItem[] = []
-        let orderDataResult: BookingOrderDetail | null = null
-
-        // Try to fetch order data first
-        try {
-          orderDataResult = await bookingOrderApi.getById(actualOrderId)
-        } catch (err) {
-          // If 404, the provided ID might be a booking_id instead of booking_order_id
-          try {
-            const bookingData = await bookingApi.getById(actualOrderId)
-            if (bookingData?.order_id) {
-              actualOrderId = bookingData.order_id
-              orderDataResult = await bookingOrderApi.getById(actualOrderId).catch(() => null)
-            }
-          } catch (err2) {
-            console.error('Failed to resolve booking ID to order ID', err2)
-          }
-        }
-
-        // Fetch incidents using the resolved actualOrderId
-        try {
-          incidentsData = await bookingOrderApi.getOrderIncidents(actualOrderId)
-        } catch (err) {
-          console.error('Failed to fetch order incidents', err)
-        }
-
-        setCurrentOrderId(actualOrderId)
-        setOrderIncidents(incidentsData)
-        setOrderDetail(orderDataResult)
+        const result = await triggerGetOrderDetail(group.orderId).unwrap()
+        setCurrentOrderId(result.resolvedOrderId)
+        setOrderIncidents(result.incidents)
+        setOrderDetail(result.order)
         setDetailIncident(null)
         setDetailReport(null)
       } else {
         setCurrentOrderId(null)
         setOrderIncidents([])
         setDetailReport(group.items[0])
-        const response = await incidentApi.getById(group.items[0].report_id)
-        setDetailIncident(response.data)
-        if (response.data.cleaning_task_id) {
-          fetchCleaningMedia(response.data.cleaning_task_id)
+        const res = await triggerGetIncidentById(group.items[0].report_id).unwrap()
+        setDetailIncident(res.data)
+        if (res.data.cleaning_task_id) {
+          fetchCleaningMedia(res.data.cleaning_task_id)
         } else {
           setCleaningMedia([])
         }
       }
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } }
-      toast.error(error?.response?.data?.message || 'Failed to load details')
+      const errorMessage = (err as any)?.error || 'Failed to load details'
+      toast.error(errorMessage)
     } finally {
       setIsDetailLoading(false)
       setIsOrderIncidentsLoading(false)
@@ -439,7 +428,7 @@ export const IncidentManagement = () => {
     setExpandedIncidentId(incidentId)
     setIsExpandedLoading(true)
     try {
-      const res = await incidentApi.getById(incidentId)
+      const res = await triggerGetIncidentById(incidentId).unwrap()
       setExpandedIncidentDetails(res.data)
       if (res.data.cleaning_task_id) {
         fetchCleaningMedia(res.data.cleaning_task_id)
@@ -475,32 +464,24 @@ export const IncidentManagement = () => {
 
   const handleSubmitReview = async () => {
     if (!reviewTarget) return
-
     const targetId = 'report_id' in reviewTarget ? reviewTarget.report_id : reviewTarget.id
-
     try {
       setIsReviewSaving(true)
-      await incidentApi.updateStatus(targetId, {
-        status: reviewStatus,
-        resolution_note: reviewNote
-      })
-      toast.success(reviewStatus === 'RESOLVED' ? 'Incident marked as RESOLVED' : 'Incident marked as DISMISSED')
-
+      await updateIncidentStatus({ id: targetId, payload: { status: reviewStatus, resolution_note: reviewNote } }).unwrap()
+      toast.success(reviewStatus === 'RESOLVED' ? 'Sự cố đã được giải quyết' : 'Sự cố đã bị từ chối')
       setIsReviewModalOpen(false)
-      await fetchPrimaryData()
-
       if (detailIncident?.id === targetId) {
-        const refreshed = await incidentApi.getById(targetId)
+        const refreshed = await triggerGetIncidentById(targetId).unwrap()
         setDetailIncident(refreshed.data)
       }
-
       if (currentOrderId) {
-        const refreshedIncidents = await bookingOrderApi.getOrderIncidents(currentOrderId)
-        setOrderIncidents(refreshedIncidents)
+        const refreshed = await triggerGetOrderDetail(currentOrderId).unwrap()
+        setOrderIncidents(refreshed.incidents)
+        setOrderDetail(refreshed.order)
       }
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } }
-      toast.error(error?.response?.data?.message || 'Failed to review incident')
+      const errorMessage = (err as any)?.error || 'Failed to review incident'
+      toast.error(errorMessage)
     } finally {
       setIsReviewSaving(false)
     }
@@ -510,18 +491,14 @@ export const IncidentManagement = () => {
     if (!currentOrderId) return
     try {
       setIsCreatingDamageBill(true)
-      await bookingOrderApi.createOrderDamageBill(currentOrderId)
+      await createOrderDamageBillMutation(currentOrderId).unwrap()
       toast.success('Damage Bill created successfully for the order')
-
-      const [refreshedIncidents, refreshedOrderData] = await Promise.all([
-        bookingOrderApi.getOrderIncidents(currentOrderId),
-        bookingOrderApi.getById(currentOrderId)
-      ])
-      setOrderIncidents(refreshedIncidents)
-      setOrderDetail(refreshedOrderData)
+      const refreshed = await triggerGetOrderDetail(currentOrderId).unwrap()
+      setOrderIncidents(refreshed.incidents)
+      setOrderDetail(refreshed.order)
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } }
-      toast.error(error?.response?.data?.message || 'Failed to create damage bill')
+      const errorMessage = (err as any)?.error || 'Failed to create damage bill'
+      toast.error(errorMessage)
     } finally {
       setIsCreatingDamageBill(false)
     }
@@ -530,7 +507,7 @@ export const IncidentManagement = () => {
   const fetchAffectedBookings = async (incidentId: string) => {
     try {
       setIsAffectedBookingsLoading(true)
-      const res = await incidentApi.getAffectedBookings(incidentId)
+      const res = await triggerGetAffectedBookings(incidentId).unwrap()
       setAffectedBookings(res.data)
       setIsAffectedModalOpen(true)
     } catch (err) {
@@ -545,7 +522,7 @@ export const IncidentManagement = () => {
     try {
       setIsCandidatesLoading(true)
       setIsCandidatesModalOpen(true)
-      const res = await incidentApi.getRoomChangeCandidates(booking.id)
+      const res = await triggerGetRoomChangeCandidates(booking.id).unwrap()
       setRoomCandidates(res.data)
     } catch (err) {
       toast.error('Không thể tìm phòng thay thế')
@@ -558,16 +535,16 @@ export const IncidentManagement = () => {
     if (!selectedBookingForChange) return
     try {
       setIsMigrating(true)
-      await incidentApi.executeRoomChange(selectedBookingForChange.id, targetPodId)
+      await executeRoomChangeMutation({ bookingId: selectedBookingForChange.id, targetPodId }).unwrap()
       toast.success('Đổi phòng thành công')
       setIsCandidatesModalOpen(false)
-      // Refresh affected bookings
       if (detailIncident?.id) {
-        const res = await incidentApi.getAffectedBookings(detailIncident.id)
+        const res = await triggerGetAffectedBookings(detailIncident.id).unwrap()
         setAffectedBookings(res.data)
       }
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Lỗi khi đổi phòng')
+    } catch (err: unknown) {
+      const errorMessage = (err as any)?.error || 'Lỗi khi đổi phòng'
+      toast.error(errorMessage)
     } finally {
       setIsMigrating(false)
     }
@@ -608,7 +585,7 @@ export const IncidentManagement = () => {
           <button
             onClick={async () => {
               await refreshScope()
-              await fetchPrimaryData()
+              await Promise.all([fetchPods(), refetchDamageReports()])
             }}
             disabled={isLoading}
             className="p-2.5 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-all shadow-sm"

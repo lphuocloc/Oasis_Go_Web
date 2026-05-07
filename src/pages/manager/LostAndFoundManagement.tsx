@@ -20,13 +20,21 @@ import SlidePanel from '../../components/common/SlidePanel'
 import {
   LOST_FOUND_STATUSES,
   LOST_ITEM_REQUEST_STATUSES,
-  lostFoundApi,
   type LostFoundItem,
   type LostFoundStatus,
   type LostItemRequest,
   type LostItemRequestStatus
 } from '../../api/lib/lostFoundApi'
-import { warehouseApi, type WarehouseItem } from '../../api/lib/warehouseApi'
+import {
+  useGetLostFoundItemsQuery,
+  useGetLostFoundRequestsQuery,
+  useGetWarehousesQuery,
+  useStoreToWarehouseMutation,
+  useGenerateHandoverOtpMutation,
+  useConfirmHandoverMutation,
+  useMatchRequestMutation,
+  useRejectRequestMutation,
+} from '../../store/apis/lostFoundApi'
 import { useManagerScope } from '../../contexts/ManagerScopeContext'
 import { initUserSocket } from '../../lib/socket'
 
@@ -94,25 +102,15 @@ type TabType = 'ITEMS' | 'REQUESTS'
 
 export const LostAndFoundManagement = () => {
   const { clusters } = useManagerScope()
+  const locationIds = useMemo(() => [...new Set(clusters.map(c => c.location_id).filter(Boolean))] as string[], [clusters])
 
   const [activeTab, setActiveTab] = useState<TabType>('ITEMS')
-  const [items, setItems] = useState<LostFoundItem[]>([])
-  const [requests, setRequests] = useState<LostItemRequest[]>([])
-  const [warehouses, setWarehouses] = useState<WarehouseItem[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | string>('all')
-  const [refreshTrigger, setRefreshTrigger] = useState(0)
-
   const [page, setPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [totalItems, setTotalItems] = useState(0)
-  const [totalRequests, setTotalRequests] = useState(0)
-  const [summaryItems, setSummaryItems] = useState<LostFoundItem[]>([])
-  const [summaryRequests, setSummaryRequests] = useState<LostItemRequest[]>([])
+  const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false)
 
-  // Modals state
+  // Modal states
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [selectedItem, setSelectedItem] = useState<LostFoundItem | null>(null)
 
@@ -128,9 +126,65 @@ export const LostAndFoundManagement = () => {
   const [matchFoundItemIds, setMatchFoundItemIds] = useState<string[]>([])
   const [closeOthers, setCloseOthers] = useState(false)
   const [managerNote, setManagerNote] = useState('')
-  const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false)
 
   const [isActionLoading, setIsActionLoading] = useState(false)
+
+  // RTK Query — warehouses
+  const { data: warehousesData } = useGetWarehousesQuery(
+    { location_ids: locationIds },
+    { skip: locationIds.length === 0 }
+  )
+  const warehouses = useMemo(() => warehousesData?.data ?? [], [warehousesData])
+
+  // RTK Query — paginated items list (4s polling)
+  const itemsQueryArg = useMemo(() => ({
+    status: statusFilter === 'all' ? undefined : statusFilter as LostFoundStatus,
+    page,
+    limit: 10,
+  }), [statusFilter, page])
+
+  const {
+    data: itemsData,
+    isLoading: isItemsLoading,
+    refetch: refetchItems
+  } = useGetLostFoundItemsQuery(itemsQueryArg, { pollingInterval: 4000 })
+  const items = useMemo(() => itemsData?.data ?? [], [itemsData])
+  const totalItems = itemsData?.pagination?.total_items ?? 0
+
+  // RTK Query — summary items (no status filter)
+  const { data: summaryItemsData } = useGetLostFoundItemsQuery({ limit: 1000 })
+  const summaryItems = useMemo(() => summaryItemsData?.data ?? [], [summaryItemsData])
+
+  // RTK Query — paginated requests list (4s polling)
+  const requestsQueryArg = useMemo(() => ({
+    status: statusFilter === 'all' ? undefined : statusFilter as LostItemRequestStatus,
+    page,
+    limit: 10,
+  }), [statusFilter, page])
+
+  const {
+    data: requestsData,
+    isLoading: isRequestsLoading,
+    refetch: refetchRequests
+  } = useGetLostFoundRequestsQuery(requestsQueryArg, { pollingInterval: 4000 })
+  const requests = useMemo(() => requestsData?.data ?? [], [requestsData])
+  const totalRequests = requestsData?.pagination?.total_items ?? 0
+
+  // RTK Query — summary requests (no status filter)
+  const { data: summaryRequestsData } = useGetLostFoundRequestsQuery({ limit: 1000 })
+  const summaryRequests = useMemo(() => summaryRequestsData?.data ?? [], [summaryRequestsData])
+
+  const isLoading = activeTab === 'ITEMS' ? isItemsLoading : isRequestsLoading
+  const totalPages = activeTab === 'ITEMS'
+    ? (itemsData?.pagination?.total_pages ?? 1)
+    : (requestsData?.pagination?.total_pages ?? 1)
+
+  // Mutations
+  const [storeToWarehouseMutation] = useStoreToWarehouseMutation()
+  const [generateHandoverOtpMutation] = useGenerateHandoverOtpMutation()
+  const [confirmHandoverMutation] = useConfirmHandoverMutation()
+  const [matchRequestMutation] = useMatchRequestMutation()
+  const [rejectRequestMutation] = useRejectRequestMutation()
 
   const activeSummary = useMemo(() => {
     if (activeTab === 'ITEMS') {
@@ -173,55 +227,6 @@ export const LostAndFoundManagement = () => {
     }
   }
 
-  const fetchData = async () => {
-    try {
-      setIsLoading(true)
-      const locationIds = [...new Set(clusters.map(c => c.location_id).filter(Boolean))]
-      const warehousesRes = await warehouseApi.getAll({ location_ids: locationIds as string[] })
-      setWarehouses(warehousesRes.data)
-
-      if (activeTab === 'ITEMS') {
-        const [itemsRes, allItemsRes] = await Promise.all([
-          lostFoundApi.getAll({
-            status: statusFilter === 'all' ? undefined : (statusFilter as LostFoundStatus),
-            page,
-            limit: 10
-          }),
-          lostFoundApi.getAll({ limit: 1000 })
-        ])
-        setItems(itemsRes.data)
-        setSummaryItems(allItemsRes.data)
-        if (itemsRes.pagination) {
-          setTotalPages(itemsRes.pagination.total_pages)
-          setTotalItems(itemsRes.pagination.total_items)
-        }
-      } else {
-        const [requestsRes, allRequestsRes] = await Promise.all([
-          lostFoundApi.getRequests({
-            status: statusFilter === 'all' ? undefined : (statusFilter as LostItemRequestStatus),
-            page,
-            limit: 10
-          }),
-          lostFoundApi.getRequests({ limit: 1000 })
-        ])
-        setRequests(requestsRes.data)
-        setSummaryRequests(allRequestsRes.data)
-        if (requestsRes.pagination) {
-          setTotalPages(requestsRes.pagination.total_pages)
-          setTotalRequests(requestsRes.pagination.total_items)
-        }
-      }
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Không thể tải dữ liệu')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchData()
-  }, [activeTab, statusFilter, refreshTrigger, clusters, page])
-
   useEffect(() => {
     setPage(1)
   }, [activeTab, statusFilter, clusters])
@@ -229,7 +234,10 @@ export const LostAndFoundManagement = () => {
   useEffect(() => {
     const socket = initUserSocket()
     if (!socket) return
-    const handleRefresh = () => setRefreshTrigger(prev => prev + 1)
+    const handleRefresh = () => {
+      refetchItems()
+      refetchRequests()
+    }
     socket.on('user:notification', handleRefresh)
     socket.on('dashboard:refresh', handleRefresh)
     return () => {
@@ -263,12 +271,12 @@ export const LostAndFoundManagement = () => {
     if (!selectedItem || !selectedWarehouseId) return
     try {
       setIsActionLoading(true)
-      await lostFoundApi.storeToWarehouse(selectedItem.id, selectedWarehouseId)
+      await storeToWarehouseMutation({ id: selectedItem.id, warehouse_id: selectedWarehouseId }).unwrap()
       toast.success('Đã cất đồ vào kho thành công')
       setIsStoreModalOpen(false)
-      setRefreshTrigger(p => p + 1)
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Lỗi khi cất kho')
+    } catch (err: unknown) {
+      const errorMessage = (err as any)?.error || 'Lỗi khi cất kho'
+      toast.error(errorMessage)
     } finally {
       setIsActionLoading(false)
     }
@@ -278,12 +286,13 @@ export const LostAndFoundManagement = () => {
     if (!selectedItem) return
     try {
       setIsActionLoading(true)
-      const res = await lostFoundApi.generateHandoverOTP(selectedItem.id)
+      const res = await generateHandoverOtpMutation(selectedItem.id).unwrap()
       toast.success('Đã tạo mã OTP và gửi cho khách hàng')
-      setHandoverOtp(res.otp) // Auto-fill OTP
+      setHandoverOtp(res.otp)
       setOtpGeneratedAt(new Date().toISOString())
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Lỗi khi tạo OTP')
+    } catch (err: unknown) {
+      const errorMessage = (err as any)?.error || 'Lỗi khi tạo OTP'
+      toast.error(errorMessage)
     } finally {
       setIsActionLoading(false)
     }
@@ -293,14 +302,14 @@ export const LostAndFoundManagement = () => {
     if (!selectedItem || !handoverOtp) return
     try {
       setIsActionLoading(true)
-      await lostFoundApi.confirmHandover(selectedItem.id, handoverOtp)
+      await confirmHandoverMutation({ id: selectedItem.id, otp: handoverOtp }).unwrap()
       toast.success('Bàn giao thành công!')
       setIsHandoverModalOpen(false)
       setSelectedItem(null)
       setHandoverOtp('')
-      setRefreshTrigger(p => p + 1)
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'OTP không hợp lệ hoặc hết hạn')
+    } catch (err: unknown) {
+      const errorMessage = (err as any)?.error || 'OTP không hợp lệ hoặc hết hạn'
+      toast.error(errorMessage)
     } finally {
       setIsActionLoading(false)
     }
@@ -311,7 +320,7 @@ export const LostAndFoundManagement = () => {
     try {
       setIsActionLoading(true)
       if (isReject) {
-        await lostFoundApi.rejectRequest(selectedRequest.id, { manager_note: managerNote })
+        await rejectRequestMutation({ id: selectedRequest.id, manager_note: managerNote }).unwrap()
         toast.success('Đã từ chối yêu cầu')
       } else {
         if (matchFoundItemIds.length === 0) {
@@ -320,19 +329,17 @@ export const LostAndFoundManagement = () => {
         }
         const finalNote = managerNote.trim()
           ? `${managerNote}\n\n---\nHotline hỗ trợ: 0915533944 (Vui lòng liên hệ để xác nhận và đến nhận lại đồ thất lạc).`
-          : "Vui lòng liên hệ hotline hệ thống: 0915533944 để xác nhận và đến nhận lại đồ thất lạc.";
-
-        await lostFoundApi.matchRequest(selectedRequest.id, {
-          found_item_id: matchFoundItemIds,
-          manager_note: finalNote,
-          close_others: closeOthers
-        })
+          : "Vui lòng liên hệ hotline hệ thống: 0915533944 để xác nhận và đến nhận lại đồ thất lạc."
+        await matchRequestMutation({
+          id: selectedRequest.id,
+          payload: { found_item_id: matchFoundItemIds, manager_note: finalNote, close_others: closeOthers }
+        }).unwrap()
         toast.success(`Đã xác nhận khớp ${matchFoundItemIds.length} món đồ thành công`)
       }
       setIsMatchModalOpen(false)
-      setRefreshTrigger(p => p + 1)
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Thao tác thất bại')
+    } catch (err: unknown) {
+      const errorMessage = (err as any)?.error || 'Thao tác thất bại'
+      toast.error(errorMessage)
     } finally {
       setIsActionLoading(false)
     }
@@ -365,7 +372,7 @@ export const LostAndFoundManagement = () => {
         </div>
         <div className="flex gap-3">
           <button
-            onClick={() => setRefreshTrigger(p => p + 1)}
+            onClick={() => { refetchItems(); refetchRequests() }}
             className="p-2.5 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-all"
           >
             <RefreshCw className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />

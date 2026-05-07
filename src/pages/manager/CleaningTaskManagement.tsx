@@ -1,12 +1,10 @@
-import { useEffect, useMemo, useState, Fragment } from 'react'
-import { Search, RefreshCw, Eye, Sparkles, X, ChevronDown, ChevronUp, Image as ImageIcon, Video, Clock, AlertCircle, Calendar, Hash } from 'lucide-react'
+import { useEffect, useState, Fragment } from 'react'
+import { Search, RefreshCw, Eye, Sparkles, ChevronDown, ChevronUp, Image as ImageIcon, Video, Clock, AlertCircle, Calendar, Hash } from 'lucide-react'
 import { toast } from 'react-toastify'
 import dayjs from 'dayjs'
 import Modal from '../../components/common/Modal'
 import {
   cleaningTaskApi,
-  type CleaningTaskItem,
-  type CleaningTaskStatus,
   type CleaningTaskWithMediaPayload,
   type CleaningTaskManagerBookingItem
 } from '../../api/lib/cleaningTaskApi'

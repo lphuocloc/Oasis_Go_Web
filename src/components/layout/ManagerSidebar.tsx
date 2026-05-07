@@ -1,7 +1,7 @@
 import React from 'react'
 import type { NavItem } from './Sidebar'
 import Sidebar from './Sidebar'
-import { LayoutGrid, MapPin, Home, Calendar, CheckCircle, AlertCircle, Package, LifeBuoy, Clock, Sparkles } from 'lucide-react'
+import { LayoutGrid, MapPin, Home, Calendar, AlertCircle, Package, LifeBuoy, Clock, Sparkles } from 'lucide-react'
 
 const ManagerSidebar: React.FC<{ userName?: string; userRole?: string }> = ({
   userName = 'Manager User',

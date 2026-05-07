@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { userApi } from '../../api/lib/userApi'
-import { Edit2, Save, X, Upload, Mail, Phone, User as UserIcon, Shield, LogOut, Camera } from 'lucide-react'
+import { Edit2, Save, Mail, Phone, User as UserIcon, Shield, LogOut, Camera } from 'lucide-react'
 import { toast } from 'react-toastify'
 
 export const AdminProfile = () => {

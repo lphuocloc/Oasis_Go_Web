@@ -373,7 +373,6 @@ export const BookingManagement = () => {
     try {
       await refreshScope()
       await Promise.all([fetchPods(), fetchBookings(bookingPage), fetchOrders(orderPage)])
-      toast.success('Booking data refreshed')
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Failed to refresh data')
     }
@@ -483,7 +482,7 @@ export const BookingManagement = () => {
         bookingOrderApi.getOrderIncidents(selectedOrderDetail.order.id),
         bookingOrderApi.getById(selectedOrderDetail.order.id)
       ])
-      
+
       setSelectedOrderIncidents(refreshedIncidents)
       if (refreshedOrderDetail) {
         setSelectedOrderDetail(refreshedOrderDetail)
@@ -944,16 +943,15 @@ export const BookingManagement = () => {
               <button
                 type="button"
                 onClick={() => resetDraftFilters()}
-                className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${
-                  activeTab === 'bookings' 
+                className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${activeTab === 'bookings'
                     ? (draftBookingFilters.status.length === 0 ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-100' : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50')
                     : (draftOrderFilters.status.length === 0 ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-100' : 'bg-white text-gray-500 border-gray-100 hover:bg-gray-50')
-                }`}
+                  }`}
               >
                 Tất cả
               </button>
               {(activeTab === 'bookings' ? BOOKING_STATUSES : BOOKING_ORDER_STATUSES).map((status: any) => {
-                const isSelected = activeTab === 'bookings' 
+                const isSelected = activeTab === 'bookings'
                   ? draftBookingFilters.status.includes(status)
                   : draftOrderFilters.status.includes(status);
                 return (
@@ -1353,9 +1351,9 @@ export const BookingManagement = () => {
                     <button
                       onClick={handleCreateDamageBill}
                       disabled={
-                        isCreatingDamageBill || 
-                        selectedOrderIncidents.some(i => i.status === 'PENDING') || 
-                        selectedOrderIncidents.filter(i => i.status === 'RESOLVED').length === 0 || 
+                        isCreatingDamageBill ||
+                        selectedOrderIncidents.some(i => i.status === 'PENDING') ||
+                        selectedOrderIncidents.filter(i => i.status === 'RESOLVED').length === 0 ||
                         isReadOnly ||
                         (selectedOrderDetail.order.damage_payment_status && selectedOrderDetail.order.damage_payment_status !== 'NO_INCIDENT')
                       }
@@ -1366,7 +1364,7 @@ export const BookingManagement = () => {
                       ) : (
                         <CreditCard className="w-3 h-3" />
                       )}
-                      {(selectedOrderDetail.order.damage_payment_status && selectedOrderDetail.order.damage_payment_status !== 'NO_INCIDENT') 
+                      {(selectedOrderDetail.order.damage_payment_status && selectedOrderDetail.order.damage_payment_status !== 'NO_INCIDENT')
                         ? 'Đã tạo hóa đơn đền bù' : 'Tạo hóa đơn đền bù'}
                     </button>
                   </div>

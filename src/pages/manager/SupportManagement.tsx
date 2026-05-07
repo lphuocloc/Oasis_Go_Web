@@ -487,7 +487,6 @@ export const SupportManagement = () => {
     try {
       await refreshScope()
       await Promise.all([fetchPods(), fetchSupportRequests()])
-      toast.success('Đã tải lại dữ liệu phiên làm việc')
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { message?: string } } }
       toast.error(apiError?.response?.data?.message || 'Lỗi: Không làm mới được dữ liệu hỗ trợ')

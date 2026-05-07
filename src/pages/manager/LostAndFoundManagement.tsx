@@ -319,7 +319,7 @@ export const LostAndFoundManagement = () => {
           toast.error('Vui lòng chọn ít nhất 1 món đồ nhặt được để khớp')
           return
         }
-        const finalNote = managerNote.trim() 
+        const finalNote = managerNote.trim()
           ? `${managerNote}\n\n---\nHotline hỗ trợ: 0915533944 (Vui lòng liên hệ để xác nhận và đến nhận lại đồ thất lạc).`
           : "Vui lòng liên hệ hotline hệ thống: 0915533944 để xác nhận và đến nhận lại đồ thất lạc.";
 
@@ -746,17 +746,29 @@ export const LostAndFoundManagement = () => {
           <div className="w-full md:w-2/5 p-6 border-b md:border-b-0 md:border-r border-gray-100 bg-gray-50/50">
             <h3 className="text-xs font-bold text-gray-400 uppercase mb-4">Thông tin khách báo mất</h3>
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <p className="text-xs text-gray-400">Khách hàng</p>
+                  <p className="font-bold text-gray-900">{selectedRequest?.user?.full_name || 'Khách ẩn danh'}</p>
+                  {selectedRequest?.user?.phone_number && (
+                    <p className="text-xs text-gray-500 mt-0.5">{selectedRequest.user.phone_number}</p>
+                  )}
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-gray-400">Mã đơn đặt</p>
+                  <p className="text-sm font-mono text-blue-600">{selectedRequest?.booking_id}</p>
+                </div>
+              </div>
+
+              <div className="h-px bg-gray-50" />
+
               <div>
-                <p className="text-xs text-gray-400">Đồ vật</p>
+                <p className="text-xs text-gray-400">Đồ vật báo mất</p>
                 <p className="font-bold text-gray-900 text-lg">{selectedRequest?.item_name_reported}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-400">Mô tả chi tiết</p>
                 <p className="text-sm text-gray-600 leading-relaxed italic">"{selectedRequest?.description_reported || 'Không có mô tả'}"</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400">Mã đơn đặt</p>
-                <p className="text-sm font-mono text-blue-600">{selectedRequest?.booking_id}</p>
               </div>
             </div>
 
@@ -852,9 +864,9 @@ export const LostAndFoundManagement = () => {
               <div className="w-full md:w-2/5">
                 <div className="aspect-square rounded-3xl bg-gray-100 overflow-hidden border border-gray-200 shadow-inner relative group">
                   {selectedItem.photo_urls?.[0] ? (
-                    <img 
-                      src={selectedItem.photo_urls[0]} 
-                      className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" 
+                    <img
+                      src={selectedItem.photo_urls[0]}
+                      className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
                       alt={selectedItem.item_name}
                     />
                   ) : (

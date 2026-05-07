@@ -424,17 +424,7 @@ export const SupportManagement = () => {
     }
   }, [visibleSupportRequests, detailRequestId])
 
-  useEffect(() => {
-    const isAnyPanelOpen = isFilterPanelOpen || Boolean(detailRequest)
-    if (!isAnyPanelOpen) return
 
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
-    return () => {
-      document.body.style.overflow = previousOverflow
-    }
-  }, [isFilterPanelOpen, detailRequest])
 
   useEffect(() => {
     if (!detailRequest) return
@@ -1369,30 +1359,16 @@ export const SupportManagement = () => {
                           </button>
                         )}
 
-                        {detailCanResolve && (
+                        {detailCanResolve && isCompletedBooking && (
                           <div className="flex flex-col gap-2">
-                            {!isCompletedBooking ? (
-                              <button
-                                type="button"
-                                onClick={() => openStatusTransitionModal(detailRequest, 'RESOLVED')}
-                                disabled={updatingSupportId === detailRequest.id || !detailCanResolveByTasks}
-                                className="w-full px-4 py-3 rounded-xl bg-emerald-600 text-white font-medium hover:bg-emerald-700 shadow-sm disabled:opacity-60 transition flex items-center justify-center gap-2"
-                              >
-                                <Check className="w-4 h-4" /> Đánh dấu hoàn thành
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateSupportStatus(detailRequest.id, {
-                                  status: 'EXPIRED',
-                                  resolution_note: 'Hệ thống tự động đóng hoặc Manager xác nhận hết hạn do khách đã trả phòng.'
-                                })}
-                                disabled={updatingSupportId === detailRequest.id}
-                                className="w-full px-4 py-3 rounded-xl bg-amber-500 text-white font-bold hover:bg-amber-600 shadow-sm transition flex items-center justify-center gap-2"
-                              >
-                                <Clock className="w-5 h-5" /> Đánh dấu hết hạn
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => openStatusTransitionModal(detailRequest, 'RESOLVED')}
+                              disabled={updatingSupportId === detailRequest.id || !detailCanResolveByTasks}
+                              className="w-full px-4 py-3 rounded-xl bg-emerald-600 text-white font-medium hover:bg-emerald-700 shadow-sm disabled:opacity-60 transition flex items-center justify-center gap-2"
+                            >
+                              <Check className="w-4 h-4" /> Đánh dấu hoàn thành
+                            </button>
                           </div>
                         )}
 

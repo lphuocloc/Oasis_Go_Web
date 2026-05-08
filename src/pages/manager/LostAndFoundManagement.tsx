@@ -76,7 +76,7 @@ const translateStatus = (status: LostFoundStatus) => {
     case 'IN_STORAGE': return 'Đã cất kho'
     case 'CLAIM_PENDING': return 'Chờ nhận'
     case 'RETURNED': return 'Đã bàn giao'
-    case 'DISPOSED': return 'Đã thanh lý'
+    case 'DISPOSED': return 'Đã xử lý'
     default: return status
   }
 }
@@ -907,7 +907,7 @@ export const LostAndFoundManagement = () => {
                     <p className="text-sm font-bold text-gray-800 truncate">{selectedItem.pod?.name || selectedItem.pod_id || 'Không rõ'}</p>
                   </div>
                   <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Thời gian</p>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Thời gian nhặt được</p>
                     <p className="text-sm font-bold text-gray-800">{formatDateTime(selectedItem.found_at)}</p>
                   </div>
                   <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100">
@@ -918,6 +918,12 @@ export const LostAndFoundManagement = () => {
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Kho lưu trữ</p>
                     <p className="text-sm font-bold text-gray-800 truncate">{warehouses.find(w => w.id === selectedItem.warehouse_id)?.name || 'Chưa nhập kho'}</p>
                   </div>
+                  {selectedItem.booking_id && (
+                    <div className="col-span-2 p-4 bg-gray-50/50 rounded-2xl border border-gray-100">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Booking ID</p>
+                      <p className="text-sm font-mono font-bold text-blue-600 truncate">{selectedItem.booking_id}</p>
+                    </div>
+                  )}
                 </div>
 
                 {selectedItem.claimed_by_user && (
@@ -936,10 +942,16 @@ export const LostAndFoundManagement = () => {
                         <span className="text-xs text-emerald-600 font-semibold">Khách hàng</span>
                         <span className="text-sm font-bold text-gray-900">{selectedItem.claimed_by_user.name}</span>
                       </div>
-                      <div className="flex justify-between items-center py-1.5">
+                      <div className="flex justify-between items-center py-1.5 border-b border-emerald-100/50">
                         <span className="text-xs text-emerald-600 font-semibold">Liên hệ</span>
                         <span className="text-sm font-bold text-gray-900">{selectedItem.claimed_by_user.phone || '-'}</span>
                       </div>
+                      {selectedItem.claimed_at && (
+                        <div className="flex justify-between items-center py-1.5">
+                          <span className="text-xs text-emerald-600 font-semibold">Thời gian bàn giao</span>
+                          <span className="text-sm font-bold text-gray-900">{formatDateTime(selectedItem.claimed_at)}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

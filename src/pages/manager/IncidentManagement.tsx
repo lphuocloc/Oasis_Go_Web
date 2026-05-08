@@ -492,12 +492,12 @@ export const IncidentManagement = () => {
     try {
       setIsCreatingDamageBill(true)
       await createOrderDamageBillMutation(currentOrderId).unwrap()
-      toast.success('Damage Bill created successfully for the order')
+      toast.success('Đã tạo phiếu bồi thường thành công')
       const refreshed = await triggerGetOrderDetail(currentOrderId).unwrap()
       setOrderIncidents(refreshed.incidents)
       setOrderDetail(refreshed.order)
     } catch (err: unknown) {
-      const errorMessage = (err as any)?.error || 'Failed to create damage bill'
+      const errorMessage = (err as any)?.error || 'Tạo phiếu bồi thường thất bại'
       toast.error(errorMessage)
     } finally {
       setIsCreatingDamageBill(false)
